@@ -4,12 +4,12 @@ Lokálna webová aplikácia pre Google Chrome. Video a audio ostávajú v počí
 
 ## Spustenie
 
-1. Dvakrát kliknite na `start.command`.
-2. Pri prvom spustení počkajte na inštaláciu lokálnych závislostí.
-3. Chrome otvorí adresu `http://127.0.0.1:4173`.
-4. Terminál nechajte počas práce otvorený.
+1. Dvakrát kliknite na `Give Me Five Editor.app` (odporúčané).
+2. Ak macOS aplikáciu neotvorí, použite `start.command`; v jeho okne zostane zobrazená prípadná chyba.
+3. Pri prvom spustení počkajte na inštaláciu lokálnych závislostí.
+4. Chrome otvorí adresu `http://127.0.0.1:4173`.
 
-Samotný súbor `give_me_five.html` neotvárajte cez `file://`. Bez lokálneho helpera by nefungovala analýza ani export.
+Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte priamo, editor zobrazí pokyn na spustenie aplikácie a po zapnutí servera sa automaticky znovu pripojí.
 
 ## Pracovný postup
 
@@ -27,4 +27,3 @@ Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre fungu
 - pôvodné rozlíšenie a FPS zdrojového videa
 - svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
 - 3-sekundový blur/fade do čierna a stíšenie hudby na konci
-

@@ -45,6 +45,19 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 }
 });
 
+app.use((request, response, next) => {
+  if (request.headers.origin === "null") {
+    response.setHeader("Access-Control-Allow-Origin", "null");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  }
+  if (request.method === "OPTIONS") {
+    response.sendStatus(204);
+    return;
+  }
+  next();
+});
+
 app.use(express.json({ limit: "8mb" }));
 app.use("/assets", express.static(ASSET_DIR, { fallthrough: false }));
 app.use("/api/analysis", express.static(ANALYSIS_DIR, { fallthrough: false }));
@@ -725,8 +738,14 @@ detectWhooshPeak().finally(() => {
     const url = `http://${HOST}:${PORT}`;
     console.log(`Give Me Five editor is ready at ${url}`);
     if (process.env.GMF_OPEN_BROWSER === "1") {
+      const chromePath = "/Applications/Google Chrome.app";
+      const useChrome = process.platform === "darwin" && fs.existsSync(chromePath);
       const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
-      const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
+      const args = process.platform === "win32"
+        ? ["/c", "start", "", url]
+        : useChrome
+          ? ["-a", "Google Chrome", url]
+          : [url];
       const child = spawn(opener, args, { detached: true, stdio: "ignore" });
       child.unref();
     }

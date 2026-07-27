@@ -1,9 +1,31 @@
 #!/bin/bash
 
-set -e
+set -u
 
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$APP_DIR"
+APP_URL="http://127.0.0.1:4173"
+
+pause_if_terminal() {
+  if [ -t 0 ]; then
+    echo
+    read -r -p "Stlačte Enter pre zatvorenie."
+  fi
+}
+
+open_editor() {
+  if [ -d "/Applications/Google Chrome.app" ]; then
+    open -a "Google Chrome" "$APP_URL"
+  else
+    open "$APP_URL"
+  fi
+}
+
+if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+  echo "Give Me Five Editor už beží. Otváram Google Chrome…"
+  open_editor
+  exit 0
+fi
 
 NODE_BIN="$(command -v node || true)"
 PNPM_BIN="$(command -v pnpm || true)"
@@ -17,27 +39,42 @@ if [ -z "$PNPM_BIN" ] && [ -x "/Users/jakubsimonak/.cache/codex-runtimes/codex-p
 fi
 
 if [ -z "$NODE_BIN" ]; then
-  echo "Node.js 20 or newer is required."
-  echo "Install it from https://nodejs.org and run this file again."
-  read -r -p "Press Enter to close."
+  echo "CHYBA: Potrebný je Node.js 20 alebo novší."
+  echo "Nainštalujte ho z https://nodejs.org a spustite tento súbor znovu."
+  pause_if_terminal
   exit 1
 fi
 
 NODE_DIR="$(dirname "$NODE_BIN")"
 export PATH="$NODE_DIR:$PATH"
 
-if [ ! -d "node_modules" ]; then
+if [ ! -d "node_modules" ] || ! "$NODE_BIN" -e "require('express'); require('ffmpeg-static'); require('ffprobe-static')" >/dev/null 2>&1; then
+  echo "Pripravujem lokálny video engine. Pri prvom spustení to môže chvíľu trvať…"
   if [ -n "$PNPM_BIN" ]; then
-    "$PNPM_BIN" install
+    if ! "$PNPM_BIN" install; then
+      echo "CHYBA: Nepodarilo sa nainštalovať lokálny video engine."
+      pause_if_terminal
+      exit 1
+    fi
   elif command -v npm >/dev/null 2>&1; then
-    npm install
+    if ! npm install; then
+      echo "CHYBA: Nepodarilo sa nainštalovať lokálny video engine."
+      pause_if_terminal
+      exit 1
+    fi
   else
-    echo "The application dependencies are missing."
-    echo "Install npm or pnpm and run this file again."
-    read -r -p "Press Enter to close."
+    echo "CHYBA: Chýba npm alebo pnpm pre inštaláciu závislostí."
+    pause_if_terminal
     exit 1
   fi
 fi
 
+echo "Spúšťam Give Me Five Editor…"
+echo "Správna adresa je $APP_URL"
 export GMF_OPEN_BROWSER=1
-"$NODE_BIN" server.js
+if ! "$NODE_BIN" server.js; then
+  echo "CHYBA: Lokálny server sa nepodarilo spustiť."
+  echo "Ak je port 4173 obsadený, zatvorte staré okno Terminálu a skúste to znovu."
+  pause_if_terminal
+  exit 1
+fi

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+LAUNCH_COMMAND="/bin/bash '$PROJECT_DIR/start.command'"
+
+/usr/bin/osascript \
+  -e 'tell application "Terminal"' \
+  -e 'activate' \
+  -e "do script \"$LAUNCH_COMMAND\"" \
+  -e 'end tell'

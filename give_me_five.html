@@ -182,6 +182,13 @@
 
     .notice.visible { display: flex; }
 
+    body.engine-off label[for="videoFile"],
+    body.engine-off label[for="musicFile"] {
+      pointer-events: none;
+      filter: saturate(.2);
+      opacity: .42;
+    }
+
     .imports {
       display: grid;
       grid-template-columns: 1.35fr .85fr;
@@ -1101,7 +1108,8 @@
     </header>
 
     <div class="notice" id="serverNotice">
-      <span><strong>Editor nie je spustený cez lokálny helper.</strong> Otvorte <code>start.command</code>; tým sa odstráni chyba SharedArrayBuffer a aktivuje export.</span>
+      <span><strong>Editor nie je spustený.</strong> Vo Finderi dvakrát kliknite na <code>Give Me Five Editor.app</code>. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.</span>
+      <button class="btn danger" id="retryServer" type="button">Skontrolovať znova</button>
     </div>
 
     <section class="imports">
@@ -1401,6 +1409,7 @@
   <script>
     "use strict";
 
+    const API_ORIGIN = location.protocol === "file:" ? "http://127.0.0.1:4173" : "";
     const $ = (selector) => document.querySelector(selector);
     const $$ = (selector) => [...document.querySelectorAll(selector)];
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
@@ -1473,7 +1482,8 @@
     }
 
     async function api(url, options = {}) {
-      const response = await fetch(url, options);
+      const target = /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
+      const response = await fetch(target, options);
       if (!response.ok) {
         let message = `Chyba ${response.status}`;
         try {
@@ -1494,16 +1504,23 @@
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
         $("#serverNotice").classList.remove("visible");
+        document.body.classList.remove("engine-off");
       } catch (error) {
         state.serverReady = false;
         $("#engineStatus").classList.remove("ready");
         $("#engineLabel").textContent = "Lokálny engine nie je dostupný";
         $("#serverNotice").classList.add("visible");
+        document.body.classList.add("engine-off");
       }
       renderValidation();
     }
 
     async function uploadMedia(file, kind) {
+      if (!state.serverReady) {
+        $("#serverNotice").classList.add("visible");
+        toast("Najskôr spustite Give Me Five Editor.app vo Finderi.");
+        return;
+      }
       const card = kind === "video" ? $("#videoImportCard") : $("#musicImportCard");
       const name = kind === "video" ? $("#videoFileName") : $("#musicFileName");
       card.classList.add("loading");
@@ -1561,7 +1578,7 @@
       $("#videoFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
-      $("#videoSpectrum").src = record.analysis.spectrogramUrl || "";
+      $("#videoSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
       ["#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#applyDenoiseAll"].forEach((selector) => $(selector).disabled = false);
       renderAll();
       requestAnimationFrame(renderWaveforms);
@@ -1580,7 +1597,7 @@
       $("#playMusic").disabled = false;
       $("#setDropBtn").disabled = false;
       $("#musicFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
-      $("#musicSpectrum").src = record.analysis.spectrogramUrl || "";
+      $("#musicSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
       const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
       state.musicSettings.dropTime = clamp(Math.max(10, continuation), 0, record.analysis.metadata.duration);
       renderAll();
@@ -2143,7 +2160,7 @@
       await toggleVideoPlayback();
       setTimeout(() => {
         if (!video.paused) {
-          const sound = new Audio("/assets/fast-whoosh.mp3");
+          const sound = new Audio(`${API_ORIGIN}/assets/fast-whoosh.mp3`);
           sound.volume = 1;
           sound.play().catch(() => {});
         }
@@ -2242,7 +2259,7 @@
         renderValidation();
         toast("MP4 je pripravené a sťahuje sa.");
         const link = document.createElement("a");
-        link.href = job.downloadUrl;
+        link.href = `${API_ORIGIN}${job.downloadUrl}`;
         link.download = "give_me_five_edited.mp4";
         document.body.appendChild(link);
         link.click();
@@ -2431,6 +2448,7 @@
       });
 
       $("#exportBtn").addEventListener("click", exportProject);
+      $("#retryServer").addEventListener("click", checkServer);
 
       window.addEventListener("keydown", (event) => {
         if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
@@ -2473,6 +2491,9 @@
     renderWaveforms();
     renderAll();
     checkServer();
+    setInterval(() => {
+      if (!state.serverReady) checkServer();
+    }, 4000);
     requestAnimationFrame(animationLoop);
   </script>
 </body>
