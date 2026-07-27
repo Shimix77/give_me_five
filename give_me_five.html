@@ -331,9 +331,22 @@
 
     .workspace {
       display: grid;
-      grid-template-columns: 378px minmax(580px, 1fr) 365px;
+      grid-template-columns: minmax(760px, 1fr) 365px;
+      grid-template-areas:
+        "viewer inspector"
+        "timeline inspector";
       gap: 14px;
       align-items: start;
+    }
+
+    .workspace > section:first-child { grid-area: viewer; }
+    .workspace > section:nth-child(2) { grid-area: timeline; }
+    .workspace > aside {
+      position: sticky;
+      top: 12px;
+      grid-area: inspector;
+      max-height: calc(100vh - 24px);
+      overflow-y: auto;
     }
 
     .panel { overflow: hidden; }
@@ -377,7 +390,7 @@
       position: relative;
       display: grid;
       place-items: center;
-      min-height: 580px;
+      min-height: 470px;
       overflow: hidden;
       background:
         linear-gradient(45deg, #091220 25%, transparent 25%) 0 0/24px 24px,
@@ -389,7 +402,7 @@
 
     .video-wrap {
       position: relative;
-      width: min(310px, calc(100% - 44px));
+      width: min(260px, calc(100% - 44px));
       aspect-ratio: 9 / 16;
       overflow: hidden;
       border: 1px solid rgba(255, 255, 255, .1);
@@ -515,11 +528,34 @@
       border-bottom: 1px solid var(--line-soft);
     }
 
+    .master-play {
+      min-width: 155px;
+      border-color: rgba(115, 221, 177, .42);
+      background: rgba(115, 221, 177, .13);
+      color: #c8f5df;
+    }
+
+    .zoom-tool {
+      display: inline-grid;
+      grid-template-columns: auto 110px auto;
+      align-items: center;
+      gap: 7px;
+      min-height: 39px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(7, 16, 29, .5);
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 760;
+    }
+
     .timeline-body { padding: 16px; }
 
     .visualizer {
       position: relative;
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
       border: 1px solid var(--line);
       border-radius: 14px;
       background: #07101c;
@@ -581,7 +617,7 @@
 
     .media-vis {
       position: relative;
-      min-height: 126px;
+      min-height: 154px;
       cursor: crosshair;
     }
 
@@ -589,7 +625,7 @@
     .spectrogram-view {
       display: block;
       width: 100%;
-      height: 126px;
+      height: 154px;
     }
 
     .spectrogram-view {
@@ -602,11 +638,36 @@
 
     .media-vis[data-view="both"] {
       display: grid;
-      grid-template-rows: 94px 94px;
+      grid-template-rows: 122px 122px;
     }
 
     .media-vis[data-view="both"] .wave-view,
-    .media-vis[data-view="both"] .spectrogram-view { height: 94px; }
+    .media-vis[data-view="both"] .spectrogram-view { height: 122px; }
+
+    .section-lane {
+      position: relative;
+      height: 39px;
+      border-bottom: 1px solid var(--line);
+      background: #081321;
+      white-space: nowrap;
+    }
+
+    .section-block {
+      position: absolute;
+      top: 5px;
+      bottom: 5px;
+      overflow: hidden;
+      padding: 6px 8px;
+      border: 1px solid color-mix(in srgb, var(--section), transparent 55%);
+      border-radius: 6px;
+      background: color-mix(in srgb, var(--section), transparent 86%);
+      color: var(--section);
+      font-size: 8px;
+      font-weight: 900;
+      letter-spacing: .06em;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+    }
 
     .markers-layer {
       position: absolute;
@@ -839,6 +900,117 @@
       font-size: 11px;
     }
 
+    .inspector-body .control-card h3 {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .inspector-body .control-card h3::after {
+      margin-left: 8px;
+      color: var(--muted);
+      content: "⌃";
+      font-size: 10px;
+    }
+
+    .inspector-body .control-card.collapsed h3 {
+      margin-bottom: 0;
+    }
+
+    .inspector-body .control-card.collapsed h3::after { content: "⌄"; }
+    .inspector-body .control-card.collapsed > :not(h3) { display: none; }
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #081220;
+    }
+
+    .mode-switch button {
+      min-height: 29px;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .mode-switch button.active {
+      background: rgba(var(--accent-rgb), .18);
+      color: var(--accent-2);
+    }
+
+    .colour-channels {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .colour-channels .field {
+      margin: 0;
+      padding: 8px;
+      border: 1px solid var(--line-soft);
+      border-radius: 9px;
+    }
+
+    .transcript-copy {
+      max-height: 190px;
+      overflow-y: auto;
+      padding: 11px;
+      border: 1px solid var(--line-soft);
+      border-radius: 9px;
+      background: #07101c;
+      color: #d6dfeb;
+      font-size: 11px;
+      line-height: 1.65;
+    }
+
+    .transcript-progress {
+      height: 5px;
+      overflow: hidden;
+      margin: 9px 0;
+      border-radius: 99px;
+      background: #050b14;
+    }
+
+    .transcript-progress i {
+      display: block;
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--green));
+      transition: width .25s ease;
+    }
+
+    .mixer-strip {
+      display: grid;
+      grid-template-columns: 75px 1fr 58px;
+      align-items: center;
+      gap: 8px;
+      margin-top: 9px;
+    }
+
+    .mixer-strip label { font-size: 9px; }
+
+    .level-meter {
+      height: 7px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #050b14;
+    }
+
+    .level-meter i {
+      display: block;
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--green), var(--gold), var(--danger));
+      transition: width .08s linear;
+    }
+
     .control-card p {
       margin: 0 0 11px;
       color: var(--muted);
@@ -894,6 +1066,8 @@
     .music-workspace {
       margin-top: 14px;
     }
+
+    .music-workspace.collapsed .music-grid { display: none; }
 
     .music-grid {
       display: grid;
@@ -1078,9 +1252,9 @@
     }
 
     @media (max-width: 1450px) {
-      .workspace { grid-template-columns: 330px minmax(560px, 1fr) 330px; }
-      .preview-stage { min-height: 520px; }
-      .video-wrap { width: 270px; }
+      .workspace { grid-template-columns: minmax(690px, 1fr) 330px; }
+      .preview-stage { min-height: 430px; }
+      .video-wrap { width: 235px; }
     }
   </style>
 </head>
@@ -1159,6 +1333,7 @@
             <div class="empty-video" id="emptyVideo">
               <div><strong>Najskôr vložte video</strong>Waveform, spektrogram a časové značky sa vytvoria lokálne.</div>
             </div>
+            <div id="colorTint" style="position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:soft-light"></div>
             <div class="light-flash" id="lightFlash"></div>
             <div class="finish-shade" id="finishShade"></div>
           </div>
@@ -1180,6 +1355,20 @@
             <button class="tiny-toggle" id="musicSolo" type="button">S</button>
           </div>
         </div>
+        <div style="padding:0 14px 14px;background:#0a1423">
+          <div class="mixer-strip">
+            <label for="voiceMaster">Hlas</label>
+            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="0">
+            <span class="value" id="voiceMasterValue">0 dB</span>
+          </div>
+          <div class="level-meter"><i id="voiceMeter"></i></div>
+          <div class="mixer-strip">
+            <label for="musicOffset">Hudba</label>
+            <input id="musicOffset" type="range" min="-12" max="12" step=".5" value="0">
+            <span class="value" id="musicOffsetValue">0 dB</span>
+          </div>
+          <div class="level-meter"><i id="musicMeter"></i></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -1189,12 +1378,13 @@
             <p>Farebný waveform: reč, vietor, ostatný zvuk a ticho</p>
           </div>
           <div class="view-tabs" data-tabs="video">
-            <button type="button" data-view="wave">Waveform</button>
+            <button type="button" data-view="wave" class="active">Waveform</button>
             <button type="button" data-view="spectrum">Spektrogram</button>
-            <button type="button" data-view="both" class="active">Oboje</button>
+            <button type="button" data-view="both">Oboje</button>
           </div>
         </div>
         <div class="timeline-toolbar">
+          <button class="btn master-play" id="masterPlay" type="button" disabled>▶ Prehrať všetky stopy</button>
           <button class="btn" id="razorBtn" type="button" disabled>✂ Rozrezať v playheade</button>
           <button class="btn ghost" id="mergeBtn" type="button" disabled>Zlúčiť s ďalším</button>
           <button class="btn ghost" id="setTrimIn" type="button" disabled>Nastaviť začiatok</button>
@@ -1202,6 +1392,8 @@
           <button class="btn ghost" id="autoTrimSpeech" type="button" disabled>Začiatok −2 s pred rečou</button>
           <button class="btn ghost" id="autoTail" type="button" disabled>Záver +7 s</button>
           <button class="btn ghost" id="previewTransition" type="button" disabled>✦ Náhľad prechodu</button>
+          <button class="btn ghost" id="showTranscript" type="button" disabled>ⓘ Prepis</button>
+          <label class="zoom-tool">Zoom stopy <input id="timelineZoom" type="range" min="1" max="8" step=".25" value="1"><span id="timelineZoomValue">1×</span></label>
         </div>
         <div class="timeline-body">
           <div class="visualizer" id="videoVisualizer">
@@ -1209,7 +1401,8 @@
               <span></span><span></span><span></span><span></span><span></span>
               <span></span><span></span><span></span><span></span><span></span>
             </div>
-            <div class="media-vis" id="videoMediaVis" data-view="both">
+            <div class="section-lane" id="sectionLane"></div>
+            <div class="media-vis" id="videoMediaVis" data-view="wave">
               <canvas class="wave-view" id="videoWave"></canvas>
               <img class="spectrogram-view" id="videoSpectrum" alt="Spektrogram zvuku videa">
               <div class="markers-layer" id="videoMarkers"></div>
@@ -1242,6 +1435,55 @@
         </div>
         <div class="inspector-body">
           <div class="control-card">
+            <h3>Transformácia segmentu <span class="value" id="transformZoomValue">100 %</span></h3>
+            <p>Zoom a poloha sa ukladajú samostatne pre práve vybraný segment.</p>
+            <div class="field">
+              <div class="field-line"><label for="transformZoom">Zoom</label><span class="value">1,00× – 2,50×</span></div>
+              <input id="transformZoom" type="range" min="1" max="2.5" step=".01" value="1" disabled>
+            </div>
+            <div class="field">
+              <div class="field-line"><label for="transformX">Poloha X</label><span class="value" id="transformXValue">0</span></div>
+              <input id="transformX" type="range" min="-100" max="100" step="1" value="0" disabled>
+            </div>
+            <div class="field">
+              <div class="field-line"><label for="transformY">Poloha Y</label><span class="value" id="transformYValue">0</span></div>
+              <input id="transformY" type="range" min="-100" max="100" step="1" value="0" disabled>
+            </div>
+            <button class="btn ghost" id="resetTransform" type="button" disabled style="width:100%;margin-top:10px">Obnoviť transformáciu</button>
+          </div>
+
+          <div class="control-card">
+            <h3>Farby celého videa <span class="value" id="colourBoostValue">0 %</span></h3>
+            <p>Color boost je globálny. Môžete zvýrazniť všetky farby alebo samostatne červenú, zelenú a modrú.</p>
+            <div class="mode-switch">
+              <button type="button" id="colourAll" class="active">Všetky farby</button>
+              <button type="button" id="colourIndividual">Jednotlivé RGB</button>
+            </div>
+            <div class="field" id="allColourField">
+              <label for="colourBoost">Color boost 0–100 %</label>
+              <input id="colourBoost" type="range" min="0" max="100" value="0">
+            </div>
+            <div class="colour-channels hidden" id="individualColours">
+              <div class="field"><label for="colourRed">Červená <span id="colourRedValue">0</span>%</label><input id="colourRed" type="range" min="0" max="100" value="0"></div>
+              <div class="field"><label for="colourGreen">Zelená <span id="colourGreenValue">0</span>%</label><input id="colourGreen" type="range" min="0" max="100" value="0"></div>
+              <div class="field"><label for="colourBlue">Modrá <span id="colourBlueValue">0</span>%</label><input id="colourBlue" type="range" min="0" max="100" value="0"></div>
+            </div>
+            <div class="field">
+              <div class="field-line"><label for="colourTemperature">Teplota</label><span class="value" id="colourTemperatureValue">0</span></div>
+              <input id="colourTemperature" type="range" min="-100" max="100" value="0">
+            </div>
+            <div class="field">
+              <div class="field-line"><label for="colourIntensity">Jas / intenzita</label><span class="value" id="colourIntensityValue">0</span></div>
+              <input id="colourIntensity" type="range" min="-100" max="100" value="0">
+            </div>
+            <div class="field">
+              <div class="field-line"><label for="colourSharpness">Ostrosť</label><span class="value" id="colourSharpnessValue">0 %</span></div>
+              <input id="colourSharpness" type="range" min="0" max="100" value="0">
+            </div>
+            <button class="btn ghost" id="resetColour" type="button" style="width:100%;margin-top:10px">Obnoviť farby</button>
+          </div>
+
+          <div class="control-card collapsed">
             <h3>Globálny denoise <span class="value" id="globalStrengthValue">45 %</span></h3>
             <p>Použite na celé video pred rezaním. Nové segmenty zdedia jeho nastavenia.</p>
             <div class="field">
@@ -1292,7 +1534,7 @@
             </div>
           </div>
 
-          <div class="control-card">
+          <div class="control-card collapsed">
             <h3>Svetelný prechod <span class="value" id="transitionValue">2,0 s</span></h3>
             <p>Začne 0,5 s po „Give Me Five“. Vrchol whooshu sa zarovná s najjasnejším bodom.</p>
             <div class="field">
@@ -1305,13 +1547,22 @@
             </div>
           </div>
 
-          <div class="control-card">
+          <div class="control-card collapsed">
             <h3>Finálny obraz</h3>
-            <p>Po posledných slovách ostane obraz 4 s. Posledné 3 s sa rozostrí a stmavne; hudba sa súčasne stratí.</p>
+            <p>Po posledných slovách ostane obraz 4 s, potom 3 s blur/fade a následne 2 s úplne čierny obraz. Hudba plynulo dohrá až do konca čiernej.</p>
             <div class="button-pair">
               <span class="pill">Obraz +4 s</span>
               <span class="pill">Blur/fade 3 s</span>
             </div>
+            <span class="pill" style="width:100%;justify-content:center;margin-top:7px">Čierna +2 s · hudba doznie</span>
+          </div>
+
+          <div class="control-card collapsed" id="transcriptCard">
+            <h3>Informačný prepis <span class="pill" id="transcriptPill">Čaká</span></h3>
+            <p id="transcriptStatus">Po vložení videa sa automaticky spustí lokálny slovenský prepis.</p>
+            <div class="transcript-progress"><i id="transcriptProgress"></i></div>
+            <div class="transcript-copy" id="transcriptText">Prepis ešte nie je k dispozícii.</div>
+            <button class="btn ghost" id="retryTranscript" type="button" disabled style="width:100%;margin-top:10px">Spustiť prepis znova</button>
           </div>
         </div>
       </aside>
@@ -1323,10 +1574,13 @@
           <h2>Hudobný podmaz a drop</h2>
           <p>Drop skladby sa stretne so začiatkom druhej časti reči; prehrávanie je synchronizované s videom</p>
         </div>
-        <div class="view-tabs" data-tabs="music">
-          <button type="button" data-view="wave">Waveform</button>
-          <button type="button" data-view="spectrum">Spektrogram</button>
-          <button type="button" data-view="both" class="active">Oboje</button>
+        <div style="display:flex;gap:7px;align-items:center">
+          <button class="btn ghost" id="toggleMusicPanel" type="button">Skryť hudobný panel</button>
+          <div class="view-tabs" data-tabs="music">
+            <button type="button" data-view="wave" class="active">Waveform</button>
+            <button type="button" data-view="spectrum">Spektrogram</button>
+            <button type="button" data-view="both">Oboje</button>
+          </div>
         </div>
       </div>
       <div class="music-grid">
@@ -1337,7 +1591,7 @@
             <span class="timecode" id="musicTime">00:00.000</span>
           </div>
           <div class="visualizer">
-            <div class="media-vis" id="musicMediaVis" data-view="both">
+            <div class="media-vis" id="musicMediaVis" data-view="wave">
               <canvas class="wave-view" id="musicWave"></canvas>
               <img class="spectrogram-view" id="musicSpectrum" alt="Spektrogram hudby">
               <div class="markers-layer" id="musicMarkers"></div>
@@ -1429,12 +1683,33 @@
       selectedSegmentId: null,
       globalDenoise: { mode: "none", strength: 45 },
       transitionDuration: 2,
+      timelineZoom: 1,
+      markersManuallyEdited: false,
+      voiceMasterDb: 0,
+      colour: {
+        mode: "all",
+        boost: 0,
+        red: 0,
+        green: 0,
+        blue: 0,
+        temperature: 0,
+        intensity: 0,
+        sharpness: 0
+      },
+      transcript: {
+        status: "idle",
+        progress: 0,
+        message: "Čaká na video",
+        result: null,
+        jobId: null
+      },
       musicSettings: {
         enabled: true,
         dropTime: 0,
         baseDb: -8,
         duringSpeechDb: -22,
         afterSpeechDb: -13,
+        offsetDb: 0,
         manual: false
       },
       channel: {
@@ -1443,10 +1718,11 @@
         videoSolo: false,
         musicSolo: false
       },
-      videoView: "both",
-      musicView: "both",
+      videoView: "wave",
+      musicView: "wave",
       drag: null,
       audioGraph: null,
+      previewTailStartedAt: null,
       lastCleanUrl: null,
       toastTimer: null
     };
@@ -1549,6 +1825,7 @@
       const duration = record.analysis.metadata.duration;
       state.trimStart = 0;
       state.trimEnd = duration;
+      state.markersManuallyEdited = false;
       state.markers = {
         speechStart: clamp(2, 0, duration),
         giveEnd: clamp(6, 0, duration),
@@ -1563,7 +1840,8 @@
         end: duration,
         gainDb: 0,
         muted: false,
-        denoise: inherited
+        denoise: inherited,
+        transform: { zoom: 1, x: 0, y: 0 }
       }];
       state.selectedSegmentId = state.segments[0].id;
 
@@ -1579,9 +1857,10 @@
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
       $("#videoSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
-      ["#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#applyDenoiseAll"].forEach((selector) => $(selector).disabled = false);
+      ["#masterPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#applyDenoiseAll"].forEach((selector) => $(selector).disabled = false);
       renderAll();
       requestAnimationFrame(renderWaveforms);
+      startTranscript();
     }
 
     function loadMusicRecord(record) {
@@ -1634,8 +1913,8 @@
         return;
       }
       const source = state.segments[index];
-      const left = { ...source, id: uid(), end: time, denoise: structuredClone(source.denoise) };
-      const right = { ...source, id: uid(), start: time, denoise: structuredClone(source.denoise) };
+      const left = { ...source, id: uid(), end: time, denoise: structuredClone(source.denoise), transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
+      const right = { ...source, id: uid(), start: time, denoise: structuredClone(source.denoise), transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
       state.segments.splice(index, 1, left, right);
       state.selectedSegmentId = right.id;
       renderAll();
@@ -1654,7 +1933,8 @@
         ...source,
         id: uid(),
         end: next.end,
-        denoise: structuredClone(source.denoise)
+        denoise: structuredClone(source.denoise),
+        transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 })
       });
       state.selectedSegmentId = state.segments[index].id;
       renderAll();
@@ -1683,11 +1963,17 @@
 
       context.strokeStyle = "rgba(145,160,183,.09)";
       context.lineWidth = 1;
-      for (let x = 0; x <= width; x += width / 10) {
+      for (let index = 0; index <= 10; index++) {
+        const x = index * width / 10;
         context.beginPath();
         context.moveTo(x, 0);
         context.lineTo(x, height);
         context.stroke();
+        if (record?.analysis?.metadata?.duration && index < 10) {
+          context.fillStyle = "rgba(190,204,223,.62)";
+          context.font = "700 9px ui-monospace, monospace";
+          context.fillText(formatTime(record.analysis.metadata.duration * index / 10).slice(0, 5), x + 4, 12);
+        }
       }
       context.beginPath();
       context.moveTo(0, height / 2);
@@ -1765,6 +2051,35 @@
       layer.innerHTML = leftShade + rightShade + transition + markers;
     }
 
+    function renderSectionLane() {
+      const lane = $("#sectionLane");
+      if (!state.video) {
+        lane.innerHTML = "";
+        return;
+      }
+      const duration = state.video.analysis.metadata.duration;
+      const suggestedGiveStart = state.transcript.result?.suggestions?.giveStart;
+      const giveStart = Number.isFinite(suggestedGiveStart)
+        ? clamp(suggestedGiveStart, state.markers.speechStart, state.markers.giveEnd)
+        : Math.max(state.markers.speechStart, state.markers.giveEnd - 1.25);
+      const suggestedPeaceStart = state.transcript.result?.suggestions?.peaceStart;
+      const peaceStart = Number.isFinite(suggestedPeaceStart)
+        ? clamp(suggestedPeaceStart, state.markers.continueStart, state.markers.speechEnd)
+        : state.markers.speechEnd;
+      const sections = [
+        ["Úvod / hudba", state.trimStart, state.markers.speechStart, "#aebcd0"],
+        ["Prvá reč", state.markers.speechStart, giveStart, "#6fa8ff"],
+        ["Give Me Five", giveStart, state.markers.giveEnd, "#f0c75e"],
+        ["Pauza + prechod", state.markers.giveEnd, state.markers.continueStart, "#ec7db3"],
+        ["Druhá reč", state.markers.continueStart, peaceStart, "#73ddb1"],
+        ["Pokoj a požehnanie", peaceStart, state.markers.speechEnd, "#f0c75e"],
+        ["Záver obrazu", state.markers.speechEnd, state.trimEnd, "#a993ff"]
+      ];
+      lane.innerHTML = sections.filter((section) => section[2] - section[1] > .02).map(([label, start, end, colour]) =>
+        `<div class="section-block" style="left:${markerPercent(start, duration)};width:${markerPercent(end - start, duration)};--section:${colour}">${label}</div>`
+      ).join("");
+    }
+
     function renderMusicMarkers() {
       const layer = $("#musicMarkers");
       if (!state.music) {
@@ -1828,7 +2143,7 @@
 
     function renderInspector() {
       const segment = getSelectedSegment();
-      const controls = ["#segmentGain", "#segmentDenoise", "#segmentStrength", "#segmentMuteBtn", "#cleanPreviewBtn"];
+      const controls = ["#segmentGain", "#segmentDenoise", "#segmentStrength", "#segmentMuteBtn", "#cleanPreviewBtn", "#transformZoom", "#transformX", "#transformY", "#resetTransform"];
       controls.forEach((selector) => $(selector).disabled = !segment);
       if (!segment) {
         $("#selectionPill").textContent = "Bez segmentu";
@@ -1845,11 +2160,18 @@
       $("#segmentStrengthValue").textContent = `${segment.denoise?.strength || 0} %`;
       $("#segmentMuteBtn").textContent = segment.muted ? "Obnoviť zvuk" : "Stíšiť na nulu";
       $("#segmentMuteBtn").classList.toggle("danger", !segment.muted);
+      const transform = segment.transform || (segment.transform = { zoom: 1, x: 0, y: 0 });
+      $("#transformZoom").value = String(transform.zoom);
+      $("#transformX").value = String(transform.x);
+      $("#transformY").value = String(transform.y);
+      $("#transformZoomValue").textContent = `${Math.round(transform.zoom * 100)} %`;
+      $("#transformXValue").textContent = String(transform.x);
+      $("#transformYValue").textContent = String(transform.y);
     }
 
     function calculateMusicPassage() {
       if (!state.video || !state.music) return null;
-      const outputDuration = state.trimEnd - state.trimStart;
+      const outputDuration = state.trimEnd - state.trimStart + 2;
       const continuationRelative = state.markers.continueStart - state.trimStart;
       const start = state.musicSettings.dropTime - continuationRelative;
       return { start, end: start + outputDuration, duration: outputDuration };
@@ -1870,10 +2192,73 @@
         const duration = state.music.analysis.metadata.duration;
         const valid = passage.start >= 0 && passage.end <= duration;
         $("#musicPassage").innerHTML = valid
-          ? `Použije sa <strong>${formatTime(passage.start)} – ${formatTime(passage.end)}</strong>. Hudba skončí presne spolu s videom.`
+          ? `Použije sa <strong>${formatTime(passage.start)} – ${formatTime(passage.end)}</strong>. Zahŕňa aj 2 s čiernej a hudba dohrá presne do konca.`
           : `<span style="color:var(--danger)">Pasáž ${formatTime(Math.max(0, passage.start))} – ${formatTime(passage.end)} sa do skladby nezmestí. Posuňte drop alebo vyberte dlhšiu skladbu.</span>`;
       }
       renderMusicMarkers();
+    }
+
+    function renderColour() {
+      const colour = state.colour;
+      $("#colourAll").classList.toggle("active", colour.mode === "all");
+      $("#colourIndividual").classList.toggle("active", colour.mode === "individual");
+      $("#allColourField").classList.toggle("hidden", colour.mode !== "all");
+      $("#individualColours").classList.toggle("hidden", colour.mode !== "individual");
+      $("#colourBoost").value = colour.boost;
+      $("#colourRed").value = colour.red;
+      $("#colourGreen").value = colour.green;
+      $("#colourBlue").value = colour.blue;
+      $("#colourTemperature").value = colour.temperature;
+      $("#colourIntensity").value = colour.intensity;
+      $("#colourSharpness").value = colour.sharpness;
+      $("#colourBoostValue").textContent = colour.mode === "all" ? `${colour.boost} %` : "RGB";
+      $("#colourRedValue").textContent = colour.red;
+      $("#colourGreenValue").textContent = colour.green;
+      $("#colourBlueValue").textContent = colour.blue;
+      $("#colourTemperatureValue").textContent = colour.temperature;
+      $("#colourIntensityValue").textContent = colour.intensity;
+      $("#colourSharpnessValue").textContent = `${colour.sharpness} %`;
+    }
+
+    function renderTranscript() {
+      const transcript = state.transcript;
+      $("#transcriptProgress").style.width = `${Math.round(transcript.progress * 100)}%`;
+      $("#transcriptStatus").textContent = transcript.message;
+      $("#transcriptPill").textContent = transcript.status === "completed"
+        ? "Hotovo"
+        : transcript.status === "failed"
+          ? "Chyba"
+          : transcript.status === "running"
+            ? `${Math.round(transcript.progress * 100)} %`
+            : "Čaká";
+      $("#transcriptText").textContent = transcript.result?.text || "Prepis ešte nie je k dispozícii.";
+      $("#retryTranscript").disabled = !state.video || transcript.status === "running";
+    }
+
+    function renderTimelineZoom() {
+      const width = `${state.timelineZoom * 100}%`;
+      $("#videoVisualizer .filmstrip").style.width = width;
+      $("#sectionLane").style.width = width;
+      $("#videoMediaVis").style.width = width;
+      $("#timelineZoom").value = state.timelineZoom;
+      $("#timelineZoomValue").textContent = `${state.timelineZoom.toFixed(2).replace(/\.00$/, "")}×`;
+    }
+
+    function meterPeak(record, time) {
+      if (!record?.analysis?.peaks?.length) return 0;
+      const duration = record.analysis.metadata.duration;
+      const index = Math.min(record.analysis.peaks.length - 1, Math.max(0, Math.floor(time / Math.max(.001, duration) * record.analysis.peaks.length)));
+      return record.analysis.peaks[index] || 0;
+    }
+
+    function renderMeters() {
+      const videoTime = $("#video").currentTime;
+      const passage = calculateMusicPassage();
+      const musicTime = passage ? passage.start + (videoTime - state.trimStart) : $("#music").currentTime;
+      const voicePeak = meterPeak(state.video, videoTime) * dbToLinear(state.voiceMasterDb);
+      const musicPeak = meterPeak(state.music, musicTime) * dbToLinear(musicDbAtVideoTime(videoTime) + state.musicSettings.offsetDb);
+      $("#voiceMeter").style.width = `${clamp(voicePeak * 100, 0, 100)}%`;
+      $("#musicMeter").style.width = `${clamp(musicPeak * 100, 0, 100)}%`;
     }
 
     function validate() {
@@ -1907,6 +2292,7 @@
       const tail = state.trimEnd - m.speechEnd;
       if (tail < 7) warnings.push(`Po reči zostáva ${tail.toFixed(1)} s; recept 4 s obraz + 3 s fade sa na konci prekryje.`);
       else checks.push({ text: `Záver ${tail.toFixed(1)} s` });
+      checks.push({ text: "Čierny obraz +2 s" });
 
       if (state.music) {
         const passage = calculateMusicPassage();
@@ -1943,7 +2329,7 @@
       if (state.video) {
         const duration = state.video.analysis.metadata.duration;
         $("#videoPlayhead").style.left = markerPercent(video.currentTime, duration);
-        $("#videoTime").textContent = formatTime(video.currentTime);
+        $("#videoTime").textContent = formatTime(currentPreviewTime());
         if (document.activeElement !== $("#videoScrubber")) $("#videoScrubber").value = video.currentTime;
       }
       if (state.music) {
@@ -1954,9 +2340,16 @@
       }
     }
 
+    function currentPreviewTime() {
+      if (state.previewTailStartedAt !== null) {
+        return state.trimEnd + clamp((performance.now() - state.previewTailStartedAt) / 1000, 0, 2);
+      }
+      return $("#video").currentTime;
+    }
+
     function renderPreviewEffects() {
       if (!state.video) return;
-      const time = $("#video").currentTime;
+      const time = currentPreviewTime();
       const start = state.markers.giveEnd + .5;
       const fadeIn = state.transitionDuration * .3;
       const end = start + state.transitionDuration;
@@ -1967,18 +2360,39 @@
 
       const fadeStart = state.trimEnd - Math.min(3, state.trimEnd - state.trimStart);
       const finalProgress = time >= fadeStart ? clamp((time - fadeStart) / Math.max(.01, state.trimEnd - fadeStart), 0, 1) : 0;
-      $("#finishShade").style.opacity = String(finalProgress);
-      $("#video").style.filter = finalProgress ? `blur(${finalProgress * 18}px)` : "";
+      $("#finishShade").style.opacity = String(time >= state.trimEnd ? 1 : finalProgress);
+      const colour = state.colour;
+      const saturation = colour.mode === "all"
+        ? 1 + colour.boost / 100 * .85
+        : 1 + (colour.red + colour.green + colour.blue) / 300 * .24;
+      const brightness = 1 + colour.intensity / 100 * .14;
+      const contrast = 1 + Math.abs(colour.intensity) / 100 * .12;
+      const warm = Math.abs(colour.temperature) / 100 * .18;
+      const hue = colour.temperature < 0 ? -8 * warm : 8 * warm;
+      const blur = finalProgress * 18;
+      $("#video").style.filter = `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
+      const segment = segmentAt($("#video").currentTime);
+      const transform = segment?.transform || { zoom: 1, x: 0, y: 0 };
+      $("#video").style.transform = `scale(${transform.zoom}) translate(${transform.x / 2}%, ${transform.y / 2}%)`;
+      $("#video").style.transformOrigin = "center";
+      const tintOpacity = colour.mode === "individual" ? (colour.red + colour.green + colour.blue) / 300 * .24 : 0;
+      $("#colorTint").style.opacity = String(tintOpacity);
+      $("#colorTint").style.background = `rgb(${128 + colour.red * 1.27}, ${128 + colour.green * 1.27}, ${128 + colour.blue * 1.27})`;
     }
 
     function renderAll() {
       renderVideoMarkers();
+      renderSectionLane();
       renderSegments();
       renderMarkerList();
       renderInspector();
       renderMusic();
+      renderColour();
+      renderTranscript();
+      renderTimelineZoom();
       renderValidation();
       renderPlayheads();
+      renderMeters();
       updateAudioMix(true);
     }
 
@@ -1996,8 +2410,9 @@
       }[key] || [0, duration];
     }
 
-    function setMarker(key, value) {
+    function setMarker(key, value, manual = true) {
       if (!state.video) return;
+      if (manual) state.markersManuallyEdited = true;
       const [min, max] = markerBounds(key);
       const next = clamp(value, min, max);
       if (key === "trimStart" || key === "trimEnd") state[key] = next;
@@ -2090,14 +2505,17 @@
     function updateAudioMix(forceSync = false) {
       const video = $("#video");
       const music = $("#music");
+      const previewTime = currentPreviewTime();
       const segment = segmentAt(video.currentTime);
-      const videoLevel = channelAudible("video") && !segment?.muted ? dbToLinear(segment?.gainDb || 0) : 0;
+      const videoLevel = channelAudible("video") && !segment?.muted && state.previewTailStartedAt === null
+        ? dbToLinear((segment?.gainDb || 0) + state.voiceMasterDb)
+        : 0;
       const finalFadeStart = state.trimEnd - 3;
-      const finalFactor = state.video && video.currentTime > finalFadeStart
-        ? clamp((state.trimEnd - video.currentTime) / 3, 0, 1)
+      const finalFactor = state.video && previewTime > finalFadeStart
+        ? clamp((state.trimEnd + 2 - previewTime) / 5, 0, 1)
         : 1;
       const musicLevel = channelAudible("music") && state.music
-        ? dbToLinear(musicDbAtVideoTime(video.currentTime)) * finalFactor
+        ? dbToLinear(musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb) * finalFactor
         : 0;
       if (state.audioGraph) {
         state.audioGraph.videoGain.gain.setTargetAtTime(videoLevel, state.audioGraph.context.currentTime, .015);
@@ -2107,10 +2525,10 @@
         music.volume = clamp(musicLevel, 0, 1);
       }
 
-      if (state.video && state.music && !video.paused) {
+      if (state.video && state.music && (!video.paused || state.previewTailStartedAt !== null)) {
         const passage = calculateMusicPassage();
         if (passage && passage.start >= 0 && passage.end <= state.music.analysis.metadata.duration) {
-          const target = passage.start + (video.currentTime - state.trimStart);
+          const target = passage.start + (previewTime - state.trimStart);
           if (target >= passage.start && target <= passage.end) {
             if (forceSync || Math.abs(music.currentTime - target) > .12) music.currentTime = target;
             if (music.paused) music.play().catch(() => {});
@@ -2130,13 +2548,15 @@
     async function toggleVideoPlayback() {
       if (!state.video) return;
       const video = $("#video");
-      if (!video.paused) {
+      if (!video.paused || state.previewTailStartedAt !== null) {
+        state.previewTailStartedAt = null;
         video.pause();
         $("#music").pause();
         return;
       }
       await ensureAudioGraph();
       if (video.currentTime < state.trimStart || video.currentTime >= state.trimEnd) video.currentTime = state.trimStart;
+      state.previewTailStartedAt = null;
       updateAudioMix(true);
       await video.play();
     }
@@ -2200,6 +2620,77 @@
       }
     }
 
+    function applyTranscriptSuggestions(result) {
+      if (!state.video || state.markersManuallyEdited || !result?.suggestions) return;
+      const suggestions = result.suggestions;
+      const duration = state.video.analysis.metadata.duration;
+      if (Number.isFinite(suggestions.speechStart)) state.markers.speechStart = clamp(suggestions.speechStart, 0, duration);
+      if (Number.isFinite(suggestions.giveEnd)) state.markers.giveEnd = clamp(suggestions.giveEnd, state.markers.speechStart, duration);
+      if (Number.isFinite(suggestions.continueStart)) state.markers.continueStart = clamp(suggestions.continueStart, state.markers.giveEnd, duration);
+      if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd, state.markers.continueStart, duration);
+      enforceMarkerOrder();
+      state.trimStart = Math.max(0, state.markers.speechStart - 2);
+      state.trimEnd = Math.min(duration, state.markers.speechEnd + 7);
+      enforceMarkerOrder();
+      toast(Number.isFinite(suggestions.giveEnd)
+        ? "Prepis našiel „Give Me Five“ a navrhol časové značky."
+        : "Prepis navrhol začiatok a koniec hovoreného slova.");
+    }
+
+    async function startTranscript() {
+      if (!state.video || !state.serverReady) return;
+      const videoId = state.video.analysis.id;
+      state.transcript = {
+        status: "running",
+        progress: 0,
+        message: "Spúšťam lokálny slovenský prepis…",
+        result: null,
+        jobId: null
+      };
+      renderTranscript();
+      try {
+        const response = await api("/api/transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ videoId })
+        });
+        const data = await response.json();
+        state.transcript.jobId = data.jobId;
+        await pollTranscript(data.jobId, videoId);
+      } catch (error) {
+        if (state.video?.analysis.id !== videoId) return;
+        state.transcript.status = "failed";
+        state.transcript.message = error.message;
+        renderTranscript();
+      }
+    }
+
+    async function pollTranscript(jobId, videoId) {
+      if (state.video?.analysis.id !== videoId) return;
+      const response = await api(`/api/transcript/${jobId}`);
+      const job = await response.json();
+      state.transcript.status = job.status;
+      state.transcript.progress = job.progress || 0;
+      state.transcript.message = job.message || "Lokálny prepis…";
+      if (job.status === "completed") {
+        state.transcript.result = job.result;
+        const foundGive = Number.isFinite(job.result?.suggestions?.giveEnd);
+        const foundPeace = Number.isFinite(job.result?.suggestions?.peaceStart);
+        state.transcript.message = `Lokálny prepis hotový · Give Me Five ${foundGive ? "nájdené" : "nenájdené"} · záverečná fráza ${foundPeace ? "nájdená" : "nenájdená"}`;
+        applyTranscriptSuggestions(job.result);
+        renderAll();
+        return;
+      }
+      if (job.status === "failed") {
+        state.transcript.message = job.error || job.message || "Prepis zlyhal.";
+        renderTranscript();
+        return;
+      }
+      renderTranscript();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      return pollTranscript(jobId, videoId);
+    }
+
     function exportPayload() {
       return {
         videoId: state.video.analysis.id,
@@ -2209,12 +2700,15 @@
         markers: state.markers,
         transitionDuration: state.transitionDuration,
         segments: state.segments,
+        voiceMasterDb: state.voiceMasterDb,
+        colour: state.colour,
         music: {
           enabled: Boolean(state.music),
           dropTime: state.musicSettings.dropTime,
           baseDb: state.musicSettings.baseDb,
           duringSpeechDb: state.musicSettings.duringSpeechDb,
           afterSpeechDb: state.musicSettings.afterSpeechDb,
+          offsetDb: state.musicSettings.offsetDb,
           manual: state.musicSettings.manual
         }
       };
@@ -2344,13 +2838,31 @@
       });
       $("#previewTransition").addEventListener("click", previewTransition);
       $("#playVideo").addEventListener("click", toggleVideoPlayback);
+      $("#masterPlay").addEventListener("click", toggleVideoPlayback);
       $("#playMusic").addEventListener("click", toggleMusicPlayback);
+      $("#showTranscript").addEventListener("click", () => {
+        $("#transcriptCard").classList.remove("collapsed");
+        $("#transcriptCard").scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      $("#retryTranscript").addEventListener("click", startTranscript);
+      $("#toggleMusicPanel").addEventListener("click", () => {
+        const panel = $(".music-workspace");
+        panel.classList.toggle("collapsed");
+        $("#toggleMusicPanel").textContent = panel.classList.contains("collapsed") ? "Zobraziť hudobný panel" : "Skryť hudobný panel";
+        requestAnimationFrame(renderWaveforms);
+      });
+      $("#timelineZoom").addEventListener("input", (event) => {
+        state.timelineZoom = Number(event.target.value);
+        renderTimelineZoom();
+        requestAnimationFrame(renderWaveforms);
+      });
       $("#setDropBtn").addEventListener("click", () => {
         state.musicSettings.dropTime = $("#music").currentTime;
         renderAll();
       });
 
       $("#videoScrubber").addEventListener("input", (event) => {
+        state.previewTailStartedAt = null;
         $("#video").currentTime = Number(event.target.value);
         renderPlayheads();
         renderPreviewEffects();
@@ -2361,15 +2873,28 @@
         renderPlayheads();
       });
 
-      $("#video").addEventListener("play", () => $("#playVideo").textContent = "❚❚");
+      $("#video").addEventListener("play", () => {
+        $("#playVideo").textContent = "❚❚";
+        $("#masterPlay").textContent = "❚❚ Pozastaviť všetky stopy";
+      });
       $("#video").addEventListener("pause", () => {
-        $("#playVideo").textContent = "▶";
-        $("#music").pause();
+        if (state.previewTailStartedAt === null) {
+          $("#playVideo").textContent = "▶";
+          $("#masterPlay").textContent = "▶ Prehrať všetky stopy";
+          $("#music").pause();
+        }
       });
       $("#music").addEventListener("play", () => $("#playMusic").textContent = "❚❚");
       $("#music").addEventListener("pause", () => $("#playMusic").textContent = "▶");
+      $("#video").addEventListener("ended", () => {
+        if (state.video && state.previewTailStartedAt === null) {
+          state.previewTailStartedAt = performance.now();
+          updateAudioMix(true);
+        }
+      });
       $("#video").addEventListener("timeupdate", () => {
         if (state.video && !$("#video").paused && $("#video").currentTime >= state.trimEnd) {
+          state.previewTailStartedAt = performance.now();
           $("#video").pause();
           $("#video").currentTime = state.trimEnd;
         }
@@ -2387,6 +2912,10 @@
         $("#globalStrengthValue").textContent = `${event.target.value} %`;
       });
       $("#applyDenoiseAll").addEventListener("click", applyGlobalDenoise);
+
+      $$(".inspector-body .control-card h3").forEach((heading) => {
+        heading.addEventListener("click", () => heading.closest(".control-card").classList.toggle("collapsed"));
+      });
 
       $("#segmentGain").addEventListener("input", (event) => {
         const segment = getSelectedSegment();
@@ -2416,6 +2945,58 @@
         renderAll();
       });
       $("#cleanPreviewBtn").addEventListener("click", previewCleanedSegment);
+
+      [["transformZoom", "zoom"], ["transformX", "x"], ["transformY", "y"]].forEach(([id, key]) => {
+        $(`#${id}`).addEventListener("input", (event) => {
+          const segment = getSelectedSegment();
+          if (!segment) return;
+          segment.transform ||= { zoom: 1, x: 0, y: 0 };
+          segment.transform[key] = Number(event.target.value);
+          renderInspector();
+          renderPreviewEffects();
+        });
+      });
+      $("#resetTransform").addEventListener("click", () => {
+        const segment = getSelectedSegment();
+        if (!segment) return;
+        segment.transform = { zoom: 1, x: 0, y: 0 };
+        renderInspector();
+        renderPreviewEffects();
+      });
+
+      $("#colourAll").addEventListener("click", () => {
+        state.colour.mode = "all";
+        renderColour();
+        renderPreviewEffects();
+      });
+      $("#colourIndividual").addEventListener("click", () => {
+        state.colour.mode = "individual";
+        renderColour();
+        renderPreviewEffects();
+      });
+      [["colourBoost", "boost"], ["colourRed", "red"], ["colourGreen", "green"], ["colourBlue", "blue"], ["colourTemperature", "temperature"], ["colourIntensity", "intensity"], ["colourSharpness", "sharpness"]].forEach(([id, key]) => {
+        $(`#${id}`).addEventListener("input", (event) => {
+          state.colour[key] = Number(event.target.value);
+          renderColour();
+          renderPreviewEffects();
+        });
+      });
+      $("#resetColour").addEventListener("click", () => {
+        state.colour = { mode: "all", boost: 0, red: 0, green: 0, blue: 0, temperature: 0, intensity: 0, sharpness: 0 };
+        renderColour();
+        renderPreviewEffects();
+      });
+
+      $("#voiceMaster").addEventListener("input", (event) => {
+        state.voiceMasterDb = Number(event.target.value);
+        $("#voiceMasterValue").textContent = formatDb(state.voiceMasterDb);
+        updateAudioMix();
+      });
+      $("#musicOffset").addEventListener("input", (event) => {
+        state.musicSettings.offsetDb = Number(event.target.value);
+        $("#musicOffsetValue").textContent = formatDb(state.musicSettings.offsetDb);
+        updateAudioMix();
+      });
 
       $("#transitionDuration").addEventListener("input", (event) => {
         state.transitionDuration = Number(event.target.value);
@@ -2476,9 +3057,16 @@
     }
 
     function animationLoop() {
+      if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= 2000) {
+        state.previewTailStartedAt = null;
+        $("#music").pause();
+        $("#playVideo").textContent = "▶";
+        $("#masterPlay").textContent = "▶ Prehrať všetky stopy";
+      }
       renderPlayheads();
       renderPreviewEffects();
-      if (!$("#video").paused) updateAudioMix();
+      renderMeters();
+      if (!$("#video").paused || state.previewTailStartedAt !== null) updateAudioMix();
       requestAnimationFrame(animationLoop);
     }
 

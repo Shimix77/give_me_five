@@ -12,6 +12,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "express": "^5.1.0",
     "fft.js": "^4.0.4",
     "ffmpeg-static": "^5.2.0",

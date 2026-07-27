@@ -16,20 +16,23 @@ const WORK_DIR = path.join(APP_DIR, ".gmf-work");
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
 const ANALYSIS_DIR = path.join(WORK_DIR, "analysis");
 const EXPORT_DIR = path.join(WORK_DIR, "exports");
+const MODEL_DIR = path.join(WORK_DIR, "models");
 const ASSET_DIR = path.join(APP_DIR, "assets");
 const WHOOSH_PATH = path.join(ASSET_DIR, "fast-whoosh.mp3");
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
-for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, ASSET_DIR]) {
+for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, MODEL_DIR, ASSET_DIR]) {
   fs.mkdirSync(directory, { recursive: true });
 }
 
 const app = express();
 const media = new Map();
 const jobs = new Map();
+const transcriptJobs = new Map();
 let whooshPeakSeconds = 0.44;
+let transcriberPromise = null;
 
 const storage = multer.diskStorage({
   destination: (_request, _file, callback) => callback(null, UPLOAD_DIR),
@@ -330,6 +333,167 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
   }
 });
 
+function normaliseWord(value) {
+  return String(value || "")
+    .toLocaleLowerCase("sk")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function editDistance(left, right) {
+  const previous = Array.from({ length: right.length + 1 }, (_value, index) => index);
+  for (let row = 1; row <= left.length; row++) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column++) {
+      current[column] = Math.min(
+        current[column - 1] + 1,
+        previous[column] + 1,
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1)
+      );
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[right.length];
+}
+
+function transcriptSuggestions(words, duration) {
+  const timedWords = words.filter((word) => Number.isFinite(word.start) && Number.isFinite(word.end));
+  const suggestions = {
+    speechStart: timedWords[0]?.start ?? null,
+    speechEnd: timedWords.at(-1)?.end ?? null,
+    giveStart: null,
+    giveEnd: null,
+    continueStart: null,
+    peaceStart: null
+  };
+  const tokens = timedWords.map((word) => normaliseWord(word.text));
+  for (let index = 0; index < tokens.length - 2; index++) {
+    const fiveLike = ["five", "fire", "fajv", "faiv", "fife"].includes(tokens[index + 2]) || editDistance(tokens[index + 2], "five") <= 2;
+    if (tokens[index] === "give" && tokens[index + 1] === "me" && fiveLike) {
+      suggestions.giveStart = timedWords[index].start;
+      suggestions.giveEnd = timedWords[index + 2].end;
+      const continuation = timedWords.slice(index + 3).find((word) => word.start >= suggestions.giveEnd + 0.12);
+      suggestions.continueStart = continuation?.start ?? Math.min(duration, suggestions.giveEnd + 3);
+      break;
+    }
+  }
+  for (let index = 0; index < tokens.length; index++) {
+    const nearbyBlessing = tokens.slice(index + 1, index + 4).some((token) => token.length >= 7 && token.startsWith("po"));
+    if (tokens[index].startsWith("pokoj") && nearbyBlessing) {
+      suggestions.peaceStart = timedWords[index].start;
+      break;
+    }
+  }
+  return suggestions;
+}
+
+async function getTranscriber(job) {
+  if (!transcriberPromise) {
+    transcriberPromise = (async () => {
+      const { env, pipeline } = await import("@huggingface/transformers");
+      env.cacheDir = MODEL_DIR;
+      env.allowLocalModels = true;
+      env.allowRemoteModels = true;
+      return pipeline("automatic-speech-recognition", "Xenova/whisper-small", {
+        dtype: "q8",
+        progress_callback: (progress) => {
+          if (!job || job.status !== "running") return;
+          if (progress.status === "progress" && Number.isFinite(progress.progress)) {
+            job.progress = clamp(progress.progress / 100 * 0.52, 0.02, 0.52);
+            job.message = `Prvýkrát sťahujem lokálny model… ${Math.round(progress.progress)} %`;
+          } else if (progress.status === "ready") {
+            job.progress = Math.max(job.progress, 0.55);
+            job.message = "Lokálny model je pripravený.";
+          }
+        }
+      });
+    })().catch((error) => {
+      transcriberPromise = null;
+      throw error;
+    });
+  }
+  return transcriberPromise;
+}
+
+async function transcribeMedia(record, job) {
+  job.message = "Pripravujem slovenskú zvukovú stopu…";
+  job.progress = 0.03;
+  const pcm = await extractMonoPcm(record.path, 16000);
+  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 2));
+  const audio = new Float32Array(samples.length);
+  for (let index = 0; index < samples.length; index++) audio[index] = samples[index] / 32768;
+  const transcriber = await getTranscriber(job);
+  job.progress = Math.max(job.progress, 0.58);
+  job.message = "Prepisujem slovenčinu lokálne v počítači…";
+  const result = await transcriber(audio, {
+    language: "slovak",
+    task: "transcribe",
+    chunk_length_s: 24,
+    stride_length_s: 4,
+    return_timestamps: "word"
+  });
+  const words = (result.chunks || []).map((chunk) => {
+    const rawStart = chunk.timestamp?.[0];
+    const rawEnd = chunk.timestamp?.[1];
+    const start = rawStart === null || rawStart === undefined ? null : Number(rawStart);
+    const end = rawEnd === null || rawEnd === undefined ? start : Number(rawEnd);
+    return {
+      text: String(chunk.text || "").trim(),
+      start: Number.isFinite(start) ? start : null,
+      end: Number.isFinite(end) ? end : Number.isFinite(start) ? start : null
+    };
+  }).filter((word) => word.text);
+  return {
+    text: String(result.text || words.map((word) => word.text).join(" ")).trim(),
+    words,
+    suggestions: transcriptSuggestions(words, record.metadata.duration),
+    language: "sk",
+    model: "Whisper Small multilingual · local"
+  };
+}
+
+app.post("/api/transcript", (request, response) => {
+  const record = media.get(request.body.videoId);
+  if (!record) {
+    response.status(404).json({ error: "Importujte video znova." });
+    return;
+  }
+  const id = crypto.randomUUID();
+  const job = {
+    id,
+    status: record.transcript ? "completed" : "running",
+    progress: record.transcript ? 1 : 0,
+    message: record.transcript ? "Prepis je pripravený." : "Čakám na lokálny prepis…",
+    result: record.transcript || null,
+    error: null
+  };
+  transcriptJobs.set(id, job);
+  if (!record.transcript) {
+    transcribeMedia(record, job).then((result) => {
+      record.transcript = result;
+      job.result = result;
+      job.status = "completed";
+      job.progress = 1;
+      job.message = "Slovenský prepis je pripravený.";
+    }).catch((error) => {
+      job.status = "failed";
+      job.error = error.message || "Lokálny prepis zlyhal.";
+      job.message = "Prepis sa nepodaril.";
+    });
+  }
+  response.status(202).json({ jobId: id, status: job.status });
+});
+
+app.get("/api/transcript/:id", (request, response) => {
+  const job = transcriptJobs.get(request.params.id);
+  if (!job) {
+    response.status(404).json({ error: "Prepisová úloha sa nenašla." });
+    return;
+  }
+  response.json(job);
+});
+
 function denoiseFilters(denoise) {
   const mode = denoise?.mode || "none";
   const strength = clamp(numeric(denoise?.strength, 45), 0, 100);
@@ -352,11 +516,11 @@ function denoiseFilters(denoise) {
   return [`afftdn=nr=${reduction}:nf=-32:tn=1`];
 }
 
-function segmentFilter(inputIndex, segment, label) {
+function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
   const start = numeric(segment.start);
   const end = numeric(segment.end);
   const duration = Math.max(0.02, end - start);
-  const gain = segment.muted ? 0 : dbToLinear(segment.gainDb || 0);
+  const gain = segment.muted ? 0 : dbToLinear(numeric(segment.gainDb) + numeric(voiceMasterDb));
   const filters = [
     `atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,
     "asetpts=PTS-STARTPTS",
@@ -367,6 +531,58 @@ function segmentFilter(inputIndex, segment, label) {
     `afade=t=out:st=${Math.max(0, duration - 0.012).toFixed(4)}:d=0.012`
   ];
   return `[${inputIndex}:a]${filters.join(",")}[${label}]`;
+}
+
+function videoSegmentFilter(inputIndex, segment, label, metadata) {
+  const start = numeric(segment.start);
+  const end = numeric(segment.end);
+  const transform = segment.transform || {};
+  const zoom = clamp(numeric(transform.zoom, 1), 1, 2.5);
+  const positionX = clamp(numeric(transform.x), -100, 100);
+  const positionY = clamp(numeric(transform.y), -100, 100);
+  const scaledWidth = Math.ceil(metadata.width * zoom / 2) * 2;
+  const scaledHeight = Math.ceil(metadata.height * zoom / 2) * 2;
+  const availableX = Math.max(0, scaledWidth - metadata.width);
+  const availableY = Math.max(0, scaledHeight - metadata.height);
+  const cropX = clamp(availableX / 2 - positionX / 100 * availableX / 2, 0, availableX);
+  const cropY = clamp(availableY / 2 - positionY / 100 * availableY / 2, 0, availableY);
+  const filters = [
+    `trim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,
+    "setpts=PTS-STARTPTS",
+    `scale=${scaledWidth}:${scaledHeight}:flags=lanczos`,
+    `crop=${metadata.width}:${metadata.height}:${cropX.toFixed(2)}:${cropY.toFixed(2)}`,
+    "setsar=1"
+  ];
+  return `[${inputIndex}:v]${filters.join(",")}[${label}]`;
+}
+
+function colourFilters(colour) {
+  const settings = colour || {};
+  const mode = settings.mode === "individual" ? "individual" : "all";
+  const boost = clamp(numeric(settings.boost), 0, 100);
+  const red = clamp(numeric(settings.red), 0, 100);
+  const green = clamp(numeric(settings.green), 0, 100);
+  const blue = clamp(numeric(settings.blue), 0, 100);
+  const temperature = clamp(numeric(settings.temperature), -100, 100);
+  const intensity = clamp(numeric(settings.intensity), -100, 100);
+  const sharpness = clamp(numeric(settings.sharpness), 0, 100);
+  const saturation = mode === "all"
+    ? 1 + boost / 100 * 0.85
+    : 1 + (red + green + blue) / 300 * 0.24;
+  const filters = [
+    `eq=saturation=${saturation.toFixed(4)}:brightness=${(intensity / 100 * 0.14).toFixed(4)}:contrast=${(1 + Math.abs(intensity) / 100 * 0.12).toFixed(4)}`
+  ];
+  if (mode === "individual") {
+    filters.push(`colorchannelmixer=rr=${(1 + red / 100 * 0.32).toFixed(4)}:gg=${(1 + green / 100 * 0.32).toFixed(4)}:bb=${(1 + blue / 100 * 0.32).toFixed(4)}`);
+  }
+  if (temperature !== 0) {
+    const shift = temperature / 100 * 0.28;
+    filters.push(`colorbalance=rs=${shift.toFixed(4)}:bs=${(-shift).toFixed(4)}`);
+  }
+  if (sharpness > 0) {
+    filters.push(`unsharp=5:5:${(sharpness / 100 * 1.5).toFixed(3)}:5:5:0`);
+  }
+  return filters;
 }
 
 function normaliseSegments(segments, trimStart, trimEnd) {
@@ -387,16 +603,18 @@ function normaliseSegments(segments, trimStart, trimEnd) {
       end: trimEnd,
       gainDb: 0,
       muted: false,
-      denoise: { mode: "none", strength: 0 }
+      denoise: { mode: "none", strength: 0 },
+      transform: { zoom: 1, x: 0, y: 0 }
     }];
   }
   return sorted;
 }
 
 function musicVolumeExpression(settings, timing) {
-  const base = dbToLinear(settings.baseDb ?? -8);
-  const during = dbToLinear(settings.duringSpeechDb ?? -22);
-  const after = dbToLinear(settings.afterSpeechDb ?? -13);
+  const offset = numeric(settings.offsetDb);
+  const base = dbToLinear(numeric(settings.baseDb, -8) + offset);
+  const during = dbToLinear(numeric(settings.duringSpeechDb, -22) + offset);
+  const after = dbToLinear(numeric(settings.afterSpeechDb, -13) + offset);
   const fadeDownStart = Math.max(0, timing.speechStartRel - 1);
   const fadeUpEnd = timing.speechEndRel + 1;
   return [
@@ -417,7 +635,9 @@ function buildExportPlan(payload) {
   const sourceDuration = video.metadata.duration;
   const trimStart = clamp(numeric(payload.trimStart), 0, sourceDuration - 0.1);
   const trimEnd = clamp(numeric(payload.trimEnd, sourceDuration), trimStart + 0.1, sourceDuration);
-  const outputDuration = trimEnd - trimStart;
+  const visibleDuration = trimEnd - trimStart;
+  const blackTailDuration = 2;
+  const outputDuration = visibleDuration + blackTailDuration;
   const markers = payload.markers || {};
   const speechStart = clamp(numeric(markers.speechStart, trimStart), trimStart, trimEnd);
   const giveEnd = clamp(numeric(markers.giveEnd, speechStart), speechStart, trimEnd);
@@ -429,8 +649,8 @@ function buildExportPlan(payload) {
   const transitionFadeOut = transitionDuration - transitionFadeIn;
   const transitionPeakRel = transitionStartRel + transitionFadeIn;
   const whooshStartRel = Math.max(0, transitionPeakRel - whooshPeakSeconds);
-  const finalFade = Math.min(3, Math.max(0.2, outputDuration));
-  const fadeStartRel = outputDuration - finalFade;
+  const finalFade = Math.min(3, Math.max(0.2, visibleDuration));
+  const fadeStartRel = visibleDuration - finalFade;
 
   if (!(speechStart <= giveEnd && giveEnd <= continueStart && continueStart <= speechEnd)) {
     throw new Error("Timeline markers must stay in chronological order.");
@@ -439,6 +659,8 @@ function buildExportPlan(payload) {
   const timing = {
     trimStart,
     trimEnd,
+    visibleDuration,
+    blackTailDuration,
     outputDuration,
     speechStartRel: speechStart - trimStart,
     speechEndRel: speechEnd - trimStart,
@@ -459,18 +681,29 @@ function buildExportPlan(payload) {
   inputArgs.push("-i", WHOOSH_PATH);
 
   const filters = [];
+  const segments = normaliseSegments(payload.segments, trimStart, trimEnd);
+  const videoSegmentLabels = [];
+  segments.forEach((segment, index) => {
+    const label = `pictureSegment${index}`;
+    videoSegmentLabels.push(label);
+    filters.push(videoSegmentFilter(0, segment, label, video.metadata));
+  });
+  if (videoSegmentLabels.length === 1) {
+    filters.push(`[${videoSegmentLabels[0]}]null[videoSequence]`);
+  } else {
+    filters.push(`${videoSegmentLabels.map((label) => `[${label}]`).join("")}concat=n=${videoSegmentLabels.length}:v=1:a=0[videoSequence]`);
+  }
+  filters.push(`[videoSequence]${colourFilters(payload.colour).join(",")}[videoBase]`);
   filters.push(
-    `[0:v]trim=start=${trimStart.toFixed(4)}:end=${trimEnd.toFixed(4)},setpts=PTS-STARTPTS[videoBase]`,
-    `color=c=white@0.58:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${outputDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
-    `[videoBase][light]overlay=shortest=1:format=auto,gblur=sigma=18:enable='between(t,${fadeStartRel.toFixed(4)},${outputDuration.toFixed(4)})',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},format=yuv420p[vout]`
+    `color=c=white@0.58:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
+    `[videoBase][light]overlay=shortest=1:format=auto,gblur=sigma=18:enable='between(t,${fadeStartRel.toFixed(4)},${visibleDuration.toFixed(4)})',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[vout]`
   );
 
-  const segments = normaliseSegments(payload.segments, trimStart, trimEnd);
   const segmentLabels = [];
   segments.forEach((segment, index) => {
     const label = `voiceSegment${index}`;
     segmentLabels.push(label);
-    filters.push(segmentFilter(0, segment, label));
+    filters.push(segmentFilter(0, segment, label, payload.voiceMasterDb));
   });
   if (segmentLabels.length === 1) {
     filters.push(`[${segmentLabels[0]}]anull[voice]`);
@@ -497,14 +730,15 @@ function buildExportPlan(payload) {
     if (musicEnd > music.metadata.duration + 0.02) {
       throw new Error("The selected music is too short for this video. Choose another track or an earlier drop.");
     }
+    const musicFadeDuration = finalFade + blackTailDuration;
     filters.push(
-      `[${musicInputIndex}:a]atrim=start=${Math.max(0, musicStart).toFixed(4)}:end=${musicEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,volume='${musicVolumeExpression(musicSettings, timing)}':eval=frame[music]`
+      `[${musicInputIndex}:a]atrim=start=${Math.max(0, musicStart).toFixed(4)}:end=${musicEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,volume='${musicVolumeExpression(musicSettings, timing)}':eval=frame,afade=t=out:st=${fadeStartRel.toFixed(4)}:d=${musicFadeDuration.toFixed(4)}[music]`
     );
     mixLabels.push("music");
   }
 
   filters.push(
-    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,alimiter=limit=0.95,atrim=duration=${outputDuration.toFixed(4)},afade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)}[aout]`
+    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,alimiter=limit=0.95,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
   );
 
   const outputPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp4`);
@@ -537,6 +771,8 @@ function buildExportPlan(payload) {
     details: {
       trimStart,
       trimEnd,
+      visibleDuration,
+      blackTailDuration,
       outputDuration,
       musicStart,
       musicEnd,

@@ -16,8 +16,10 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 1. Vložte portrétové MOV/MP4 do 60 sekúnd.
 2. Na farebnom waveforme alebo spektrograme nastavte trim, začiatok reči, koniec „Give Me Five“, začiatok druhej reči a koniec hovoreného slova.
 3. Rezátkom rozdeľte pôvodné audio. Každý segment má vlastnú hlasitosť, absolútne stíšenie a denoise.
-4. Voliteľne vložte licencované MP3/WAV/M4A a nastavte drop skladby. Editor ho zarovná na začiatok druhej časti reči.
-5. Skontrolujte synchronizovaný náhľad a exportujte MP4.
+4. V pravom Inspectore nastavte samostatný zoom/polohu segmentu a globálne farby, teplotu, intenzitu či ostrosť.
+5. Voliteľne vložte licencované MP3/WAV/M4A a nastavte drop skladby. Hlavné Play prehrá obraz, pôvodný zvuk aj hudbu súčasne.
+6. Informačný slovenský prepis sa vytvorí lokálne. Pri prvom použití sa stiahne model; ďalšie prepisy ho používajú z počítača.
+7. Skontrolujte synchronizovaný náhľad a exportujte MP4.
 
 Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
 
@@ -26,4 +28,4 @@ Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre fungu
 - H.264 video a AAC audio v MP4
 - pôvodné rozlíšenie a FPS zdrojového videa
 - svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
-- 3-sekundový blur/fade do čierna a stíšenie hudby na konci
+- 3-sekundový blur/fade, ďalšie 2 sekundy čistého čierneho obrazu a hudba doznievajúca až do konca

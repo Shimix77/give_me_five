@@ -48,7 +48,7 @@ fi
 NODE_DIR="$(dirname "$NODE_BIN")"
 export PATH="$NODE_DIR:$PATH"
 
-if [ ! -d "node_modules" ] || ! "$NODE_BIN" -e "require('express'); require('ffmpeg-static'); require('ffprobe-static')" >/dev/null 2>&1; then
+if [ ! -d "node_modules" ] || ! "$NODE_BIN" -e "require('express'); require('ffmpeg-static'); require('ffprobe-static'); require.resolve('@huggingface/transformers')" >/dev/null 2>&1; then
   echo "Pripravujem lokálny video engine. Pri prvom spustení to môže chvíľu trvať…"
   if [ -n "$PNPM_BIN" ]; then
     if ! "$PNPM_BIN" install; then
