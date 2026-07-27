@@ -21,6 +21,7 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 6. Voliteľne vložte licencované MP3/WAV/M4A. Editor analyzuje celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×.
 7. Informačný slovenský prepis vytvára presný Whisper Large v3 Turbo na pozadí. Pri prvom použití sa stiahne model; ďalšie prepisy ho používajú z počítača.
 8. Skontrolujte synchronizovaný náhľad a exportujte MP4.
+9. Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
 Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
 

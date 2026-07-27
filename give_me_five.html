@@ -1294,6 +1294,40 @@
     .check.warning::before { background: var(--wind); }
     .check.error::before { background: var(--danger); }
 
+    .usage-log {
+      margin-top: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: rgba(7, 16, 29, .3);
+    }
+
+    .usage-log summary {
+      padding: 9px 11px;
+      color: #becadd;
+      font-size: 10px;
+      font-weight: 750;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .usage-log-body {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 11px 11px;
+    }
+
+    .usage-log-body p {
+      max-width: 680px;
+      line-height: 1.45;
+    }
+
+    .usage-log-body .btn {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+
     .export-area {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -1768,6 +1802,13 @@
         <h2>Čistý MP4 export</h2>
         <p id="validationSummary">Najskôr vložte video. Export používa natívny FFmpeg, takže nepotrebuje SharedArrayBuffer.</p>
         <div class="checks" id="checks"></div>
+        <details class="usage-log" id="usageLogPanel">
+          <summary>Diagnostika workflow · export logu</summary>
+          <div class="usage-log-body">
+            <p><span id="usageLogStatus">Zaznamenávam anonymné kroky tejto relácie.</span> Log neobsahuje video, zvuk, prepis, názvy súborov ani lokálne cesty.</p>
+            <button class="btn ghost" id="exportUsageLog" type="button">↓ Exportovať JSON log</button>
+          </div>
+        </details>
       </div>
       <div class="export-area">
         <div class="progress-wrap">
@@ -1852,6 +1893,234 @@
       toastTimer: null
     };
 
+    const APP_VERSION = "2.1.0";
+    const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
+    const usagePending = new Map();
+    let lastEngineLogState = null;
+
+    function newUsageSession() {
+      return {
+        schemaVersion: 1,
+        appVersion: APP_VERSION,
+        sessionId: uid(),
+        startedAt: new Date().toISOString(),
+        startedAtMs: Date.now(),
+        reloadCount: 0,
+        nextSequence: 1,
+        events: []
+      };
+    }
+
+    function loadUsageSession() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(USAGE_STORAGE_KEY) || "null");
+        const age = Date.now() - Number(saved?.startedAtMs);
+        if (saved?.schemaVersion === 1 && Array.isArray(saved.events) && age >= 0 && age < 12 * 60 * 60 * 1000) {
+          saved.reloadCount = Number(saved.reloadCount || 0) + 1;
+          saved.appVersion = APP_VERSION;
+          return saved;
+        }
+      } catch {}
+      return newUsageSession();
+    }
+
+    const usageSession = loadUsageSession();
+
+    function roundedLogNumber(value, decimals = 3) {
+      return Number(Number(value || 0).toFixed(decimals));
+    }
+
+    function safeLogDetails(value, key = "", depth = 0) {
+      if (depth > 4 || /(?:file|filename|path|url|text|transcript|content)/i.test(key)) return undefined;
+      if (value === null || typeof value === "boolean") return value;
+      if (typeof value === "number") return Number.isFinite(value) ? roundedLogNumber(value) : null;
+      if (typeof value === "string") return value.slice(0, 120);
+      if (Array.isArray(value)) {
+        return value.slice(0, 25).map((item) => safeLogDetails(item, "", depth + 1)).filter((item) => item !== undefined);
+      }
+      if (typeof value === "object") {
+        return Object.fromEntries(Object.entries(value)
+          .map(([childKey, childValue]) => [childKey, safeLogDetails(childValue, childKey, depth + 1)])
+          .filter(([, childValue]) => childValue !== undefined));
+      }
+      return undefined;
+    }
+
+    function persistUsageSession() {
+      try {
+        sessionStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(usageSession));
+      } catch {}
+    }
+
+    function updateUsageLogStatus() {
+      const node = $("#usageLogStatus");
+      if (!node) return;
+      const count = usageSession.events.length;
+      node.textContent = `Zaznamenaných ${count} ${count === 1 ? "krok" : count < 5 ? "kroky" : "krokov"} tejto relácie.`;
+    }
+
+    function recordUsageNow(action, details = {}) {
+      const now = Date.now();
+      const previous = usageSession.events.at(-1);
+      const sequence = Number(usageSession.nextSequence || (previous?.sequence || 0) + 1);
+      usageSession.nextSequence = sequence + 1;
+      usageSession.events.push({
+        sequence,
+        at: new Date(now).toISOString(),
+        elapsedMs: Math.max(0, now - usageSession.startedAtMs),
+        sincePreviousMs: previous ? Math.max(0, now - Date.parse(previous.at)) : 0,
+        action,
+        context: {
+          videoLoaded: Boolean(state.video),
+          musicLoaded: Boolean(state.music),
+          segmentCount: state.segments.length,
+          playheadSeconds: state.video ? roundedLogNumber($("#video")?.currentTime || 0) : null
+        },
+        details: safeLogDetails(details) || {}
+      });
+      if (usageSession.events.length > 2500) usageSession.events.splice(1, usageSession.events.length - 2500);
+      persistUsageSession();
+      updateUsageLogStatus();
+    }
+
+    function recordUsage(action, details = {}, options = {}) {
+      if (!options.debounceKey) {
+        recordUsageNow(action, details);
+        return;
+      }
+      const existing = usagePending.get(options.debounceKey);
+      if (existing) clearTimeout(existing.timer);
+      const entry = {
+        action,
+        details,
+        timer: setTimeout(() => {
+          usagePending.delete(options.debounceKey);
+          recordUsageNow(action, details);
+        }, options.debounceMs || 450)
+      };
+      usagePending.set(options.debounceKey, entry);
+    }
+
+    function flushUsageEvents() {
+      for (const entry of usagePending.values()) {
+        clearTimeout(entry.timer);
+        recordUsageNow(entry.action, entry.details);
+      }
+      usagePending.clear();
+    }
+
+    function usageCount(counts, action) {
+      return Number(counts[action] || 0);
+    }
+
+    function buildUsageSummary(events, endedAtMs) {
+      const counts = {};
+      events.forEach((event) => { counts[event.action] = (counts[event.action] || 0) + 1; });
+      const first = (action) => events.find((event) => event.action === action) || null;
+      const firstVideoImport = events.find((event) =>
+        event.action === "media_import_completed" && event.details?.kind === "video") || null;
+      const durationMs = Math.max(0, endedAtMs - usageSession.startedAtMs);
+      let activeMs = 0;
+      for (let index = 1; index < events.length; index++) {
+        activeMs += Math.min(events[index].sincePreviousMs || 0, 120000);
+      }
+      const firstExportIndex = events.findIndex((event) => event.action === "export_started");
+      const countedSteps = firstExportIndex < 0
+        ? null
+        : events.slice(0, firstExportIndex + 1).filter((event) =>
+          !["app_loaded", "engine_ready", "engine_unavailable"].includes(event.action)).length;
+      const improvements = [];
+      if (usageCount(counts, "marker_adjusted") >= 6) improvements.push("Používateľ opakovane dolaďuje časové značky; zlepšiť automatickú detekciu alebo pridať marker preset.");
+      if (usageCount(counts, "denoise_adjusted") >= 4) improvements.push("Denoise sa ladí opakovane; zvážiť automatickú analýzu šumu a odporúčaný preset.");
+      if (usageCount(counts, "music_drop_adjusted") >= 4) improvements.push("Drop hudby sa hľadá na viac pokusov; zvýrazniť beaty alebo spresniť automatické návrhy.");
+      if (usageCount(counts, "music_levels_adjusted") >= 4) improvements.push("Hlasitosti hudby sa často menia; pridať rýchle presety podľa typu skladby.");
+      if (usageCount(counts, "colour_adjusted") >= 5) improvements.push("Farebné parametre sa nastavujú v mnohých krokoch; pridať vizuálne presety.");
+      if (usageCount(counts, "timeline_seek") >= 12) improvements.push("Veľa presúvania po časovej osi naznačuje potrebu lepšieho zoomu alebo navigácie podľa viet.");
+      if (usageCount(counts, "export_blocked") > 0) improvements.push("Export bol zablokovaný validáciou; chybu ukázať skôr priamo pri ovládači.");
+      if (countedSteps !== null && countedSteps > 25) improvements.push("Pred prvým exportom bolo potrebných viac než 25 krokov; zoskupiť opakované nastavenia do jedného sprievodcu.");
+      if (!first("export_completed")) improvements.push("Relácia sa neskončila úspešným exportom; skontrolovať posledné udalosti a miesto prerušenia.");
+      if (!improvements.length) improvements.push("Workflow prebehol bez zjavného opakovania alebo blokujúceho kroku.");
+      return {
+        sessionDurationSeconds: roundedLogNumber(durationMs / 1000, 1),
+        estimatedActiveSeconds: roundedLogNumber(activeMs / 1000, 1),
+        estimatedIdleSeconds: roundedLogNumber(Math.max(0, durationMs - activeMs) / 1000, 1),
+        totalEvents: events.length,
+        stepsBeforeFirstExport: countedSteps,
+        timeToVideoImportSeconds: firstVideoImport
+          ? roundedLogNumber(firstVideoImport.elapsedMs / 1000, 1)
+          : null,
+        timeToFirstExportSeconds: first("export_started")
+          ? roundedLogNumber(first("export_started").elapsedMs / 1000, 1)
+          : null,
+        successfulExports: usageCount(counts, "export_completed"),
+        blockedExports: usageCount(counts, "export_blocked"),
+        failedExports: usageCount(counts, "export_failed"),
+        actionCounts: counts,
+        potentialImprovements: improvements
+      };
+    }
+
+    function currentWorkflowSnapshot() {
+      const metadata = state.video?.analysis?.metadata;
+      return {
+        video: metadata ? {
+          durationSeconds: metadata.duration,
+          width: metadata.width,
+          height: metadata.height,
+          fps: metadata.fps
+        } : null,
+        musicLoaded: Boolean(state.music),
+        trim: state.video ? { start: state.trimStart, end: state.trimEnd } : null,
+        markers: state.video ? state.markers : null,
+        segmentCount: state.segments.length,
+        denoise: state.globalDenoise,
+        colour: state.colour,
+        transitionDurationSeconds: state.transitionDuration,
+        voiceMasterDb: state.voiceMasterDb,
+        musicSettings: state.music ? {
+          dropTime: state.musicSettings.dropTime,
+          baseDb: state.musicSettings.baseDb,
+          duringSpeechDb: state.musicSettings.duringSpeechDb,
+          afterSpeechDb: state.musicSettings.afterSpeechDb,
+          offsetDb: state.musicSettings.offsetDb,
+          manualLevels: state.musicSettings.manual,
+          manualDrop: state.musicSettings.dropManual
+        } : null
+      };
+    }
+
+    function exportUsageLog() {
+      flushUsageEvents();
+      recordUsageNow("usage_log_exported", { eventCountBeforeExport: usageSession.events.length });
+      const endedAtMs = Date.now();
+      const report = {
+        schemaVersion: usageSession.schemaVersion,
+        appVersion: APP_VERSION,
+        privacy: {
+          processing: "local-only",
+          excluded: ["video", "audio", "transcript", "file names", "local paths", "media URLs"]
+        },
+        session: {
+          id: usageSession.sessionId,
+          startedAt: usageSession.startedAt,
+          exportedAt: new Date(endedAtMs).toISOString(),
+          reloadCount: usageSession.reloadCount
+        },
+        summary: buildUsageSummary(usageSession.events, endedAtMs),
+        projectSnapshot: safeLogDetails(currentWorkflowSnapshot()),
+        events: usageSession.events
+      };
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `give_me_five_usage_${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      toast("Anonymný workflow log bol exportovaný.");
+    }
+
     const markerInfo = {
       trimStart: { label: "Začiatok videa", hint: "ľubovoľný trim IN", color: "#eef3fb" },
       speechStart: { label: "Začína reč", hint: "hudba sa 1 s plynulo stíši", color: "#6fa8ff" },
@@ -1906,22 +2175,37 @@
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
         $("#serverNotice").classList.remove("visible");
         document.body.classList.remove("engine-off");
+        if (lastEngineLogState !== true) {
+          recordUsage("engine_ready", { deepfilter: Boolean(data.deepfilter) });
+          lastEngineLogState = true;
+        }
       } catch (error) {
         state.serverReady = false;
         $("#engineStatus").classList.remove("ready");
         $("#engineLabel").textContent = "Lokálny engine nie je dostupný";
         $("#serverNotice").classList.add("visible");
         document.body.classList.add("engine-off");
+        if (lastEngineLogState !== false) {
+          recordUsage("engine_unavailable");
+          lastEngineLogState = false;
+        }
       }
       renderValidation();
     }
 
     async function uploadMedia(file, kind) {
       if (!state.serverReady) {
+        recordUsage("media_import_blocked", { kind, reason: "engine_unavailable" });
         $("#serverNotice").classList.add("visible");
         toast("Najskôr spustite Give Me Five Editor.app vo Finderi.");
         return;
       }
+      const importStartedAt = performance.now();
+      recordUsage("media_import_started", {
+        kind,
+        sizeMb: roundedLogNumber(file.size / 1024 / 1024, 1),
+        mediaType: file.type || "unknown"
+      });
       const card = kind === "video" ? $("#videoImportCard") : $("#musicImportCard");
       const name = kind === "video" ? $("#videoFileName") : $("#musicFileName");
       card.classList.add("loading");
@@ -1932,6 +2216,15 @@
       try {
         const response = await api("/api/media", { method: "POST", body: form });
         const analysis = await response.json();
+        recordUsage("media_import_completed", {
+          kind,
+          processingSeconds: roundedLogNumber((performance.now() - importStartedAt) / 1000, 2),
+          durationSeconds: analysis.metadata.duration,
+          width: analysis.metadata.width || null,
+          height: analysis.metadata.height || null,
+          fps: analysis.metadata.fps || null,
+          detectedDropCandidates: analysis.dropAnalysis?.candidates?.length || 0
+        });
         const record = { file, url: URL.createObjectURL(file), analysis };
         if (kind === "video") loadVideoRecord(record);
         else loadMusicRecord(record);
@@ -1941,6 +2234,7 @@
             ? "Hudba je analyzovaná a najvhodnejší drop je nastavený."
             : "Hudba je analyzovaná. Drop môžete označiť manuálne.");
       } catch (error) {
+        recordUsage("media_import_failed", { kind, reason: "analysis_or_upload_error" });
         name.textContent = error.message;
         toast(error.message);
       } finally {
@@ -2010,6 +2304,12 @@
       state.musicSettings.dropTime = Number.isFinite(recommendedDrop)
         ? recommendedDrop
         : clamp(Math.max(10, continuation), 0, record.analysis.metadata.duration);
+      if (Number.isFinite(recommendedDrop)) {
+        recordUsage("music_drop_auto_selected", {
+          dropSeconds: recommendedDrop,
+          candidateCount: record.analysis.dropAnalysis?.candidates?.length || 0
+        });
+      }
       state.musicZoom = 1;
       renderAll();
       requestAnimationFrame(renderWaveforms);
@@ -2041,6 +2341,7 @@
       const time = $("#video").currentTime;
       const index = state.segments.findIndex((segment) => time > segment.start + .04 && time < segment.end - .04);
       if (index < 0) {
+        recordUsage("segment_split_blocked", { reason: "playhead_near_edge" });
         toast("Playhead musí byť aspoň 0,04 s od okraja segmentu.");
         return;
       }
@@ -2050,12 +2351,14 @@
       state.segments.splice(index, 1, left, right);
       state.selectedSegmentId = right.id;
       renderAll();
+      recordUsage("segment_split", { atSeconds: time, resultingSegments: state.segments.length });
       toast("Audio bolo rozdelené. Obraz zostal súvislý.");
     }
 
     function mergeSelected() {
       const index = state.segments.findIndex((segment) => segment.id === state.selectedSegmentId);
       if (index < 0 || index >= state.segments.length - 1) {
+        recordUsage("segment_merge_blocked", { reason: "no_segment_on_right" });
         toast("Vyberte segment, ktorý má napravo ďalší segment.");
         return;
       }
@@ -2069,6 +2372,7 @@
       });
       state.selectedSegmentId = state.segments[index].id;
       renderAll();
+      recordUsage("segment_merged", { resultingSegments: state.segments.length });
     }
 
     function renderWave(canvas, record, options = {}) {
@@ -2588,6 +2892,12 @@
       else state.markers[key] = next;
       enforceMarkerOrder();
       renderAll();
+      if (manual) {
+        recordUsage("marker_adjusted", { marker: key, valueSeconds: next }, {
+          debounceKey: `marker-${key}`,
+          debounceMs: 450
+        });
+      }
     }
 
     function seekFromPointer(event, element, kind) {
@@ -2599,6 +2909,10 @@
       mediaElement.currentTime = time;
       renderPlayheads();
       updateAudioMix(true);
+      recordUsage("timeline_seek", { track: kind, timeSeconds: time }, {
+        debounceKey: `seek-${kind}`,
+        debounceMs: 500
+      });
     }
 
     function snapMusicTime(time) {
@@ -2614,6 +2928,12 @@
       if (manual) state.musicSettings.dropManual = true;
       $("#music").currentTime = state.musicSettings.dropTime;
       renderAll();
+      if (manual) {
+        recordUsage("music_drop_adjusted", {
+          dropSeconds: state.musicSettings.dropTime,
+          beatSnap: state.beatSnap
+        }, { debounceKey: "music-drop", debounceMs: 450 });
+      }
     }
 
     function startMarkerDrag(event, kind, key) {
@@ -2759,6 +3079,10 @@
       const whooshStart = Math.max(previewStart, peakTime - .44);
       const video = $("#video");
       video.currentTime = previewStart;
+      recordUsage("transition_previewed", {
+        durationSeconds: state.transitionDuration,
+        transitionStartSeconds: start
+      });
       await toggleVideoPlayback();
       setTimeout(() => {
         if (!video.paused) {
@@ -2778,6 +3102,12 @@
       $("#denoisePreviewStatus").textContent = "Pripravujem tú istú pasáž pre férové A/B porovnanie…";
       $("#video").pause();
       $("#music").pause();
+      const previewStartedAt = performance.now();
+      recordUsage("denoise_preview_started", {
+        strength: state.globalDenoise.strength,
+        lowCutHz: state.globalDenoise.lowCut,
+        voicePresence: state.globalDenoise.clarity
+      });
       try {
         const response = await api("/api/preview-audio", {
           method: "POST",
@@ -2796,8 +3126,12 @@
         preview.src = state.lastCleanUrl;
         state.denoisePreview = { phaseDuration: 3, gapDuration: .35 };
         await preview.play();
+        recordUsage("denoise_preview_ready", {
+          processingSeconds: roundedLogNumber((performance.now() - previewStartedAt) / 1000, 2)
+        });
         toast("A/B náhľad: A je pôvodný zvuk, B je tá istá pasáž po DeepFilterNet3.");
       } catch (error) {
+        recordUsage("denoise_preview_failed", { reason: "processing_or_playback_error" });
         toast(error.message);
       } finally {
         button.disabled = false;
@@ -2830,6 +3164,11 @@
       state.trimStart = Math.max(0, state.markers.speechStart - 2);
       state.trimEnd = Math.min(duration, state.markers.speechEnd + 6);
       enforceMarkerOrder();
+      recordUsage("markers_auto_applied", {
+        giveMeFiveFound: Number.isFinite(suggestions.giveEnd),
+        continuationFound: Number.isFinite(suggestions.continueStart),
+        speechEndFound: Number.isFinite(suggestions.speechEnd)
+      });
       toast(Number.isFinite(suggestions.giveEnd)
         ? "Prepis našiel „Give Me Five“ a navrhol časové značky."
         : "Prepis navrhol začiatok a koniec hovoreného slova.");
@@ -2838,6 +3177,7 @@
     async function startTranscript() {
       if (!state.video || !state.serverReady) return;
       const videoId = state.video.analysis.id;
+      recordUsage("transcript_started");
       state.transcript = {
         status: "running",
         progress: 0,
@@ -2860,6 +3200,7 @@
         state.transcript.status = "failed";
         state.transcript.message = error.message;
         renderTranscript();
+        recordUsage("transcript_failed", { reason: "request_or_processing_error" });
       }
     }
 
@@ -2884,6 +3225,11 @@
         const foundGive = Number.isFinite(job.result?.suggestions?.giveEnd);
         const foundPeace = Number.isFinite(job.result?.suggestions?.peaceStart);
         state.transcript.message = `Lokálny prepis hotový · Give Me Five ${foundGive ? "nájdené" : "nenájdené"} · záverečná fráza ${foundPeace ? "nájdená" : "nenájdená"}`;
+        recordUsage("transcript_completed", {
+          giveMeFiveFound: foundGive,
+          finalPhraseFound: foundPeace,
+          wordCount: job.result?.words?.length || null
+        });
         applyTranscriptSuggestions(job.result);
         renderAll();
         return;
@@ -2891,6 +3237,7 @@
       if (job.status === "failed") {
         state.transcript.message = job.error || job.message || "Prepis zlyhal.";
         renderTranscript();
+        recordUsage("transcript_failed", { reason: "worker_error" });
         return;
       }
       renderTranscript();
@@ -2925,9 +3272,20 @@
     async function exportProject() {
       const validation = renderValidation();
       if (validation.errors.length) {
+        recordUsage("export_blocked", {
+          validationErrors: validation.errors,
+          warningCount: validation.warnings.length
+        });
         toast(validation.errors[0]);
         return;
       }
+      const exportStartedAt = performance.now();
+      recordUsage("export_started", {
+        outputDurationSeconds: state.trimEnd - state.trimStart + 2,
+        hasMusic: Boolean(state.music),
+        segmentCount: state.segments.length,
+        warningCount: validation.warnings.length
+      });
       state.exporting = true;
       $("#progressLabel").textContent = "Pripravujem lokálny export…";
       $("#progressPercent").textContent = "0 %";
@@ -2940,16 +3298,17 @@
           body: JSON.stringify(exportPayload())
         });
         const data = await response.json();
-        await pollExport(data.jobId);
+        await pollExport(data.jobId, exportStartedAt);
       } catch (error) {
         state.exporting = false;
         $("#progressLabel").textContent = error.message;
+        recordUsage("export_failed", { reason: "request_or_render_error" });
         toast(error.message);
         renderValidation();
       }
     }
 
-    async function pollExport(jobId) {
+    async function pollExport(jobId, exportStartedAt) {
       const response = await api(`/api/jobs/${jobId}`);
       const job = await response.json();
       const percent = Math.round((job.progress || 0) * 100);
@@ -2959,6 +3318,9 @@
       if (job.status === "completed") {
         state.exporting = false;
         renderValidation();
+        recordUsage("export_completed", {
+          processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1)
+        });
         toast("MP4 je pripravené a sťahuje sa.");
         const link = document.createElement("a");
         link.href = `${API_ORIGIN}${job.downloadUrl}`;
@@ -2974,7 +3336,7 @@
         throw new Error(job.error || "Export zlyhal.");
       }
       await new Promise((resolve) => setTimeout(resolve, 850));
-      return pollExport(jobId);
+      return pollExport(jobId, exportStartedAt);
     }
 
     function bindIntegerPair(rangeId, numberId, minimum, maximum, onChange) {
@@ -3009,6 +3371,7 @@
         localStorage.setItem("gmf-theme", button.dataset.palette);
         $$(".palette button").forEach((item) => item.classList.toggle("active", item === button));
         renderWaveforms();
+        recordUsage("theme_changed", { theme: button.dataset.palette });
       }));
 
       $$(".view-tabs button").forEach((button) => button.addEventListener("click", () => {
@@ -3022,6 +3385,7 @@
           state.musicView = view;
           $("#musicMediaVis").dataset.view = view;
         }
+        recordUsage("visualizer_view_changed", { track: group, view });
         requestAnimationFrame(renderWaveforms);
       }));
 
@@ -3048,6 +3412,9 @@
         const segment = getSelectedSegment();
         if (segment) $("#video").currentTime = segment.start;
         renderAll();
+        recordUsage("segment_selected", {
+          index: state.segments.findIndex((item) => item.id === state.selectedSegmentId) + 1
+        });
       });
       $("#markerList").addEventListener("click", (event) => {
         const button = event.target.closest("[data-set-marker]");
@@ -3059,9 +3426,13 @@
       $("#mergeBtn").addEventListener("click", mergeSelected);
       $("#setTrimIn").addEventListener("click", () => setMarker("trimStart", $("#video").currentTime));
       $("#setTrimOut").addEventListener("click", () => setMarker("trimEnd", $("#video").currentTime));
-      $("#autoTrimSpeech").addEventListener("click", () => setMarker("trimStart", Math.max(0, state.markers.speechStart - 2)));
+      $("#autoTrimSpeech").addEventListener("click", () => {
+        recordUsage("trim_shortcut_used", { shortcut: "two_seconds_before_speech" });
+        setMarker("trimStart", Math.max(0, state.markers.speechStart - 2));
+      });
       $("#autoTail").addEventListener("click", () => {
         if (!state.video) return;
+        recordUsage("trim_shortcut_used", { shortcut: "six_seconds_after_speech" });
         setMarker("trimEnd", Math.min(state.video.analysis.metadata.duration, state.markers.speechEnd + 6));
       });
       $("#previewTransition").addEventListener("click", previewTransition);
@@ -3071,27 +3442,41 @@
       $("#showTranscript").addEventListener("click", () => {
         $("#transcriptCard").classList.remove("collapsed");
         $("#transcriptCard").scrollIntoView({ behavior: "smooth", block: "center" });
+        recordUsage("transcript_opened");
       });
-      $("#retryTranscript").addEventListener("click", startTranscript);
+      $("#retryTranscript").addEventListener("click", () => {
+        recordUsage("transcript_retry_requested");
+        startTranscript();
+      });
       $("#toggleMusicPanel").addEventListener("click", () => {
         const panel = $(".music-workspace");
         panel.classList.toggle("collapsed");
         $("#toggleMusicPanel").textContent = panel.classList.contains("collapsed") ? "Zobraziť hudobný panel" : "Skryť hudobný panel";
+        recordUsage("music_panel_toggled", { open: !panel.classList.contains("collapsed") });
         requestAnimationFrame(renderWaveforms);
       });
       $("#timelineZoom").addEventListener("input", (event) => {
         state.timelineZoom = Number(event.target.value);
         renderTimelineZoom();
+        recordUsage("timeline_zoom_adjusted", { zoom: state.timelineZoom }, {
+          debounceKey: "timeline-zoom",
+          debounceMs: 450
+        });
         requestAnimationFrame(renderWaveforms);
       });
       $("#musicZoom").addEventListener("input", (event) => {
         state.musicZoom = Number(event.target.value);
         renderMusicZoom();
+        recordUsage("music_zoom_adjusted", { zoom: state.musicZoom }, {
+          debounceKey: "music-zoom",
+          debounceMs: 450
+        });
         requestAnimationFrame(renderWaveforms);
       });
       $("#beatSnap").addEventListener("change", (event) => {
         state.beatSnap = event.target.checked;
         renderMusicZoom();
+        recordUsage("beat_snap_toggled", { enabled: state.beatSnap });
       });
       $("#dropCandidates").addEventListener("click", (event) => {
         const candidate = event.target.closest("[data-drop-candidate]");
@@ -3107,15 +3492,24 @@
         renderPlayheads();
         renderPreviewEffects();
         updateAudioMix(true);
+        recordUsage("timeline_seek", { track: "video", timeSeconds: Number(event.target.value) }, {
+          debounceKey: "seek-video",
+          debounceMs: 500
+        });
       });
       $("#musicScrubber").addEventListener("input", (event) => {
         $("#music").currentTime = Number(event.target.value);
         renderPlayheads();
+        recordUsage("timeline_seek", { track: "music", timeSeconds: Number(event.target.value) }, {
+          debounceKey: "seek-music",
+          debounceMs: 500
+        });
       });
 
       $("#video").addEventListener("play", () => {
         $("#playVideo").textContent = "❚❚";
         $("#masterPlay").textContent = "❚❚ Pozastaviť všetky stopy";
+        recordUsage("preview_played", { synchronizedMusic: Boolean(state.music) });
       });
       $("#video").addEventListener("pause", () => {
         if (state.previewTailStartedAt === null) {
@@ -3124,7 +3518,10 @@
           $("#music").pause();
         }
       });
-      $("#music").addEventListener("play", () => $("#playMusic").textContent = "❚❚");
+      $("#music").addEventListener("play", () => {
+        $("#playMusic").textContent = "❚❚";
+        if ($("#video").paused) recordUsage("music_solo_previewed");
+      });
       $("#music").addEventListener("pause", () => $("#playMusic").textContent = "▶");
       $("#video").addEventListener("ended", () => {
         if (state.video && state.previewTailStartedAt === null) {
@@ -3147,22 +3544,42 @@
       $("#globalDenoiseEnabled").addEventListener("change", (event) => {
         state.globalDenoise.enabled = event.target.checked;
         renderDenoise();
+        recordUsage("denoise_toggled", { enabled: state.globalDenoise.enabled });
       });
       bindIntegerPair("globalStrength", "globalStrengthNumber", 0, 100, (value) => {
         state.globalDenoise.strength = value;
         renderDenoise();
+        recordUsage("denoise_adjusted", state.globalDenoise, {
+          debounceKey: "denoise-settings",
+          debounceMs: 550
+        });
       });
       bindIntegerPair("denoiseLowCut", "denoiseLowCutNumber", 50, 250, (value) => {
         state.globalDenoise.lowCut = value;
         renderDenoise();
+        recordUsage("denoise_adjusted", state.globalDenoise, {
+          debounceKey: "denoise-settings",
+          debounceMs: 550
+        });
       });
       bindIntegerPair("denoiseClarity", "denoiseClarityNumber", 0, 100, (value) => {
         state.globalDenoise.clarity = value;
         renderDenoise();
+        recordUsage("denoise_adjusted", state.globalDenoise, {
+          debounceKey: "denoise-settings",
+          debounceMs: 550
+        });
       });
 
       $$(".inspector-body .control-card h3").forEach((heading) => {
-        heading.addEventListener("click", () => heading.closest(".control-card").classList.toggle("collapsed"));
+        heading.addEventListener("click", () => {
+          const card = heading.closest(".control-card");
+          card.classList.toggle("collapsed");
+          recordUsage("inspector_section_toggled", {
+            sectionIndex: [...card.parentElement.children].indexOf(card) + 1,
+            open: !card.classList.contains("collapsed")
+          });
+        });
       });
 
       $("#segmentGain").addEventListener("input", (event) => {
@@ -3172,12 +3589,17 @@
         $("#segmentGainValue").textContent = formatDb(segment.gainDb);
         renderSegments();
         updateAudioMix();
+        recordUsage("segment_gain_adjusted", { gainDb: segment.gainDb }, {
+          debounceKey: `segment-gain-${state.selectedSegmentId}`,
+          debounceMs: 500
+        });
       });
       $("#segmentMuteBtn").addEventListener("click", () => {
         const segment = getSelectedSegment();
         if (!segment) return;
         segment.muted = !segment.muted;
         renderAll();
+        recordUsage("segment_mute_toggled", { muted: segment.muted });
       });
       $("#cleanPreviewBtn").addEventListener("click", previewCleanedSegment);
 
@@ -3189,6 +3611,10 @@
           segment.transform[key] = Number(event.target.value);
           renderInspector();
           renderPreviewEffects();
+          recordUsage("segment_transform_adjusted", {
+            property: key,
+            value: segment.transform[key]
+          }, { debounceKey: `transform-${key}`, debounceMs: 500 });
         });
       });
       $("#resetTransform").addEventListener("click", () => {
@@ -3197,17 +3623,20 @@
         segment.transform = { zoom: 1, x: 0, y: 0 };
         renderInspector();
         renderPreviewEffects();
+        recordUsage("segment_transform_reset");
       });
 
       $("#colourAll").addEventListener("click", () => {
         state.colour.mode = "all";
         renderColour();
         renderPreviewEffects();
+        recordUsage("colour_mode_changed", { mode: "all" });
       });
       $("#colourIndividual").addEventListener("click", () => {
         state.colour.mode = "individual";
         renderColour();
         renderPreviewEffects();
+        recordUsage("colour_mode_changed", { mode: "individual" });
       });
       [
         ["colourBoost", "colourBoostNumber", "boost", 0, 100],
@@ -3222,29 +3651,46 @@
           state.colour[key] = value;
           renderColour();
           renderPreviewEffects();
+          recordUsage("colour_adjusted", { property: key, value }, {
+            debounceKey: `colour-${key}`,
+            debounceMs: 500
+          });
         });
       });
       $("#resetColour").addEventListener("click", () => {
         state.colour = { mode: "all", boost: 0, red: 0, green: 0, blue: 0, temperature: 0, intensity: 0, sharpness: 0 };
         renderColour();
         renderPreviewEffects();
+        recordUsage("colour_reset");
       });
 
       $("#voiceMaster").addEventListener("input", (event) => {
         state.voiceMasterDb = Number(event.target.value);
         $("#voiceMasterValue").textContent = formatDb(state.voiceMasterDb);
         updateAudioMix();
+        recordUsage("voice_level_adjusted", { gainDb: state.voiceMasterDb }, {
+          debounceKey: "voice-level",
+          debounceMs: 500
+        });
       });
       $("#musicOffset").addEventListener("input", (event) => {
         state.musicSettings.offsetDb = Number(event.target.value);
         $("#musicOffsetValue").textContent = formatDb(state.musicSettings.offsetDb);
         updateAudioMix();
+        recordUsage("music_offset_adjusted", { offsetDb: state.musicSettings.offsetDb }, {
+          debounceKey: "music-offset",
+          debounceMs: 500
+        });
       });
 
       $("#transitionDuration").addEventListener("input", (event) => {
         state.transitionDuration = Number(event.target.value);
         $("#transitionValue").textContent = `${state.transitionDuration.toFixed(1).replace(".", ",")} s`;
         renderAll();
+        recordUsage("transition_duration_adjusted", { durationSeconds: state.transitionDuration }, {
+          debounceKey: "transition-duration",
+          debounceMs: 500
+        });
       });
 
       [["musicBase", "baseDb"], ["musicDuring", "duringSpeechDb"], ["musicAfter", "afterSpeechDb"]].forEach(([id, key]) => {
@@ -3253,6 +3699,11 @@
           state.musicSettings.manual = true;
           renderMusic();
           updateAudioMix();
+          recordUsage("music_levels_adjusted", {
+            baseDb: state.musicSettings.baseDb,
+            duringSpeechDb: state.musicSettings.duringSpeechDb,
+            afterSpeechDb: state.musicSettings.afterSpeechDb
+          }, { debounceKey: "music-levels", debounceMs: 550 });
         });
       });
       $("#useRecommendation").addEventListener("click", () => {
@@ -3262,16 +3713,22 @@
         state.musicSettings.manual = false;
         renderMusic();
         updateAudioMix();
+        recordUsage("music_levels_reset_to_recommendation");
       });
 
       [["videoMute", "videoMuted"], ["videoSolo", "videoSolo"], ["musicMute", "musicMuted"], ["musicSolo", "musicSolo"]].forEach(([id, key]) => {
         $(`#${id}`).addEventListener("click", () => {
           state.channel[key] = !state.channel[key];
           updateAudioMix();
+          recordUsage("monitor_channel_toggled", { control: key, enabled: state.channel[key] });
         });
       });
 
       $("#exportBtn").addEventListener("click", exportProject);
+      $("#exportUsageLog").addEventListener("click", exportUsageLog);
+      $("#usageLogPanel").addEventListener("toggle", () => {
+        recordUsage("usage_log_panel_toggled", { open: $("#usageLogPanel").open });
+      });
       $("#retryServer").addEventListener("click", checkServer);
       $("#cleanPreview").addEventListener("ended", () => {
         state.denoisePreview = null;
@@ -3295,6 +3752,9 @@
       });
 
       window.addEventListener("resize", () => requestAnimationFrame(renderWaveforms));
+      window.addEventListener("pagehide", flushUsageEvents);
+      window.addEventListener("error", () => recordUsage("client_error", { type: "runtime_error" }));
+      window.addEventListener("unhandledrejection", () => recordUsage("client_error", { type: "unhandled_promise" }));
       document.addEventListener("visibilitychange", () => {
         if (document.hidden) {
           $("#video").pause();
@@ -3323,6 +3783,11 @@
       document.body.dataset.theme = storedTheme;
       $$(".palette button").forEach((button) => button.classList.toggle("active", button.dataset.palette === storedTheme));
     }
+    recordUsage("app_loaded", {
+      appVersion: APP_VERSION,
+      reloadCount: usageSession.reloadCount,
+      theme: document.body.dataset.theme
+    });
     setupEvents();
     renderWaveforms();
     renderAll();
