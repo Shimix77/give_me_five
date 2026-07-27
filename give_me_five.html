@@ -1030,6 +1030,31 @@
       gap: 12px;
     }
 
+    .range-number {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 58px;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .range-number input[type="number"] {
+      min-height: 31px;
+      padding: 5px 6px;
+      text-align: center;
+      font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .toggle-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #cbd5e2;
+      font-size: 10px;
+      font-weight: 760;
+    }
+
+    .toggle-line input { accent-color: var(--accent); }
+
     label {
       color: #c8d2e0;
       font-size: 10px;
@@ -1104,6 +1129,91 @@
     }
 
     .drop-note strong { color: var(--gold); }
+
+    .music-tools {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .beat-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(240, 199, 94, .16);
+      pointer-events: none;
+    }
+
+    .drop-candidate-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      z-index: 2;
+      width: 2px;
+      padding: 0;
+      border: 0;
+      background: rgba(111, 168, 255, .72);
+      box-shadow: 0 0 9px rgba(111, 168, 255, .45);
+      pointer-events: auto;
+      cursor: pointer;
+    }
+
+    .drop-candidate-line span {
+      position: absolute;
+      right: 5px;
+      bottom: 7px;
+      padding: 3px 5px;
+      border: 1px solid rgba(111, 168, 255, .4);
+      border-radius: 5px;
+      background: rgba(4, 10, 19, .9);
+      color: #a9c9ff;
+      font-size: 8px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .drop-candidates {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .drop-candidate {
+      min-height: 46px;
+      padding: 8px 9px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #0a1422;
+      color: #c7d4e5;
+      text-align: left;
+    }
+
+    .drop-candidate.active {
+      border-color: rgba(236, 125, 179, .65);
+      background: rgba(236, 125, 179, .1);
+    }
+
+    .drop-candidate strong,
+    .drop-candidate small { display: block; }
+    .drop-candidate strong { font-size: 10px; }
+    .drop-candidate small {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 8px;
+    }
+
+    .ab-status {
+      min-height: 16px;
+      margin-top: 8px;
+      color: var(--accent-2);
+      font-size: 9px;
+      font-weight: 850;
+      text-align: center;
+    }
 
     .level-grid {
       display: grid;
@@ -1390,7 +1500,7 @@
           <button class="btn ghost" id="setTrimIn" type="button" disabled>Nastaviť začiatok</button>
           <button class="btn ghost" id="setTrimOut" type="button" disabled>Nastaviť koniec</button>
           <button class="btn ghost" id="autoTrimSpeech" type="button" disabled>Začiatok −2 s pred rečou</button>
-          <button class="btn ghost" id="autoTail" type="button" disabled>Záver +7 s</button>
+          <button class="btn ghost" id="autoTail" type="button" disabled>Záver +6 s</button>
           <button class="btn ghost" id="previewTransition" type="button" disabled>✦ Náhľad prechodu</button>
           <button class="btn ghost" id="showTranscript" type="button" disabled>ⓘ Prepis</button>
           <label class="zoom-tool">Zoom stopy <input id="timelineZoom" type="range" min="1" max="8" step=".25" value="1"><span id="timelineZoomValue">1×</span></label>
@@ -1461,45 +1571,69 @@
             </div>
             <div class="field" id="allColourField">
               <label for="colourBoost">Color boost 0–100 %</label>
-              <input id="colourBoost" type="range" min="0" max="100" value="0">
+              <div class="range-number">
+                <input id="colourBoost" type="range" min="0" max="100" step="1" value="0">
+                <input id="colourBoostNumber" type="number" min="0" max="100" step="1" value="0" aria-label="Color boost v percentách">
+              </div>
             </div>
             <div class="colour-channels hidden" id="individualColours">
-              <div class="field"><label for="colourRed">Červená <span id="colourRedValue">0</span>%</label><input id="colourRed" type="range" min="0" max="100" value="0"></div>
-              <div class="field"><label for="colourGreen">Zelená <span id="colourGreenValue">0</span>%</label><input id="colourGreen" type="range" min="0" max="100" value="0"></div>
-              <div class="field"><label for="colourBlue">Modrá <span id="colourBlueValue">0</span>%</label><input id="colourBlue" type="range" min="0" max="100" value="0"></div>
+              <div class="field"><label for="colourRed">Červená</label><input id="colourRed" type="range" min="0" max="100" step="1" value="0"><input id="colourRedNumber" type="number" min="0" max="100" step="1" value="0" aria-label="Červená v percentách"></div>
+              <div class="field"><label for="colourGreen">Zelená</label><input id="colourGreen" type="range" min="0" max="100" step="1" value="0"><input id="colourGreenNumber" type="number" min="0" max="100" step="1" value="0" aria-label="Zelená v percentách"></div>
+              <div class="field"><label for="colourBlue">Modrá</label><input id="colourBlue" type="range" min="0" max="100" step="1" value="0"><input id="colourBlueNumber" type="number" min="0" max="100" step="1" value="0" aria-label="Modrá v percentách"></div>
             </div>
             <div class="field">
-              <div class="field-line"><label for="colourTemperature">Teplota</label><span class="value" id="colourTemperatureValue">0</span></div>
-              <input id="colourTemperature" type="range" min="-100" max="100" value="0">
+              <label for="colourTemperature">Teplota</label>
+              <div class="range-number">
+                <input id="colourTemperature" type="range" min="-100" max="100" step="1" value="0">
+                <input id="colourTemperatureNumber" type="number" min="-100" max="100" step="1" value="0" aria-label="Teplota farieb">
+              </div>
             </div>
             <div class="field">
-              <div class="field-line"><label for="colourIntensity">Jas / intenzita</label><span class="value" id="colourIntensityValue">0</span></div>
-              <input id="colourIntensity" type="range" min="-100" max="100" value="0">
+              <label for="colourIntensity">Jas / intenzita</label>
+              <div class="range-number">
+                <input id="colourIntensity" type="range" min="-100" max="100" step="1" value="0">
+                <input id="colourIntensityNumber" type="number" min="-100" max="100" step="1" value="0" aria-label="Jas a intenzita">
+              </div>
             </div>
             <div class="field">
-              <div class="field-line"><label for="colourSharpness">Ostrosť</label><span class="value" id="colourSharpnessValue">0 %</span></div>
-              <input id="colourSharpness" type="range" min="0" max="100" value="0">
+              <label for="colourSharpness">Ostrosť</label>
+              <div class="range-number">
+                <input id="colourSharpness" type="range" min="0" max="100" step="1" value="0">
+                <input id="colourSharpnessNumber" type="number" min="0" max="100" step="1" value="0" aria-label="Ostrosť v percentách">
+              </div>
             </div>
             <button class="btn ghost" id="resetColour" type="button" style="width:100%;margin-top:10px">Obnoviť farby</button>
           </div>
 
-          <div class="control-card collapsed">
-            <h3>Globálny denoise <span class="value" id="globalStrengthValue">45 %</span></h3>
-            <p>Použite na celé video pred rezaním. Nové segmenty zdedia jeho nastavenia.</p>
+          <div class="control-card">
+            <h3>AI denoise celého videa <span class="value" id="globalStrengthValue">72 %</span></h3>
+            <p>RNNoise automaticky rozpoznáva hovorený hlas a potláča vietor aj stály šum. Čistenie sa aplikuje súvislo na celé video.</p>
             <div class="field">
-              <label for="globalDenoise">Typ čistenia</label>
-              <select id="globalDenoise">
-                <option value="none">Vypnuté</option>
-                <option value="wind">Vietor / rumble</option>
-                <option value="background">Stály šum pozadia</option>
-                <option value="strong">Silné čistenie + jasnosť reči</option>
-              </select>
+              <label class="toggle-line"><input id="globalDenoiseEnabled" type="checkbox" checked> AI čistenie je zapnuté</label>
             </div>
             <div class="field">
-              <label for="globalStrength">Intenzita</label>
-              <input id="globalStrength" type="range" min="0" max="100" value="45">
+              <label for="globalStrength">Sila odstránenia šumu</label>
+              <div class="range-number">
+                <input id="globalStrength" type="range" min="0" max="100" step="1" value="72">
+                <input id="globalStrengthNumber" type="number" min="0" max="100" step="1" value="72" aria-label="Sila denoise v percentách">
+              </div>
             </div>
-            <button class="btn" id="applyDenoiseAll" type="button" disabled style="width:100%;margin-top:10px">Použiť na všetky segmenty</button>
+            <div class="field">
+              <label for="denoiseLowCut">Odstránenie vetra / nízkych tónov (Hz)</label>
+              <div class="range-number">
+                <input id="denoiseLowCut" type="range" min="50" max="250" step="1" value="110">
+                <input id="denoiseLowCutNumber" type="number" min="50" max="250" step="1" value="110" aria-label="Dolná hranica denoise v hertzoch">
+              </div>
+            </div>
+            <div class="field">
+              <label for="denoiseClarity">Zvýraznenie zrozumiteľnosti hlasu</label>
+              <div class="range-number">
+                <input id="denoiseClarity" type="range" min="0" max="100" step="1" value="18">
+                <input id="denoiseClarityNumber" type="number" min="0" max="100" step="1" value="18" aria-label="Zvýraznenie hlasu v percentách">
+              </div>
+            </div>
+            <button class="btn" id="cleanPreviewBtn" type="button" disabled style="width:100%;margin-top:10px">▶ A/B: pôvodný vs. AI denoise</button>
+            <div class="ab-status" id="denoisePreviewStatus">Náhľad prehrá tú istú 3-sekundovú pasáž najprv pôvodnú, potom vyčistenú.</div>
           </div>
 
           <div class="control-card">
@@ -1512,26 +1646,7 @@
               </div>
               <input id="segmentGain" type="range" min="-36" max="12" step=".5" value="0" disabled>
             </div>
-            <div class="field">
-              <label for="segmentDenoise">Denoise segmentu</label>
-              <select id="segmentDenoise" disabled>
-                <option value="none">Vypnuté</option>
-                <option value="wind">Vietor / rumble</option>
-                <option value="background">Stály šum pozadia</option>
-                <option value="strong">Silné čistenie + jasnosť reči</option>
-              </select>
-            </div>
-            <div class="field">
-              <div class="field-line">
-                <label for="segmentStrength">Intenzita denoise</label>
-                <span class="value" id="segmentStrengthValue">0 %</span>
-              </div>
-              <input id="segmentStrength" type="range" min="0" max="100" value="0" disabled>
-            </div>
-            <div class="button-pair">
-              <button class="btn danger" id="segmentMuteBtn" type="button" disabled>Stíšiť na nulu</button>
-              <button class="btn" id="cleanPreviewBtn" type="button" disabled>A/B náhľad</button>
-            </div>
+            <button class="btn danger" id="segmentMuteBtn" type="button" disabled style="width:100%;margin-top:10px">Stíšiť na nulu</button>
           </div>
 
           <div class="control-card collapsed">
@@ -1549,17 +1664,17 @@
 
           <div class="control-card collapsed">
             <h3>Finálny obraz</h3>
-            <p>Po posledných slovách ostane obraz 4 s, potom 3 s blur/fade a následne 2 s úplne čierny obraz. Hudba plynulo dohrá až do konca čiernej.</p>
+            <p>Po posledných slovách ostane obraz 4 s, potom 2 s plynulo silnie blur aj stmievanie a následne ostanú 2 s úplne čierneho obrazu. Hudba plynulo dohrá až do konca čiernej.</p>
             <div class="button-pair">
               <span class="pill">Obraz +4 s</span>
-              <span class="pill">Blur/fade 3 s</span>
+              <span class="pill">Blur/fade 2 s</span>
             </div>
             <span class="pill" style="width:100%;justify-content:center;margin-top:7px">Čierna +2 s · hudba doznie</span>
           </div>
 
           <div class="control-card collapsed" id="transcriptCard">
             <h3>Informačný prepis <span class="pill" id="transcriptPill">Čaká</span></h3>
-            <p id="transcriptStatus">Po vložení videa sa automaticky spustí lokálny slovenský prepis.</p>
+            <p id="transcriptStatus">Po vložení videa sa na pozadí automaticky spustí presný lokálny slovenský prepis.</p>
             <div class="transcript-progress"><i id="transcriptProgress"></i></div>
             <div class="transcript-copy" id="transcriptText">Prepis ešte nie je k dispozícii.</div>
             <button class="btn ghost" id="retryTranscript" type="button" disabled style="width:100%;margin-top:10px">Spustiť prepis znova</button>
@@ -1590,7 +1705,12 @@
             <input id="musicScrubber" type="range" min="0" max="1" step=".001" value="0" disabled>
             <span class="timecode" id="musicTime">00:00.000</span>
           </div>
-          <div class="visualizer">
+          <div class="music-tools">
+            <label class="zoom-tool">Zoom hudby <input id="musicZoom" type="range" min="1" max="32" step="1" value="1"><span id="musicZoomValue">1×</span></label>
+            <label class="toggle-line"><input id="beatSnap" type="checkbox" checked> Prichytiť drop na beat</label>
+            <span class="pill" id="bpmPill">BPM sa analyzuje</span>
+          </div>
+          <div class="visualizer" id="musicVisualizer">
             <div class="media-vis" id="musicMediaVis" data-view="wave">
               <canvas class="wave-view" id="musicWave"></canvas>
               <img class="spectrogram-view" id="musicSpectrum" alt="Spektrogram hudby">
@@ -1604,9 +1724,10 @@
             <span><i style="--dot:var(--green)"></i>pasáž použitá vo videu</span>
           </div>
           <div class="drop-note">
-            <span><strong>Drop:</strong> nastavte ho na playheade alebo ho potiahnite. Celá hudba sa automaticky posunie.</span>
+            <span><strong>Drop:</strong> AI navrhne tri momenty z celej skladby. Vybraný môžete ďalej presne potiahnuť a prichytiť na beat.</span>
             <button class="btn" id="setDropBtn" type="button" disabled>Nastaviť drop</button>
           </div>
+          <div class="drop-candidates" id="dropCandidates"></div>
         </div>
 
         <aside class="music-side">
@@ -1681,9 +1802,11 @@
       markers: { speechStart: 0, giveEnd: 0, continueStart: 0, speechEnd: 0 },
       segments: [],
       selectedSegmentId: null,
-      globalDenoise: { mode: "none", strength: 45 },
+      globalDenoise: { enabled: true, strength: 72, lowCut: 110, clarity: 18 },
       transitionDuration: 2,
       timelineZoom: 1,
+      musicZoom: 1,
+      beatSnap: true,
       markersManuallyEdited: false,
       voiceMasterDb: 0,
       colour: {
@@ -1710,7 +1833,8 @@
         duringSpeechDb: -22,
         afterSpeechDb: -13,
         offsetDb: 0,
-        manual: false
+        manual: false,
+        dropManual: false
       },
       channel: {
         videoMuted: false,
@@ -1724,6 +1848,7 @@
       audioGraph: null,
       previewTailStartedAt: null,
       lastCleanUrl: null,
+      denoisePreview: null,
       toastTimer: null
     };
 
@@ -1775,7 +1900,7 @@
       try {
         const response = await api("/api/health");
         const data = await response.json();
-        if (!data.ffmpeg || !data.ffprobe || !data.whoosh) throw new Error("Chýba lokálny FFmpeg alebo whoosh.");
+        if (!data.ffmpeg || !data.ffprobe || !data.whoosh || !data.rnnoise) throw new Error("Chýba lokálny FFmpeg, whoosh alebo AI denoise model.");
         state.serverReady = true;
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
@@ -1810,7 +1935,11 @@
         const record = { file, url: URL.createObjectURL(file), analysis };
         if (kind === "video") loadVideoRecord(record);
         else loadMusicRecord(record);
-        toast(kind === "video" ? "Video je analyzované a pripravené." : "Hudba je analyzovaná. Označte jej drop.");
+        toast(kind === "video"
+          ? "Video je analyzované. Presný prepis sa ďalej pripravuje na pozadí."
+          : record.analysis.dropAnalysis?.candidates?.length
+            ? "Hudba je analyzovaná a najvhodnejší drop je nastavený."
+            : "Hudba je analyzovaná. Drop môžete označiť manuálne.");
       } catch (error) {
         name.textContent = error.message;
         toast(error.message);
@@ -1833,14 +1962,12 @@
         speechEnd: clamp(Math.max(11, duration - 7), 0, duration)
       };
       enforceMarkerOrder();
-      const inherited = structuredClone(state.globalDenoise);
       state.segments = [{
         id: uid(),
         start: 0,
         end: duration,
         gainDb: 0,
         muted: false,
-        denoise: inherited,
         transform: { zoom: 1, x: 0, y: 0 }
       }];
       state.selectedSegmentId = state.segments[0].id;
@@ -1857,7 +1984,7 @@
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
       $("#videoSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
-      ["#masterPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#applyDenoiseAll"].forEach((selector) => $(selector).disabled = false);
+      ["#masterPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#cleanPreviewBtn"].forEach((selector) => $(selector).disabled = false);
       renderAll();
       requestAnimationFrame(renderWaveforms);
       startTranscript();
@@ -1878,7 +2005,12 @@
       $("#musicFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       $("#musicSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
       const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
-      state.musicSettings.dropTime = clamp(Math.max(10, continuation), 0, record.analysis.metadata.duration);
+      const recommendedDrop = record.analysis.dropAnalysis?.candidates?.[0]?.time;
+      state.musicSettings.dropManual = false;
+      state.musicSettings.dropTime = Number.isFinite(recommendedDrop)
+        ? recommendedDrop
+        : clamp(Math.max(10, continuation), 0, record.analysis.metadata.duration);
+      state.musicZoom = 1;
       renderAll();
       requestAnimationFrame(renderWaveforms);
     }
@@ -1913,8 +2045,8 @@
         return;
       }
       const source = state.segments[index];
-      const left = { ...source, id: uid(), end: time, denoise: structuredClone(source.denoise), transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
-      const right = { ...source, id: uid(), start: time, denoise: structuredClone(source.denoise), transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
+      const left = { ...source, id: uid(), end: time, transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
+      const right = { ...source, id: uid(), start: time, transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
       state.segments.splice(index, 1, left, right);
       state.selectedSegmentId = right.id;
       renderAll();
@@ -1933,19 +2065,10 @@
         ...source,
         id: uid(),
         end: next.end,
-        denoise: structuredClone(source.denoise),
         transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 })
       });
       state.selectedSegmentId = state.segments[index].id;
       renderAll();
-    }
-
-    function applyGlobalDenoise() {
-      state.segments.forEach((segment) => {
-        segment.denoise = structuredClone(state.globalDenoise);
-      });
-      renderAll();
-      toast("Globálny denoise sa použil na všetky segmenty.");
     }
 
     function renderWave(canvas, record, options = {}) {
@@ -2094,7 +2217,23 @@
         const end = clamp(passage.end, 0, duration);
         selection = `<div style="position:absolute;top:0;bottom:0;left:${markerPercent(start, duration)};width:${markerPercent(Math.max(0, end - start), duration)};background:rgba(115,221,177,.11);border-left:1px solid var(--green);border-right:1px solid var(--green)"></div>`;
       }
-      layer.innerHTML = selection + `<div class="marker" data-music-marker="drop" style="left:${markerPercent(state.musicSettings.dropTime, duration)};--marker:#ec7db3"><span>Drop hudby</span></div>`;
+      const dropAnalysis = state.music.analysis.dropAnalysis;
+      const beatLines = [];
+      if (dropAnalysis?.beatInterval) {
+        const maxLines = 480;
+        const total = Math.ceil(duration / dropAnalysis.beatInterval);
+        const every = Math.max(1, Math.ceil(total / maxLines));
+        for (let index = 0; index < total; index += every) {
+          const time = dropAnalysis.beatOffset + index * dropAnalysis.beatInterval;
+          if (time >= 0 && time <= duration) {
+            beatLines.push(`<i class="beat-line" style="left:${markerPercent(time, duration)}"></i>`);
+          }
+        }
+      }
+      const candidateLines = (dropAnalysis?.candidates || []).map((candidate, index) =>
+        `<button type="button" class="drop-candidate-line" data-drop-candidate="${candidate.time}" style="left:${markerPercent(candidate.time, duration)}" title="Návrh ${index + 1}: ${candidate.reason}"><span>#${index + 1} · ${candidate.score}%</span></button>`
+      ).join("");
+      layer.innerHTML = selection + beatLines.join("") + candidateLines + `<div class="marker" data-music-marker="drop" style="left:${markerPercent(state.musicSettings.dropTime, duration)};--marker:#ec7db3"><span>Drop hudby</span></div>`;
     }
 
     function renderSegments() {
@@ -2107,9 +2246,8 @@
       const duration = state.video.analysis.metadata.duration;
       lane.innerHTML = state.segments.map((segment, index) => {
         const classes = ["segment", segment.id === state.selectedSegmentId ? "selected" : "", segment.muted ? "muted" : ""].filter(Boolean).join(" ");
-        const denoise = segment.denoise?.mode !== "none" ? ` · D ${segment.denoise.strength}%` : "";
         const mute = segment.muted ? " · Ticho" : ` · ${formatDb(segment.gainDb)}`;
-        return `<button type="button" class="${classes}" data-segment="${segment.id}" style="left:${markerPercent(segment.start, duration)};width:${markerPercent(segment.end - segment.start, duration)}">S${index + 1}${mute}${denoise}</button>`;
+        return `<button type="button" class="${classes}" data-segment="${segment.id}" style="left:${markerPercent(segment.start, duration)};width:${markerPercent(segment.end - segment.start, duration)}">S${index + 1}${mute}</button>`;
       }).join("");
       $("#segmentCount").textContent = `${state.segments.length} ${state.segments.length === 1 ? "segment" : "segmenty"}`;
       const selectedIndex = state.segments.findIndex((segment) => segment.id === state.selectedSegmentId);
@@ -2143,7 +2281,7 @@
 
     function renderInspector() {
       const segment = getSelectedSegment();
-      const controls = ["#segmentGain", "#segmentDenoise", "#segmentStrength", "#segmentMuteBtn", "#cleanPreviewBtn", "#transformZoom", "#transformX", "#transformY", "#resetTransform"];
+      const controls = ["#segmentGain", "#segmentMuteBtn", "#transformZoom", "#transformX", "#transformY", "#resetTransform"];
       controls.forEach((selector) => $(selector).disabled = !segment);
       if (!segment) {
         $("#selectionPill").textContent = "Bez segmentu";
@@ -2155,9 +2293,6 @@
       $("#segmentRange").textContent = `${formatTime(segment.start)} – ${formatTime(segment.end)}`;
       $("#segmentGain").value = String(segment.gainDb);
       $("#segmentGainValue").textContent = formatDb(segment.gainDb);
-      $("#segmentDenoise").value = segment.denoise?.mode || "none";
-      $("#segmentStrength").value = String(segment.denoise?.strength || 0);
-      $("#segmentStrengthValue").textContent = `${segment.denoise?.strength || 0} %`;
       $("#segmentMuteBtn").textContent = segment.muted ? "Obnoviť zvuk" : "Stíšiť na nulu";
       $("#segmentMuteBtn").classList.toggle("danger", !segment.muted);
       const transform = segment.transform || (segment.transform = { zoom: 1, x: 0, y: 0 });
@@ -2195,6 +2330,18 @@
           ? `Použije sa <strong>${formatTime(passage.start)} – ${formatTime(passage.end)}</strong>. Zahŕňa aj 2 s čiernej a hudba dohrá presne do konca.`
           : `<span style="color:var(--danger)">Pasáž ${formatTime(Math.max(0, passage.start))} – ${formatTime(passage.end)} sa do skladby nezmestí. Posuňte drop alebo vyberte dlhšiu skladbu.</span>`;
       }
+      const analysis = state.music?.analysis?.dropAnalysis;
+      $("#bpmPill").textContent = analysis?.bpm ? `≈ ${analysis.bpm} BPM` : "BPM nedostupné";
+      const candidates = analysis?.candidates || [];
+      $("#dropCandidates").innerHTML = candidates.length
+        ? candidates.map((candidate, index) => {
+          const active = Math.abs(candidate.time - state.musicSettings.dropTime) < .08;
+          return `<button type="button" class="drop-candidate${active ? " active" : ""}" data-drop-candidate="${candidate.time}">
+            <strong>${index === 0 ? "Odporúčaný" : `Alternatíva ${index}`} · ${formatTime(candidate.time)} · ${candidate.score}%</strong>
+            <small>${candidate.reason}</small>
+          </button>`;
+        }).join("")
+        : `<span class="muted-copy">AI nenašla dostatočne výrazný drop; použite playhead.</span>`;
       renderMusicMarkers();
     }
 
@@ -2211,13 +2358,26 @@
       $("#colourTemperature").value = colour.temperature;
       $("#colourIntensity").value = colour.intensity;
       $("#colourSharpness").value = colour.sharpness;
+      $("#colourBoostNumber").value = colour.boost;
+      $("#colourRedNumber").value = colour.red;
+      $("#colourGreenNumber").value = colour.green;
+      $("#colourBlueNumber").value = colour.blue;
+      $("#colourTemperatureNumber").value = colour.temperature;
+      $("#colourIntensityNumber").value = colour.intensity;
+      $("#colourSharpnessNumber").value = colour.sharpness;
       $("#colourBoostValue").textContent = colour.mode === "all" ? `${colour.boost} %` : "RGB";
-      $("#colourRedValue").textContent = colour.red;
-      $("#colourGreenValue").textContent = colour.green;
-      $("#colourBlueValue").textContent = colour.blue;
-      $("#colourTemperatureValue").textContent = colour.temperature;
-      $("#colourIntensityValue").textContent = colour.intensity;
-      $("#colourSharpnessValue").textContent = `${colour.sharpness} %`;
+    }
+
+    function renderDenoise() {
+      const denoise = state.globalDenoise;
+      $("#globalDenoiseEnabled").checked = denoise.enabled;
+      $("#globalStrength").value = denoise.strength;
+      $("#globalStrengthNumber").value = denoise.strength;
+      $("#denoiseLowCut").value = denoise.lowCut;
+      $("#denoiseLowCutNumber").value = denoise.lowCut;
+      $("#denoiseClarity").value = denoise.clarity;
+      $("#denoiseClarityNumber").value = denoise.clarity;
+      $("#globalStrengthValue").textContent = denoise.enabled ? `${denoise.strength} %` : "Vypnuté";
     }
 
     function renderTranscript() {
@@ -2242,6 +2402,13 @@
       $("#videoMediaVis").style.width = width;
       $("#timelineZoom").value = state.timelineZoom;
       $("#timelineZoomValue").textContent = `${state.timelineZoom.toFixed(2).replace(/\.00$/, "")}×`;
+    }
+
+    function renderMusicZoom() {
+      $("#musicMediaVis").style.width = `${state.musicZoom * 100}%`;
+      $("#musicZoom").value = state.musicZoom;
+      $("#musicZoomValue").textContent = `${state.musicZoom}×`;
+      $("#beatSnap").checked = state.beatSnap;
     }
 
     function meterPeak(record, time) {
@@ -2290,7 +2457,7 @@
       if (Math.abs(pause - 3) > 1) warnings.push(`Prestávka po „Give Me Five“ má ${pause.toFixed(1)} s; cieľ je približne 3 s.`);
       else checks.push({ text: `Prestávka ${pause.toFixed(1)} s` });
       const tail = state.trimEnd - m.speechEnd;
-      if (tail < 7) warnings.push(`Po reči zostáva ${tail.toFixed(1)} s; recept 4 s obraz + 3 s fade sa na konci prekryje.`);
+      if (tail < 6) warnings.push(`Po reči zostáva ${tail.toFixed(1)} s; recept 4 s obraz + 2 s blur/fade sa na konci prekryje.`);
       else checks.push({ text: `Záver ${tail.toFixed(1)} s` });
       checks.push({ text: "Čierny obraz +2 s" });
 
@@ -2358,7 +2525,7 @@
       else if (time >= start + fadeIn && time <= end) light = 1 - ((time - start - fadeIn) / Math.max(.01, state.transitionDuration - fadeIn));
       $("#lightFlash").style.opacity = String(clamp(light * .92, 0, .92));
 
-      const fadeStart = state.trimEnd - Math.min(3, state.trimEnd - state.trimStart);
+      const fadeStart = state.trimEnd - Math.min(2, state.trimEnd - state.trimStart);
       const finalProgress = time >= fadeStart ? clamp((time - fadeStart) / Math.max(.01, state.trimEnd - fadeStart), 0, 1) : 0;
       $("#finishShade").style.opacity = String(time >= state.trimEnd ? 1 : finalProgress);
       const colour = state.colour;
@@ -2369,7 +2536,7 @@
       const contrast = 1 + Math.abs(colour.intensity) / 100 * .12;
       const warm = Math.abs(colour.temperature) / 100 * .18;
       const hue = colour.temperature < 0 ? -8 * warm : 8 * warm;
-      const blur = finalProgress * 18;
+      const blur = finalProgress * 24;
       $("#video").style.filter = `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
       const segment = segmentAt($("#video").currentTime);
       const transform = segment?.transform || { zoom: 1, x: 0, y: 0 };
@@ -2388,8 +2555,10 @@
       renderInspector();
       renderMusic();
       renderColour();
+      renderDenoise();
       renderTranscript();
       renderTimelineZoom();
+      renderMusicZoom();
       renderValidation();
       renderPlayheads();
       renderMeters();
@@ -2432,6 +2601,21 @@
       updateAudioMix(true);
     }
 
+    function snapMusicTime(time) {
+      const analysis = state.music?.analysis?.dropAnalysis;
+      if (!state.beatSnap || !analysis?.beatInterval) return time;
+      const beatIndex = Math.round((time - analysis.beatOffset) / analysis.beatInterval);
+      return clamp(analysis.beatOffset + beatIndex * analysis.beatInterval, 0, state.music.analysis.metadata.duration);
+    }
+
+    function chooseDrop(time, manual = true) {
+      if (!state.music) return;
+      state.musicSettings.dropTime = clamp(Number(time), 0, state.music.analysis.metadata.duration);
+      if (manual) state.musicSettings.dropManual = true;
+      $("#music").currentTime = state.musicSettings.dropTime;
+      renderAll();
+    }
+
     function startMarkerDrag(event, kind, key) {
       event.preventDefault();
       state.drag = { kind, key };
@@ -2444,9 +2628,7 @@
           setMarker(key, time);
           $("#video").currentTime = key === "trimStart" || key === "trimEnd" ? state[key] : state.markers[key];
         } else {
-          state.musicSettings.dropTime = time;
-          $("#music").currentTime = time;
-          renderAll();
+          chooseDrop(snapMusicTime(time));
         }
       };
       const up = () => {
@@ -2510,9 +2692,9 @@
       const videoLevel = channelAudible("video") && !segment?.muted && state.previewTailStartedAt === null
         ? dbToLinear((segment?.gainDb || 0) + state.voiceMasterDb)
         : 0;
-      const finalFadeStart = state.trimEnd - 3;
+      const finalFadeStart = state.trimEnd - 2;
       const finalFactor = state.video && previewTime > finalFadeStart
-        ? clamp((state.trimEnd + 2 - previewTime) / 5, 0, 1)
+        ? clamp((state.trimEnd + 2 - previewTime) / 4, 0, 1)
         : 1;
       const musicLevel = channelAudible("music") && state.music
         ? dbToLinear(musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb) * finalFactor
@@ -2602,7 +2784,8 @@
           body: JSON.stringify({
             videoId: state.video.analysis.id,
             segment,
-            playhead: $("#video").currentTime
+            playhead: $("#video").currentTime,
+            denoise: state.globalDenoise
           })
         });
         const blob = await response.blob();
@@ -2610,13 +2793,27 @@
         state.lastCleanUrl = URL.createObjectURL(blob);
         const preview = $("#cleanPreview");
         preview.src = state.lastCleanUrl;
+        state.denoisePreview = { phaseDuration: 3, gapDuration: .35 };
         await preview.play();
-        toast("Prehráva sa 6-sekundový vyčistený A/B náhľad segmentu.");
+        toast("A/B náhľad: najprv pôvodný zvuk, potom tá istá pasáž po AI čistení.");
       } catch (error) {
         toast(error.message);
       } finally {
         button.disabled = false;
-        button.textContent = "A/B náhľad";
+        button.textContent = "▶ A/B: pôvodný vs. AI denoise";
+      }
+    }
+
+    function renderDenoisePreviewStatus() {
+      const preview = $("#cleanPreview");
+      if (!state.denoisePreview || preview.paused) return;
+      const { phaseDuration, gapDuration } = state.denoisePreview;
+      if (preview.currentTime < phaseDuration) {
+        $("#denoisePreviewStatus").textContent = "A · Pôvodný zvuk";
+      } else if (preview.currentTime < phaseDuration + gapDuration) {
+        $("#denoisePreviewStatus").textContent = "Porovnanie…";
+      } else {
+        $("#denoisePreviewStatus").textContent = "B · AI denoise";
       }
     }
 
@@ -2630,7 +2827,7 @@
       if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd, state.markers.continueStart, duration);
       enforceMarkerOrder();
       state.trimStart = Math.max(0, state.markers.speechStart - 2);
-      state.trimEnd = Math.min(duration, state.markers.speechEnd + 7);
+      state.trimEnd = Math.min(duration, state.markers.speechEnd + 6);
       enforceMarkerOrder();
       toast(Number.isFinite(suggestions.giveEnd)
         ? "Prepis našiel „Give Me Five“ a navrhol časové značky."
@@ -2665,10 +2862,19 @@
       }
     }
 
-    async function pollTranscript(jobId, videoId) {
+    async function pollTranscript(jobId, videoId, retries = 0) {
       if (state.video?.analysis.id !== videoId) return;
-      const response = await api(`/api/transcript/${jobId}`);
-      const job = await response.json();
+      let job;
+      try {
+        const response = await api(`/api/transcript/${jobId}`);
+        job = await response.json();
+      } catch (error) {
+        if (retries >= 5) throw error;
+        state.transcript.message = "Presný prepis pokračuje na pozadí; obnovujem spojenie…";
+        renderTranscript();
+        await new Promise((resolve) => setTimeout(resolve, 1800));
+        return pollTranscript(jobId, videoId, retries + 1);
+      }
       state.transcript.status = job.status;
       state.transcript.progress = job.progress || 0;
       state.transcript.message = job.message || "Lokálny prepis…";
@@ -2688,7 +2894,7 @@
       }
       renderTranscript();
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      return pollTranscript(jobId, videoId);
+      return pollTranscript(jobId, videoId, 0);
     }
 
     function exportPayload() {
@@ -2701,6 +2907,7 @@
         transitionDuration: state.transitionDuration,
         segments: state.segments,
         voiceMasterDb: state.voiceMasterDb,
+        globalDenoise: state.globalDenoise,
         colour: state.colour,
         music: {
           enabled: Boolean(state.music),
@@ -2769,6 +2976,21 @@
       return pollExport(jobId);
     }
 
+    function bindIntegerPair(rangeId, numberId, minimum, maximum, onChange) {
+      const range = $(`#${rangeId}`);
+      const number = $(`#${numberId}`);
+      const commit = (raw) => {
+        if (raw === "") return;
+        const value = Math.round(clamp(Number(raw), minimum, maximum));
+        range.value = value;
+        number.value = value;
+        onChange(value);
+      };
+      range.addEventListener("input", (event) => commit(event.target.value));
+      number.addEventListener("input", (event) => commit(event.target.value));
+      number.addEventListener("blur", () => commit(number.value));
+    }
+
     function setupEvents() {
       $("#videoFile").addEventListener("change", (event) => {
         const file = event.target.files[0];
@@ -2808,6 +3030,11 @@
         else seekFromPointer(event, $("#videoMediaVis"), "video");
       });
       $("#musicMediaVis").addEventListener("pointerdown", (event) => {
+        const candidate = event.target.closest("[data-drop-candidate]");
+        if (candidate) {
+          chooseDrop(snapMusicTime(Number(candidate.dataset.dropCandidate)));
+          return;
+        }
         const marker = event.target.closest("[data-music-marker]");
         if (marker) startMarkerDrag(event, "music", "drop");
         else seekFromPointer(event, $("#musicMediaVis"), "music");
@@ -2834,7 +3061,7 @@
       $("#autoTrimSpeech").addEventListener("click", () => setMarker("trimStart", Math.max(0, state.markers.speechStart - 2)));
       $("#autoTail").addEventListener("click", () => {
         if (!state.video) return;
-        setMarker("trimEnd", Math.min(state.video.analysis.metadata.duration, state.markers.speechEnd + 7));
+        setMarker("trimEnd", Math.min(state.video.analysis.metadata.duration, state.markers.speechEnd + 6));
       });
       $("#previewTransition").addEventListener("click", previewTransition);
       $("#playVideo").addEventListener("click", toggleVideoPlayback);
@@ -2856,9 +3083,21 @@
         renderTimelineZoom();
         requestAnimationFrame(renderWaveforms);
       });
+      $("#musicZoom").addEventListener("input", (event) => {
+        state.musicZoom = Number(event.target.value);
+        renderMusicZoom();
+        requestAnimationFrame(renderWaveforms);
+      });
+      $("#beatSnap").addEventListener("change", (event) => {
+        state.beatSnap = event.target.checked;
+        renderMusicZoom();
+      });
+      $("#dropCandidates").addEventListener("click", (event) => {
+        const candidate = event.target.closest("[data-drop-candidate]");
+        if (candidate) chooseDrop(snapMusicTime(Number(candidate.dataset.dropCandidate)));
+      });
       $("#setDropBtn").addEventListener("click", () => {
-        state.musicSettings.dropTime = $("#music").currentTime;
-        renderAll();
+        chooseDrop(snapMusicTime($("#music").currentTime));
       });
 
       $("#videoScrubber").addEventListener("input", (event) => {
@@ -2904,14 +3143,22 @@
       });
       $("#music").addEventListener("timeupdate", renderPlayheads);
 
-      $("#globalDenoise").addEventListener("change", (event) => {
-        state.globalDenoise.mode = event.target.value;
+      $("#globalDenoiseEnabled").addEventListener("change", (event) => {
+        state.globalDenoise.enabled = event.target.checked;
+        renderDenoise();
       });
-      $("#globalStrength").addEventListener("input", (event) => {
-        state.globalDenoise.strength = Number(event.target.value);
-        $("#globalStrengthValue").textContent = `${event.target.value} %`;
+      bindIntegerPair("globalStrength", "globalStrengthNumber", 0, 100, (value) => {
+        state.globalDenoise.strength = value;
+        renderDenoise();
       });
-      $("#applyDenoiseAll").addEventListener("click", applyGlobalDenoise);
+      bindIntegerPair("denoiseLowCut", "denoiseLowCutNumber", 50, 250, (value) => {
+        state.globalDenoise.lowCut = value;
+        renderDenoise();
+      });
+      bindIntegerPair("denoiseClarity", "denoiseClarityNumber", 0, 100, (value) => {
+        state.globalDenoise.clarity = value;
+        renderDenoise();
+      });
 
       $$(".inspector-body .control-card h3").forEach((heading) => {
         heading.addEventListener("click", () => heading.closest(".control-card").classList.toggle("collapsed"));
@@ -2924,19 +3171,6 @@
         $("#segmentGainValue").textContent = formatDb(segment.gainDb);
         renderSegments();
         updateAudioMix();
-      });
-      $("#segmentDenoise").addEventListener("change", (event) => {
-        const segment = getSelectedSegment();
-        if (!segment) return;
-        segment.denoise.mode = event.target.value;
-        renderSegments();
-      });
-      $("#segmentStrength").addEventListener("input", (event) => {
-        const segment = getSelectedSegment();
-        if (!segment) return;
-        segment.denoise.strength = Number(event.target.value);
-        $("#segmentStrengthValue").textContent = `${event.target.value} %`;
-        renderSegments();
       });
       $("#segmentMuteBtn").addEventListener("click", () => {
         const segment = getSelectedSegment();
@@ -2974,9 +3208,17 @@
         renderColour();
         renderPreviewEffects();
       });
-      [["colourBoost", "boost"], ["colourRed", "red"], ["colourGreen", "green"], ["colourBlue", "blue"], ["colourTemperature", "temperature"], ["colourIntensity", "intensity"], ["colourSharpness", "sharpness"]].forEach(([id, key]) => {
-        $(`#${id}`).addEventListener("input", (event) => {
-          state.colour[key] = Number(event.target.value);
+      [
+        ["colourBoost", "colourBoostNumber", "boost", 0, 100],
+        ["colourRed", "colourRedNumber", "red", 0, 100],
+        ["colourGreen", "colourGreenNumber", "green", 0, 100],
+        ["colourBlue", "colourBlueNumber", "blue", 0, 100],
+        ["colourTemperature", "colourTemperatureNumber", "temperature", -100, 100],
+        ["colourIntensity", "colourIntensityNumber", "intensity", -100, 100],
+        ["colourSharpness", "colourSharpnessNumber", "sharpness", 0, 100]
+      ].forEach(([rangeId, numberId, key, minimum, maximum]) => {
+        bindIntegerPair(rangeId, numberId, minimum, maximum, (value) => {
+          state.colour[key] = value;
           renderColour();
           renderPreviewEffects();
         });
@@ -3030,6 +3272,10 @@
 
       $("#exportBtn").addEventListener("click", exportProject);
       $("#retryServer").addEventListener("click", checkServer);
+      $("#cleanPreview").addEventListener("ended", () => {
+        state.denoisePreview = null;
+        $("#denoisePreviewStatus").textContent = "A/B náhľad skončil. Upravte parametre a porovnajte znova.";
+      });
 
       window.addEventListener("keydown", (event) => {
         if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
@@ -3066,6 +3312,7 @@
       renderPlayheads();
       renderPreviewEffects();
       renderMeters();
+      renderDenoisePreviewStatus();
       if (!$("#video").paused || state.previewTailStartedAt !== null) updateAudioMix();
       requestAnimationFrame(animationLoop);
     }

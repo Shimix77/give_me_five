@@ -15,11 +15,12 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 
 1. Vložte portrétové MOV/MP4 do 60 sekúnd.
 2. Na farebnom waveforme alebo spektrograme nastavte trim, začiatok reči, koniec „Give Me Five“, začiatok druhej reči a koniec hovoreného slova.
-3. Rezátkom rozdeľte pôvodné audio. Každý segment má vlastnú hlasitosť, absolútne stíšenie a denoise.
-4. V pravom Inspectore nastavte samostatný zoom/polohu segmentu a globálne farby, teplotu, intenzitu či ostrosť.
-5. Voliteľne vložte licencované MP3/WAV/M4A a nastavte drop skladby. Hlavné Play prehrá obraz, pôvodný zvuk aj hudbu súčasne.
-6. Informačný slovenský prepis sa vytvorí lokálne. Pri prvom použití sa stiahne model; ďalšie prepisy ho používajú z počítača.
-7. Skontrolujte synchronizovaný náhľad a exportujte MP4.
+3. AI denoise (RNNoise) vyčistí súvislo celý pôvodný zvuk. Silu, odrezanie vetra a zrozumiteľnosť hlasu môžete doladiť a overiť skutočným A/B náhľadom.
+4. Rezátkom rozdeľte pôvodné audio. Každý segment má vlastnú hlasitosť a absolútne stíšenie.
+5. V pravom Inspectore nastavte samostatný zoom/polohu segmentu a globálne farby, teplotu, intenzitu či ostrosť. Slidery farieb majú aj celočíselný vstup.
+6. Voliteľne vložte licencované MP3/WAV/M4A. Editor analyzuje celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×.
+7. Informačný slovenský prepis vytvára presný Whisper Large v3 Turbo na pozadí. Pri prvom použití sa stiahne model; ďalšie prepisy ho používajú z počítača.
+8. Skontrolujte synchronizovaný náhľad a exportujte MP4.
 
 Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
 
@@ -28,4 +29,6 @@ Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre fungu
 - H.264 video a AAC audio v MP4
 - pôvodné rozlíšenie a FPS zdrojového videa
 - svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
-- 3-sekundový blur/fade, ďalšie 2 sekundy čistého čierneho obrazu a hudba doznievajúca až do konca
+- 2-sekundový plynulo silnejúci blur/fade, ďalšie 2 sekundy čistého čierneho obrazu a hudba doznievajúca až do konca
+
+AI denoise používa RNNoise model `std.rnnn` distribuovaný projektom Xiph a pripravený pre FFmpeg filter `arnndn`.

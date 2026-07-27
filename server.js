@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
+const { Worker } = require("worker_threads");
 
 const express = require("express");
 const FFT = require("fft.js");
@@ -19,6 +20,7 @@ const EXPORT_DIR = path.join(WORK_DIR, "exports");
 const MODEL_DIR = path.join(WORK_DIR, "models");
 const ASSET_DIR = path.join(APP_DIR, "assets");
 const WHOOSH_PATH = path.join(ASSET_DIR, "fast-whoosh.mp3");
+const RNNOISE_MODEL_PATH = path.join(ASSET_DIR, "rnnoise-voice.rnnn");
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
@@ -32,7 +34,6 @@ const media = new Map();
 const jobs = new Map();
 const transcriptJobs = new Map();
 let whooshPeakSeconds = 0.44;
-let transcriberPromise = null;
 
 const storage = multer.diskStorage({
   destination: (_request, _file, callback) => callback(null, UPLOAD_DIR),
@@ -75,7 +76,8 @@ app.get("/api/health", (_request, response) => {
     engine: "native-ffmpeg",
     ffmpeg: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
     ffprobe: Boolean(ffprobePath && fs.existsSync(ffprobePath)),
-    whoosh: fs.existsSync(WHOOSH_PATH)
+    whoosh: fs.existsSync(WHOOSH_PATH),
+    rnnoise: fs.existsSync(RNNOISE_MODEL_PATH)
   });
 });
 
@@ -280,10 +282,151 @@ async function createSpectrogram(filePath, id) {
   return `/api/analysis/${id}.png`;
 }
 
-async function analyseMedia(filePath, id) {
+function analyseMusicDrops(buffer, sampleRate, duration) {
+  const sampleCount = Math.floor(buffer.byteLength / 2);
+  const samples = new Int16Array(buffer.buffer, buffer.byteOffset, sampleCount);
+  const fftSize = 1024;
+  const hop = 256;
+  if (samples.length < fftSize * 3) {
+    return { bpm: null, beatOffset: 0, beatInterval: null, candidates: [] };
+  }
+
+  const fft = new FFT(fftSize);
+  const input = new Array(fftSize).fill(0);
+  const output = fft.createComplexArray();
+  const previousSpectrum = new Float64Array(fftSize / 2);
+  const frames = [];
+
+  for (let offset = 0; offset + fftSize <= samples.length; offset += hop) {
+    let sumSquares = 0;
+    for (let index = 0; index < fftSize; index++) {
+      const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / (fftSize - 1));
+      const sample = samples[offset + index] / 32768;
+      input[index] = sample * window;
+      sumSquares += sample * sample;
+    }
+    fft.realTransform(output, input);
+    let flux = 0;
+    let bass = 0;
+    for (let bin = 1; bin < fftSize / 2; bin++) {
+      const magnitude = Math.hypot(output[bin * 2], output[bin * 2 + 1]);
+      flux += Math.max(0, magnitude - previousSpectrum[bin]);
+      previousSpectrum[bin] = magnitude;
+      if ((bin * sampleRate) / fftSize < 220) bass += magnitude * magnitude;
+    }
+    const rms = Math.sqrt(sumSquares / fftSize);
+    frames.push({
+      time: (offset + fftSize / 2) / sampleRate,
+      energyDb: 20 * Math.log10(Math.max(rms, 1e-7)),
+      bassDb: 10 * Math.log10(Math.max(bass, 1e-10)),
+      flux
+    });
+  }
+
+  const framesPerSecond = sampleRate / hop;
+  const lookback = Math.max(4, Math.round(framesPerSecond * 1.15));
+  const smoothRadius = Math.max(1, Math.round(framesPerSecond * 0.11));
+  const values = frames.map((frame, index) => {
+    const smoothStart = Math.max(0, index - smoothRadius);
+    const smoothEnd = Math.min(frames.length, index + smoothRadius + 1);
+    const smoothFrames = frames.slice(smoothStart, smoothEnd);
+    const energy = smoothFrames.reduce((sum, item) => sum + item.energyDb, 0) / smoothFrames.length;
+    const bass = smoothFrames.reduce((sum, item) => sum + item.bassDb, 0) / smoothFrames.length;
+    const previous = frames.slice(Math.max(0, index - lookback), Math.max(1, index - Math.round(framesPerSecond * 0.18)));
+    const previousEnergy = previous.length
+      ? previous.reduce((sum, item) => sum + item.energyDb, 0) / previous.length
+      : energy;
+    const previousBass = previous.length
+      ? previous.reduce((sum, item) => sum + item.bassDb, 0) / previous.length
+      : bass;
+    return {
+      ...frame,
+      energyRise: Math.max(0, energy - previousEnergy),
+      bassRise: Math.max(0, bass - previousBass)
+    };
+  });
+
+  const normalise = (value, list) => {
+    const low = percentile(list, 0.35);
+    const high = percentile(list, 0.94);
+    return clamp((value - low) / Math.max(1e-6, high - low), 0, 1);
+  };
+  const fluxValues = values.map((item) => item.flux);
+  const energyRises = values.map((item) => item.energyRise);
+  const bassRises = values.map((item) => item.bassRise);
+  const scored = values.map((item) => ({
+    ...item,
+    score:
+      normalise(item.flux, fluxValues) * 0.46 +
+      normalise(item.energyRise, energyRises) * 0.31 +
+      normalise(item.bassRise, bassRises) * 0.23
+  }));
+
+  const localRadius = Math.max(2, Math.round(framesPerSecond * 0.22));
+  const candidatePool = scored.filter((item, index) => {
+    if (item.time < 1 || item.time > duration - 1 || item.score < 0.28) return false;
+    const start = Math.max(0, index - localRadius);
+    const end = Math.min(scored.length, index + localRadius + 1);
+    return scored.slice(start, end).every((nearby) => item.score >= nearby.score);
+  }).sort((left, right) => right.score - left.score);
+
+  const selected = [];
+  for (const item of candidatePool) {
+    if (selected.every((chosen) => Math.abs(chosen.time - item.time) >= 3.5)) selected.push(item);
+    if (selected.length === 3) break;
+  }
+  if (!selected.length) {
+    selected.push(scored.reduce((best, item) => item.score > best.score ? item : best, scored[0]));
+  }
+
+  const minBpm = 70;
+  const maxBpm = 180;
+  let bestBpm = 120;
+  let bestCorrelation = -Infinity;
+  const onsetMean = fluxValues.reduce((sum, value) => sum + value, 0) / fluxValues.length;
+  const onsetEnvelope = fluxValues.map((value) => Math.max(0, value - onsetMean));
+  for (let bpm = minBpm; bpm <= maxBpm; bpm++) {
+    const lag = Math.round((60 / bpm) * framesPerSecond);
+    let correlation = 0;
+    for (let index = lag; index < onsetEnvelope.length; index++) {
+      correlation += onsetEnvelope[index] * onsetEnvelope[index - lag];
+    }
+    if (correlation > bestCorrelation) {
+      bestCorrelation = correlation;
+      bestBpm = bpm;
+    }
+  }
+  if (bestBpm > 155) bestBpm /= 2;
+  bestBpm = Number(bestBpm.toFixed(1));
+  const beatInterval = 60 / bestBpm;
+  const beatOffset = ((selected[0]?.time || 0) % beatInterval + beatInterval) % beatInterval;
+  const candidates = selected
+    .sort((left, right) => right.score - left.score)
+    .map((item, index) => {
+      const reason = item.bassRise > item.energyRise * 1.25
+        ? "silný nástup basov"
+        : item.flux > percentile(fluxValues, 0.88)
+          ? "výrazný rytmický nástup"
+          : "skok energie skladby";
+      return {
+        time: Number(item.time.toFixed(3)),
+        score: Math.round(clamp(58 + item.score * 40 - index * 3, 1, 99)),
+        reason
+      };
+    });
+
+  return {
+    bpm: bestBpm,
+    beatOffset: Number(beatOffset.toFixed(4)),
+    beatInterval: Number(beatInterval.toFixed(6)),
+    candidates
+  };
+}
+
+async function analyseMedia(filePath, id, kind) {
   const metadata = await probeFile(filePath);
   if (!metadata.hasAudio) {
-    return { metadata, peaks: [], activity: [], noiseFloorDb: -72, spectrogramUrl: null };
+    return { metadata, peaks: [], activity: [], noiseFloorDb: -72, spectrogramUrl: null, dropAnalysis: null };
   }
   const [pcm, spectrogramUrl] = await Promise.all([
     extractMonoPcm(filePath, 8000),
@@ -292,7 +435,8 @@ async function analyseMedia(filePath, id) {
   return {
     metadata,
     ...analysePcm(pcm, 8000, metadata.duration),
-    spectrogramUrl
+    spectrogramUrl,
+    dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null
   };
 }
 
@@ -304,7 +448,7 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
   const id = path.parse(request.file.filename).name;
   const kind = request.body.kind === "music" ? "music" : "video";
   try {
-    const analysis = await analyseMedia(request.file.path, id);
+    const analysis = await analyseMedia(request.file.path, id, kind);
     if (kind === "video" && !analysis.metadata.hasVideo) throw new Error("The selected file has no video stream.");
     if (!analysis.metadata.hasAudio) throw new Error("The selected file has no audio stream.");
     const record = {
@@ -325,7 +469,8 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
       peaks: record.peaks,
       activity: record.activity,
       noiseFloorDb: record.noiseFloorDb,
-      spectrogramUrl: record.spectrogramUrl
+      spectrogramUrl: record.spectrogramUrl,
+      dropAnalysis: record.dropAnalysis
     });
   } catch (error) {
     fs.rmSync(request.file.path, { force: true });
@@ -388,68 +533,55 @@ function transcriptSuggestions(words, duration) {
   return suggestions;
 }
 
-async function getTranscriber(job) {
-  if (!transcriberPromise) {
-    transcriberPromise = (async () => {
-      const { env, pipeline } = await import("@huggingface/transformers");
-      env.cacheDir = MODEL_DIR;
-      env.allowLocalModels = true;
-      env.allowRemoteModels = true;
-      return pipeline("automatic-speech-recognition", "Xenova/whisper-small", {
-        dtype: "q8",
-        progress_callback: (progress) => {
-          if (!job || job.status !== "running") return;
-          if (progress.status === "progress" && Number.isFinite(progress.progress)) {
-            job.progress = clamp(progress.progress / 100 * 0.52, 0.02, 0.52);
-            job.message = `Prvýkrát sťahujem lokálny model… ${Math.round(progress.progress)} %`;
-          } else if (progress.status === "ready") {
-            job.progress = Math.max(job.progress, 0.55);
-            job.message = "Lokálny model je pripravený.";
-          }
-        }
-      });
-    })().catch((error) => {
-      transcriberPromise = null;
-      throw error;
-    });
+function refineSuggestionsWithAudio(suggestions, activity, duration) {
+  const speech = (activity || []).filter((item) => item?.[4] === "speech" && Number.isFinite(item[0]));
+  if (!speech.length) return suggestions;
+  const refined = { ...suggestions };
+  refined.speechStart = clamp(speech[0][0], 0, duration);
+  refined.speechEnd = clamp(speech.at(-1)[0] + 0.12, refined.speechStart, duration);
+  if (Number.isFinite(refined.giveEnd)) {
+    const resumed = speech.find((item) => item[0] >= refined.giveEnd + 0.18);
+    if (resumed) refined.continueStart = clamp(resumed[0], refined.giveEnd, refined.speechEnd);
   }
-  return transcriberPromise;
+  return refined;
 }
 
 async function transcribeMedia(record, job) {
-  job.message = "Pripravujem slovenskú zvukovú stopu…";
-  job.progress = 0.03;
-  const pcm = await extractMonoPcm(record.path, 16000);
-  const samples = new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 2));
-  const audio = new Float32Array(samples.length);
-  for (let index = 0; index < samples.length; index++) audio[index] = samples[index] / 32768;
-  const transcriber = await getTranscriber(job);
-  job.progress = Math.max(job.progress, 0.58);
-  job.message = "Prepisujem slovenčinu lokálne v počítači…";
-  const result = await transcriber(audio, {
-    language: "slovak",
-    task: "transcribe",
-    chunk_length_s: 24,
-    stride_length_s: 4,
-    return_timestamps: "word"
+  const workerResult = await new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
+      workerData: {
+        mediaPath: record.path,
+        modelDir: MODEL_DIR,
+        rnnoiseModelPath: RNNOISE_MODEL_PATH
+      }
+    });
+    worker.on("message", (message) => {
+      if (message.type === "progress") {
+        job.progress = Math.max(job.progress, numeric(message.progress));
+        job.message = message.message || job.message;
+      } else if (message.type === "result") {
+        resolve(message.result);
+      } else if (message.type === "error") {
+        reject(new Error(message.error || "Lokálny prepis zlyhal."));
+      }
+    });
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
+      if (code !== 0 && job.status === "running") reject(new Error(`Prepisový worker skončil s kódom ${code}.`));
+    });
   });
-  const words = (result.chunks || []).map((chunk) => {
-    const rawStart = chunk.timestamp?.[0];
-    const rawEnd = chunk.timestamp?.[1];
-    const start = rawStart === null || rawStart === undefined ? null : Number(rawStart);
-    const end = rawEnd === null || rawEnd === undefined ? start : Number(rawEnd);
-    return {
-      text: String(chunk.text || "").trim(),
-      start: Number.isFinite(start) ? start : null,
-      end: Number.isFinite(end) ? end : Number.isFinite(start) ? start : null
-    };
-  }).filter((word) => word.text);
+  const words = workerResult.words || [];
+  const suggestions = refineSuggestionsWithAudio(
+    transcriptSuggestions(words, record.metadata.duration),
+    record.activity,
+    record.metadata.duration
+  );
   return {
-    text: String(result.text || words.map((word) => word.text).join(" ")).trim(),
+    text: String(workerResult.text || words.map((word) => word.text).join(" ")).trim(),
     words,
-    suggestions: transcriptSuggestions(words, record.metadata.duration),
+    suggestions,
     language: "sk",
-    model: "Whisper Small multilingual · local"
+    model: "Whisper Large v3 Turbo · presný lokálny režim"
   };
 }
 
@@ -495,25 +627,24 @@ app.get("/api/transcript/:id", (request, response) => {
 });
 
 function denoiseFilters(denoise) {
-  const mode = denoise?.mode || "none";
-  const strength = clamp(numeric(denoise?.strength, 45), 0, 100);
-  if (mode === "none" || strength <= 0) return [];
+  const enabled = denoise?.enabled !== false && denoise?.mode !== "none";
+  const strength = clamp(numeric(denoise?.strength, 72), 0, 100);
+  if (!enabled || strength <= 0 || !fs.existsSync(RNNOISE_MODEL_PATH)) return [];
   const amount = strength / 100;
-  if (mode === "wind") {
-    const cutoff = Math.round(80 + amount * 150);
-    const reduction = (6 + amount * 18).toFixed(1);
-    return [`highpass=f=${cutoff}`, `afftdn=nr=${reduction}:nf=-32:tn=1`];
+  const lowCut = Math.round(clamp(numeric(denoise?.lowCut, 110), 50, 250));
+  const clarity = clamp(numeric(denoise?.clarity, 18), 0, 100);
+  const modelPath = RNNOISE_MODEL_PATH
+    .replace(/\\/g, "\\\\")
+    .replace(/:/g, "\\:")
+    .replace(/'/g, "\\'");
+  const filters = [
+    `highpass=f=${lowCut}`,
+    `arnndn=m='${modelPath}':mix=${(0.28 + amount * 0.72).toFixed(3)}`
+  ];
+  if (clarity > 0) {
+    filters.push(`equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 4.5).toFixed(2)}`);
   }
-  if (mode === "strong") {
-    const reduction = (12 + amount * 24).toFixed(1);
-    return [
-      "highpass=f=85",
-      `afftdn=nr=${reduction}:nf=-28:tn=1`,
-      "equalizer=f=2400:t=q:w=1.2:g=2"
-    ];
-  }
-  const reduction = (5 + amount * 20).toFixed(1);
-  return [`afftdn=nr=${reduction}:nf=-32:tn=1`];
+  return filters;
 }
 
 function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
@@ -525,7 +656,6 @@ function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
     `atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,
     "asetpts=PTS-STARTPTS",
     "aresample=48000",
-    ...denoiseFilters(segment.denoise),
     `volume=${gain.toFixed(6)}`,
     "afade=t=in:st=0:d=0.012",
     `afade=t=out:st=${Math.max(0, duration - 0.012).toFixed(4)}:d=0.012`
@@ -603,7 +733,6 @@ function normaliseSegments(segments, trimStart, trimEnd) {
       end: trimEnd,
       gainDb: 0,
       muted: false,
-      denoise: { mode: "none", strength: 0 },
       transform: { zoom: 1, x: 0, y: 0 }
     }];
   }
@@ -649,7 +778,7 @@ function buildExportPlan(payload) {
   const transitionFadeOut = transitionDuration - transitionFadeIn;
   const transitionPeakRel = transitionStartRel + transitionFadeIn;
   const whooshStartRel = Math.max(0, transitionPeakRel - whooshPeakSeconds);
-  const finalFade = Math.min(3, Math.max(0.2, visibleDuration));
+  const finalFade = Math.min(2, Math.max(0.2, visibleDuration));
   const fadeStartRel = visibleDuration - finalFade;
 
   if (!(speechStart <= giveEnd && giveEnd <= continueStart && continueStart <= speechEnd)) {
@@ -696,7 +825,10 @@ function buildExportPlan(payload) {
   filters.push(`[videoSequence]${colourFilters(payload.colour).join(",")}[videoBase]`);
   filters.push(
     `color=c=white@0.58:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
-    `[videoBase][light]overlay=shortest=1:format=auto,gblur=sigma=18:enable='between(t,${fadeStartRel.toFixed(4)},${visibleDuration.toFixed(4)})',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[vout]`
+    `[videoBase][light]overlay=shortest=1:format=auto[litVideo]`,
+    "[litVideo]split=2[sharpFinal][blurInput]",
+    "[blurInput]gblur=sigma=24[blurredFinal]",
+    `[sharpFinal][blurredFinal]blend=all_expr='A*(1-clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1))+B*clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1)',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[vout]`
   );
 
   const segmentLabels = [];
@@ -706,10 +838,12 @@ function buildExportPlan(payload) {
     filters.push(segmentFilter(0, segment, label, payload.voiceMasterDb));
   });
   if (segmentLabels.length === 1) {
-    filters.push(`[${segmentLabels[0]}]anull[voice]`);
+    filters.push(`[${segmentLabels[0]}]anull[voiceRaw]`);
   } else {
-    filters.push(`${segmentLabels.map((label) => `[${label}]`).join("")}concat=n=${segmentLabels.length}:v=0:a=1[voice]`);
+    filters.push(`${segmentLabels.map((label) => `[${label}]`).join("")}concat=n=${segmentLabels.length}:v=0:a=1[voiceRaw]`);
   }
+  const voiceDenoise = denoiseFilters(payload.globalDenoise);
+  filters.push(`[voiceRaw]${voiceDenoise.length ? voiceDenoise.join(",") : "anull"}[voice]`);
 
   const whooshDelayMs = Math.round(whooshStartRel * 1000);
   filters.push(
@@ -895,18 +1029,25 @@ app.post("/api/preview-audio", async (request, response) => {
     response.status(404).json({ error: "Import the video again." });
     return;
   }
-  const sourceSegment = request.body.segment || {};
+  const sourceSegment = request.body.segment || { start: 0, end: record.metadata.duration, gainDb: 0, muted: false };
   const start = clamp(numeric(sourceSegment.start), 0, record.metadata.duration);
-  const end = clamp(numeric(sourceSegment.end, start + 8), start + 0.1, record.metadata.duration);
-  const previewStart = clamp(numeric(request.body.playhead, start) - 3, start, Math.max(start, end - 6));
-  const previewEnd = Math.min(end, previewStart + 6);
+  const end = clamp(numeric(sourceSegment.end, record.metadata.duration), start + 0.1, record.metadata.duration);
+  const previewDuration = Math.min(3, end - start);
+  const previewStart = clamp(
+    numeric(request.body.playhead, start) - previewDuration / 2,
+    start,
+    Math.max(start, end - previewDuration)
+  );
+  const previewEnd = Math.min(end, previewStart + previewDuration);
+  const gain = dbToLinear(sourceSegment.gainDb || 0);
+  const denoise = request.body.denoise || { enabled: true, strength: 72, lowCut: 110, clarity: 18 };
   const previewPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp3`);
   const filters = [
-    `atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)}`,
-    "asetpts=PTS-STARTPTS",
-    ...denoiseFilters(sourceSegment.denoise),
-    `volume=${sourceSegment.muted ? 0 : dbToLinear(sourceSegment.gainDb || 0).toFixed(6)}`,
-    "alimiter=limit=0.95"
+    "[0:a]asplit=2[beforeSource][afterSource]",
+    `[beforeSource]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=${gain.toFixed(6)},alimiter=limit=0.95[before]`,
+    `[afterSource]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${denoiseFilters(denoise).join(",") || "anull"},aformat=channel_layouts=stereo,volume=${gain.toFixed(6)},alimiter=limit=0.95[after]`,
+    "anullsrc=r=48000:cl=stereo:d=0.35[pause]",
+    "[before][pause][after]concat=n=3:v=0:a=1[preview]"
   ];
   try {
     await runProcess(ffmpegPath, [
@@ -915,7 +1056,8 @@ app.post("/api/preview-audio", async (request, response) => {
       "-loglevel", "error",
       "-i", record.path,
       "-vn",
-      "-af", filters.join(","),
+      "-filter_complex", filters.join(";"),
+      "-map", "[preview]",
       "-c:a", "libmp3lame",
       "-b:a", "160k",
       previewPath
