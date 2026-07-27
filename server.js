@@ -17,15 +17,17 @@ const WORK_DIR = path.join(APP_DIR, ".gmf-work");
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
 const ANALYSIS_DIR = path.join(WORK_DIR, "analysis");
 const EXPORT_DIR = path.join(WORK_DIR, "exports");
+const DENOISE_DIR = path.join(WORK_DIR, "denoise");
 const MODEL_DIR = path.join(WORK_DIR, "models");
 const ASSET_DIR = path.join(APP_DIR, "assets");
 const WHOOSH_PATH = path.join(ASSET_DIR, "fast-whoosh.mp3");
 const RNNOISE_MODEL_PATH = path.join(ASSET_DIR, "rnnoise-voice.rnnn");
+const DEEPFILTER_PATH = path.join(APP_DIR, "tools", "deep-filter");
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
 
-for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, MODEL_DIR, ASSET_DIR]) {
+for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, DENOISE_DIR, MODEL_DIR, ASSET_DIR]) {
   fs.mkdirSync(directory, { recursive: true });
 }
 
@@ -33,6 +35,7 @@ const app = express();
 const media = new Map();
 const jobs = new Map();
 const transcriptJobs = new Map();
+const denoisePromises = new Map();
 let whooshPeakSeconds = 0.44;
 
 const storage = multer.diskStorage({
@@ -77,7 +80,8 @@ app.get("/api/health", (_request, response) => {
     ffmpeg: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
     ffprobe: Boolean(ffprobePath && fs.existsSync(ffprobePath)),
     whoosh: fs.existsSync(WHOOSH_PATH),
-    rnnoise: fs.existsSync(RNNOISE_MODEL_PATH)
+    rnnoise: fs.existsSync(RNNOISE_MODEL_PATH),
+    deepfilter: fs.existsSync(DEEPFILTER_PATH)
   });
 });
 
@@ -626,25 +630,94 @@ app.get("/api/transcript/:id", (request, response) => {
   response.json(job);
 });
 
-function denoiseFilters(denoise) {
+function denoiseEnabled(denoise) {
+  return denoise?.enabled !== false
+    && denoise?.mode !== "none"
+    && clamp(numeric(denoise?.strength, 72), 0, 100) > 0;
+}
+
+function denoiseProfile(denoise) {
+  const strength = Math.round(clamp(numeric(denoise?.strength, 72), 0, 100));
+  return {
+    strength,
+    attenuationLimitDb: Number((strength * 0.5).toFixed(1)),
+    postFilterBeta: Number((0.014 + strength / 100 * 0.024).toFixed(3))
+  };
+}
+
+function denoisePostFilters(denoise) {
   const enabled = denoise?.enabled !== false && denoise?.mode !== "none";
   const strength = clamp(numeric(denoise?.strength, 72), 0, 100);
-  if (!enabled || strength <= 0 || !fs.existsSync(RNNOISE_MODEL_PATH)) return [];
-  const amount = strength / 100;
+  if (!enabled || strength <= 0) return [];
   const lowCut = Math.round(clamp(numeric(denoise?.lowCut, 110), 50, 250));
   const clarity = clamp(numeric(denoise?.clarity, 18), 0, 100);
-  const modelPath = RNNOISE_MODEL_PATH
-    .replace(/\\/g, "\\\\")
-    .replace(/:/g, "\\:")
-    .replace(/'/g, "\\'");
   const filters = [
-    `highpass=f=${lowCut}`,
-    `arnndn=m='${modelPath}':mix=${(0.28 + amount * 0.72).toFixed(3)}`
+    `highpass=f=${lowCut}:poles=2`,
+    "volume=1.333521"
   ];
   if (clarity > 0) {
-    filters.push(`equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 4.5).toFixed(2)}`);
+    filters.push(`equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 2.2).toFixed(2)}`);
   }
   return filters;
+}
+
+async function prepareDenoisedTrack(record, denoise) {
+  if (!denoiseEnabled(denoise)) return null;
+  if (!fs.existsSync(DEEPFILTER_PATH)) {
+    throw new Error("DeepFilterNet3 nie je dostupný. Spustite aplikáciu znovu alebo obnovte priečinok tools.");
+  }
+
+  const profile = denoiseProfile(denoise);
+  const cacheKey = crypto
+    .createHash("sha1")
+    .update(`${record.id}:${profile.attenuationLimitDb}:${profile.postFilterBeta}`)
+    .digest("hex")
+    .slice(0, 18);
+  const outputPath = path.join(DENOISE_DIR, `${cacheKey}.wav`);
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1024) return outputPath;
+  if (denoisePromises.has(cacheKey)) return denoisePromises.get(cacheKey);
+
+  const promise = (async () => {
+    const sourcePath = path.join(DENOISE_DIR, `${cacheKey}-source.wav`);
+    const temporaryDirectory = path.join(DENOISE_DIR, `${cacheKey}-work`);
+    fs.mkdirSync(temporaryDirectory, { recursive: true });
+    try {
+      await runProcess(ffmpegPath, [
+        "-y",
+        "-hide_banner",
+        "-loglevel", "error",
+        "-i", record.path,
+        "-map", "0:a:0",
+        "-vn",
+        "-ac", "1",
+        "-ar", "48000",
+        "-c:a", "pcm_s16le",
+        sourcePath
+      ]);
+      await runProcess(DEEPFILTER_PATH, [
+        "--pf",
+        "--pf-beta", String(profile.postFilterBeta),
+        "--atten-lim-db", String(profile.attenuationLimitDb),
+        "-D",
+        "-o", temporaryDirectory,
+        sourcePath
+      ]);
+      const enhancedPath = path.join(temporaryDirectory, path.basename(sourcePath));
+      if (!fs.existsSync(enhancedPath)) throw new Error("DeepFilterNet3 nevytvoril vyčistenú zvukovú stopu.");
+      fs.renameSync(enhancedPath, outputPath);
+      return outputPath;
+    } finally {
+      fs.rmSync(sourcePath, { force: true });
+      fs.rmSync(temporaryDirectory, { recursive: true, force: true });
+    }
+  })();
+
+  denoisePromises.set(cacheKey, promise);
+  try {
+    return await promise;
+  } finally {
+    denoisePromises.delete(cacheKey);
+  }
 }
 
 function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
@@ -754,7 +827,7 @@ function musicVolumeExpression(settings, timing) {
   ].join("");
 }
 
-function buildExportPlan(payload) {
+function buildExportPlan(payload, denoisedAudioPath = null) {
   const video = media.get(payload.videoId);
   if (!video) throw new Error("The source video is no longer loaded. Import it again.");
   const music = payload.musicId ? media.get(payload.musicId) : null;
@@ -801,12 +874,18 @@ function buildExportPlan(payload) {
   };
 
   const inputArgs = ["-i", video.path];
+  let nextInputIndex = 1;
+  let voiceInputIndex = 0;
+  if (denoisedAudioPath) {
+    voiceInputIndex = nextInputIndex++;
+    inputArgs.push("-i", denoisedAudioPath);
+  }
   let musicInputIndex = null;
   if (music && payload.music?.enabled !== false) {
-    musicInputIndex = 1;
+    musicInputIndex = nextInputIndex++;
     inputArgs.push("-i", music.path);
   }
-  const whooshInputIndex = musicInputIndex === null ? 1 : 2;
+  const whooshInputIndex = nextInputIndex;
   inputArgs.push("-i", WHOOSH_PATH);
 
   const filters = [];
@@ -835,15 +914,15 @@ function buildExportPlan(payload) {
   segments.forEach((segment, index) => {
     const label = `voiceSegment${index}`;
     segmentLabels.push(label);
-    filters.push(segmentFilter(0, segment, label, payload.voiceMasterDb));
+    filters.push(segmentFilter(voiceInputIndex, segment, label, payload.voiceMasterDb));
   });
   if (segmentLabels.length === 1) {
     filters.push(`[${segmentLabels[0]}]anull[voiceRaw]`);
   } else {
     filters.push(`${segmentLabels.map((label) => `[${label}]`).join("")}concat=n=${segmentLabels.length}:v=0:a=1[voiceRaw]`);
   }
-  const voiceDenoise = denoiseFilters(payload.globalDenoise);
-  filters.push(`[voiceRaw]${voiceDenoise.length ? voiceDenoise.join(",") : "anull"}[voice]`);
+  const voiceFinishing = denoisedAudioPath ? denoisePostFilters(payload.globalDenoise) : [];
+  filters.push(`[voiceRaw]${voiceFinishing.length ? voiceFinishing.join(",") : "anull"}[voice]`);
 
   const whooshDelayMs = Math.round(whooshStartRel * 1000);
   filters.push(
@@ -872,7 +951,7 @@ function buildExportPlan(payload) {
   }
 
   filters.push(
-    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,alimiter=limit=0.95,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
+    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,alimiter=limit=0.95,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
   );
 
   const outputPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp4`);
@@ -916,62 +995,83 @@ function buildExportPlan(payload) {
   };
 }
 
+function renderExportPlan(job, plan) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath, plan.args, {
+      cwd: APP_DIR,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let progressBuffer = "";
+    let errorBuffer = "";
+
+    child.stdout.on("data", (chunk) => {
+      progressBuffer += chunk.toString("utf8");
+      const lines = progressBuffer.split(/\r?\n/);
+      progressBuffer = lines.pop() || "";
+      for (const line of lines) {
+        const [key, rawValue] = line.split("=");
+        if (key === "out_time_us" || key === "out_time_ms") {
+          const microseconds = numeric(rawValue);
+          job.progress = 0.08 + clamp(microseconds / (plan.outputDuration * 1_000_000), 0, 0.91);
+          job.message = "Renderujem video, vyčistený hlas a hudobný mix…";
+        }
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      errorBuffer += chunk.toString("utf8");
+      if (errorBuffer.length > 20000) errorBuffer = errorBuffer.slice(-20000);
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0 && fs.existsSync(plan.outputPath)) {
+        resolve();
+        return;
+      }
+      fs.rmSync(plan.outputPath, { force: true });
+      reject(new Error(errorBuffer.trim().split("\n").slice(-8).join("\n") || `FFmpeg exited with ${code}`));
+    });
+  });
+}
+
 function startExportJob(payload) {
-  const plan = buildExportPlan(payload);
   const id = crypto.randomUUID();
   const job = {
     id,
     status: "running",
     progress: 0,
-    message: "Preparing local export…",
-    outputPath: plan.outputPath,
-    details: plan.details,
+    message: "Pripravujem lokálny export…",
+    outputPath: null,
+    details: null,
     error: null,
     createdAt: Date.now()
   };
   jobs.set(id, job);
 
-  const child = spawn(ffmpegPath, plan.args, {
-    cwd: APP_DIR,
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  let progressBuffer = "";
-  let errorBuffer = "";
-
-  child.stdout.on("data", (chunk) => {
-    progressBuffer += chunk.toString("utf8");
-    const lines = progressBuffer.split(/\r?\n/);
-    progressBuffer = lines.pop() || "";
-    for (const line of lines) {
-      const [key, rawValue] = line.split("=");
-      if (key === "out_time_us" || key === "out_time_ms") {
-        const microseconds = numeric(rawValue);
-        job.progress = clamp(microseconds / (plan.outputDuration * 1_000_000), 0, 0.99);
-        job.message = "Rendering video, denoise and music mix…";
+  (async () => {
+    try {
+      const video = media.get(payload.videoId);
+      if (!video) throw new Error("Zdrojové video už nie je načítané. Vložte ho znova.");
+      let denoisedAudioPath = null;
+      if (denoiseEnabled(payload.globalDenoise)) {
+        job.message = "DeepFilterNet3 oddeľuje hlas od vetra a okolitého šumu…";
+        job.progress = 0.02;
+        denoisedAudioPath = await prepareDenoisedTrack(video, payload.globalDenoise);
+        job.progress = 0.08;
       }
-    }
-  });
-  child.stderr.on("data", (chunk) => {
-    errorBuffer += chunk.toString("utf8");
-    if (errorBuffer.length > 20000) errorBuffer = errorBuffer.slice(-20000);
-  });
-  child.on("error", (error) => {
-    job.status = "failed";
-    job.error = error.message;
-    job.message = "Export failed.";
-  });
-  child.on("close", (code) => {
-    if (code === 0 && fs.existsSync(plan.outputPath)) {
+      const plan = buildExportPlan(payload, denoisedAudioPath);
+      job.outputPath = plan.outputPath;
+      job.details = plan.details;
+      await renderExportPlan(job, plan);
       job.status = "completed";
       job.progress = 1;
-      job.message = "MP4 export is ready.";
-    } else if (job.status !== "failed") {
+      job.message = "MP4 export je pripravený.";
+    } catch (error) {
       job.status = "failed";
-      job.error = errorBuffer.trim().split("\n").slice(-8).join("\n") || `FFmpeg exited with ${code}`;
-      job.message = "Export failed.";
-      fs.rmSync(plan.outputPath, { force: true });
+      job.error = error.message || "Export zlyhal.";
+      job.message = "Export zlyhal.";
+      if (job.outputPath) fs.rmSync(job.outputPath, { force: true });
     }
-  });
+  })();
   return job;
 }
 
@@ -1042,19 +1142,22 @@ app.post("/api/preview-audio", async (request, response) => {
   const gain = dbToLinear(sourceSegment.gainDb || 0);
   const denoise = request.body.denoise || { enabled: true, strength: 72, lowCut: 110, clarity: 18 };
   const previewPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp3`);
-  const filters = [
-    "[0:a]asplit=2[beforeSource][afterSource]",
-    `[beforeSource]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=stereo,volume=${gain.toFixed(6)},alimiter=limit=0.95[before]`,
-    `[afterSource]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${denoiseFilters(denoise).join(",") || "anull"},aformat=channel_layouts=stereo,volume=${gain.toFixed(6)},alimiter=limit=0.95[after]`,
-    "anullsrc=r=48000:cl=stereo:d=0.35[pause]",
-    "[before][pause][after]concat=n=3:v=0:a=1[preview]"
-  ];
   try {
+    const denoisedAudioPath = await prepareDenoisedTrack(record, denoise);
+    if (!denoisedAudioPath) throw new Error("Zapnite AI čistenie a nastavte jeho silu nad 0 %.");
+    const finishing = denoisePostFilters(denoise);
+    const filters = [
+      `[0:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=mono,volume=${gain.toFixed(6)},alimiter=limit=0.95[before]`,
+      `[1:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${finishing.join(",") || "anull"},aformat=channel_layouts=mono,volume=${gain.toFixed(6)},alimiter=limit=0.95[after]`,
+      "anullsrc=r=48000:cl=mono:d=0.35[pause]",
+      "[before][pause][after]concat=n=3:v=0:a=1[preview]"
+    ];
     await runProcess(ffmpegPath, [
       "-y",
       "-hide_banner",
       "-loglevel", "error",
       "-i", record.path,
+      "-i", denoisedAudioPath,
       "-vn",
       "-filter_complex", filters.join(";"),
       "-map", "[preview]",

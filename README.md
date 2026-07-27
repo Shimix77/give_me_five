@@ -15,7 +15,7 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 
 1. Vložte portrétové MOV/MP4 do 60 sekúnd.
 2. Na farebnom waveforme alebo spektrograme nastavte trim, začiatok reči, koniec „Give Me Five“, začiatok druhej reči a koniec hovoreného slova.
-3. AI denoise (RNNoise) vyčistí súvislo celý pôvodný zvuk. Silu, odrezanie vetra a zrozumiteľnosť hlasu môžete doladiť a overiť skutočným A/B náhľadom.
+3. AI denoise (DeepFilterNet3) vyčistí súvislo celý pôvodný zvuk. Silu, odrezanie vetra a jemnú prítomnosť hlasu môžete doladiť a overiť skutočným A/B náhľadom. Vyčistená stopa sa ukladá do lokálnej cache a rovnaká verzia sa použije v exporte.
 4. Rezátkom rozdeľte pôvodné audio. Každý segment má vlastnú hlasitosť a absolútne stíšenie.
 5. V pravom Inspectore nastavte samostatný zoom/polohu segmentu a globálne farby, teplotu, intenzitu či ostrosť. Slidery farieb majú aj celočíselný vstup.
 6. Voliteľne vložte licencované MP3/WAV/M4A. Editor analyzuje celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×.
@@ -31,4 +31,4 @@ Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre fungu
 - svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
 - 2-sekundový plynulo silnejúci blur/fade, ďalšie 2 sekundy čistého čierneho obrazu a hudba doznievajúca až do konca
 
-AI denoise používa RNNoise model `std.rnnn` distribuovaný projektom Xiph a pripravený pre FFmpeg filter `arnndn`.
+AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. RNNoise zostáva pomocným predčistením pre lokálny prepis.

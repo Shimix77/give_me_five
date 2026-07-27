@@ -1607,7 +1607,7 @@
 
           <div class="control-card">
             <h3>AI denoise celého videa <span class="value" id="globalStrengthValue">72 %</span></h3>
-            <p>RNNoise automaticky rozpoznáva hovorený hlas a potláča vietor aj stály šum. Čistenie sa aplikuje súvislo na celé video.</p>
+            <p>DeepFilterNet3 oddeľuje hovorený hlas od vetra a stáleho šumu. Čistenie sa aplikuje súvislo na celé video aj export.</p>
             <div class="field">
               <label class="toggle-line"><input id="globalDenoiseEnabled" type="checkbox" checked> AI čistenie je zapnuté</label>
             </div>
@@ -1626,14 +1626,14 @@
               </div>
             </div>
             <div class="field">
-              <label for="denoiseClarity">Zvýraznenie zrozumiteľnosti hlasu</label>
+              <label for="denoiseClarity">Prítomnosť hlasu (jemné EQ)</label>
               <div class="range-number">
                 <input id="denoiseClarity" type="range" min="0" max="100" step="1" value="18">
                 <input id="denoiseClarityNumber" type="number" min="0" max="100" step="1" value="18" aria-label="Zvýraznenie hlasu v percentách">
               </div>
             </div>
             <button class="btn" id="cleanPreviewBtn" type="button" disabled style="width:100%;margin-top:10px">▶ A/B: pôvodný vs. AI denoise</button>
-            <div class="ab-status" id="denoisePreviewStatus">Náhľad prehrá tú istú 3-sekundovú pasáž najprv pôvodnú, potom vyčistenú.</div>
+            <div class="ab-status" id="denoisePreviewStatus">Náhľad prehrá tú istú 3-sekundovú pasáž najprv pôvodnú, potom vyčistenú. Prvé spracovanie môže chvíľu trvať.</div>
           </div>
 
           <div class="control-card">
@@ -1900,7 +1900,7 @@
       try {
         const response = await api("/api/health");
         const data = await response.json();
-        if (!data.ffmpeg || !data.ffprobe || !data.whoosh || !data.rnnoise) throw new Error("Chýba lokálny FFmpeg, whoosh alebo AI denoise model.");
+        if (!data.ffmpeg || !data.ffprobe || !data.whoosh || !data.deepfilter) throw new Error("Chýba lokálny FFmpeg, whoosh alebo DeepFilterNet3.");
         state.serverReady = true;
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
@@ -2774,7 +2774,8 @@
       if (!state.video || !segment) return;
       const button = $("#cleanPreviewBtn");
       button.disabled = true;
-      button.textContent = "Pripravujem…";
+      button.textContent = "DeepFilterNet3 čistí hlas…";
+      $("#denoisePreviewStatus").textContent = "Pripravujem tú istú pasáž pre férové A/B porovnanie…";
       $("#video").pause();
       $("#music").pause();
       try {
@@ -2795,7 +2796,7 @@
         preview.src = state.lastCleanUrl;
         state.denoisePreview = { phaseDuration: 3, gapDuration: .35 };
         await preview.play();
-        toast("A/B náhľad: najprv pôvodný zvuk, potom tá istá pasáž po AI čistení.");
+        toast("A/B náhľad: A je pôvodný zvuk, B je tá istá pasáž po DeepFilterNet3.");
       } catch (error) {
         toast(error.message);
       } finally {
