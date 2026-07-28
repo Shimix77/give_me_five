@@ -1026,6 +1026,45 @@ function removeGapFromSegments(segments, gapEdit) {
   return pieces;
 }
 
+function clipSegments(segments, clipStart, clipEnd, suffix) {
+  return segments.map((segment, index) => ({
+    ...segment,
+    id: `${segment.id || `segment-${index}`}-${suffix}`,
+    start: Math.max(segment.start, clipStart),
+    end: Math.min(segment.end, clipEnd)
+  })).filter((segment) => segment.end - segment.start > 0.01);
+}
+
+function appendVideoSequence(filters, inputIndex, segments, prefix, metadata) {
+  if (!segments.length) throw new Error("The selected video range is too short for the transition.");
+  const labels = segments.map((segment, index) => {
+    const label = `${prefix}Segment${index}`;
+    filters.push(videoSegmentFilter(inputIndex, segment, label, metadata));
+    return label;
+  });
+  const sequenceLabel = `${prefix}Sequence`;
+  const normaliseTiming = `fps=${metadata.fps},settb=AVTB,setpts=PTS-STARTPTS`;
+  if (labels.length === 1) {
+    filters.push(`[${labels[0]}]${normaliseTiming}[${sequenceLabel}]`);
+  } else {
+    const concatLabel = `${prefix}Concat`;
+    filters.push(
+      `${labels.map((label) => `[${label}]`).join("")}concat=n=${labels.length}:v=1:a=0[${concatLabel}]`,
+      `[${concatLabel}]${normaliseTiming}[${sequenceLabel}]`
+    );
+  }
+  return sequenceLabel;
+}
+
+function calculateAdditiveOverlap(gapEdit, trimStart, trimEnd) {
+  if (!gapEdit.active) return 0;
+  const desired = clamp(gapEdit.transitionDuration * 0.3, 0.3, 0.55);
+  const availableBefore = Math.max(0, (gapEdit.cutStart - trimStart) * 2);
+  const availableAfter = Math.max(0, (trimEnd - gapEdit.cutEnd) * 2);
+  const overlap = Math.min(desired, availableBefore, availableAfter);
+  return overlap >= 0.08 ? overlap : 0;
+}
+
 function applyAudioRanges(segments, ranges, trimStart, trimEnd) {
   const normalisedRanges = (Array.isArray(ranges) ? ranges : [])
     .map((range) => ({
@@ -1094,6 +1133,7 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   const speechEnd = clamp(numeric(markers.speechEnd, continueStart), continueStart, trimEnd);
   const gapEdit = calculateGapEdit(markers, trimStart, trimEnd, payload.transitionDuration);
   const transitionDuration = gapEdit.transitionDuration;
+  const additiveOverlap = calculateAdditiveOverlap(gapEdit, trimStart, trimEnd);
   const visibleDuration = trimEnd - trimStart - gapEdit.cutDuration;
   const blackTailDuration = 2;
   const outputDuration = visibleDuration + blackTailDuration;
@@ -1140,24 +1180,35 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   inputArgs.push("-i", WHOOSH_PATH);
 
   const filters = [];
-  const segments = removeGapFromSegments(
-    normaliseSegments(payload.segments, trimStart, trimEnd),
-    gapEdit
-  );
-  const videoSegmentLabels = [];
-  segments.forEach((segment, index) => {
-    const label = `pictureSegment${index}`;
-    videoSegmentLabels.push(label);
-    filters.push(videoSegmentFilter(0, segment, label, video.metadata));
-  });
-  if (videoSegmentLabels.length === 1) {
-    filters.push(`[${videoSegmentLabels[0]}]null[videoSequence]`);
+  const sourceSegments = normaliseSegments(payload.segments, trimStart, trimEnd);
+  const segments = removeGapFromSegments(sourceSegments, gapEdit);
+  let videoSequenceLabel;
+  if (additiveOverlap > 0) {
+    const beforeSegments = clipSegments(
+      sourceSegments,
+      trimStart,
+      gapEdit.cutStart + additiveOverlap / 2,
+      "additive-before"
+    );
+    const afterSegments = clipSegments(
+      sourceSegments,
+      gapEdit.cutEnd - additiveOverlap / 2,
+      trimEnd,
+      "additive-after"
+    );
+    const beforeLabel = appendVideoSequence(filters, 0, beforeSegments, "pictureBefore", video.metadata);
+    const afterLabel = appendVideoSequence(filters, 0, afterSegments, "pictureAfter", video.metadata);
+    const crossfadeOffset = Math.max(0, gapEdit.cutStart - trimStart - additiveOverlap / 2);
+    filters.push(
+      `[${beforeLabel}][${afterLabel}]xfade=transition=fade:duration=${additiveOverlap.toFixed(4)}:offset=${crossfadeOffset.toFixed(4)},format=yuv420p[videoSequence]`
+    );
+    videoSequenceLabel = "videoSequence";
   } else {
-    filters.push(`${videoSegmentLabels.map((label) => `[${label}]`).join("")}concat=n=${videoSegmentLabels.length}:v=1:a=0[videoSequence]`);
+    videoSequenceLabel = appendVideoSequence(filters, 0, segments, "picture", video.metadata);
   }
-  filters.push(`[videoSequence]${colourFilters(payload.colour).join(",")}[videoBase]`);
+  filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}[videoBase]`);
   filters.push(
-    `color=c=white@0.58:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
+    `color=c=white@0.82:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
     `[videoBase][light]overlay=shortest=1:format=auto[litVideo]`,
     "[litVideo]split=2[sharpFinal][blurInput]",
     "[blurInput]gblur=sigma=24[blurredFinal]",
@@ -1245,6 +1296,7 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
       musicStart,
       musicEnd,
       transitionDuration,
+      additiveOverlap,
       whooshPeakSeconds,
       gapCutDuration: gapEdit.cutDuration,
       gapCutStart: gapEdit.cutStart,

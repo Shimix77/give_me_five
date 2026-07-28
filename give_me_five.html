@@ -418,6 +418,21 @@
       background: #02060c;
     }
 
+    #video {
+      position: relative;
+      z-index: 0;
+    }
+
+    #transitionGhost {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      opacity: 0;
+      pointer-events: none;
+      background: transparent;
+      mix-blend-mode: screen;
+    }
+
     .empty-video {
       position: absolute;
       inset: 0;
@@ -438,17 +453,17 @@
     .finish-shade {
       position: absolute;
       inset: 0;
+      z-index: 3;
       pointer-events: none;
       opacity: 0;
     }
 
     .light-flash {
-      background:
-        radial-gradient(circle at 55% 46%, rgba(255, 255, 255, .98), rgba(224, 239, 255, .55) 34%, transparent 75%);
+      background: radial-gradient(circle at 55% 46%, #fff 0 17%, rgba(255, 255, 255, .88) 38%, transparent 77%);
       mix-blend-mode: screen;
     }
 
-    .finish-shade { background: #000; }
+    .finish-shade { z-index: 4; background: #000; }
 
     .preview-controls {
       display: grid;
@@ -1946,7 +1961,6 @@
     body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoVisualizer,
     body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoTrackTitle,
     body.wizard-mode[data-wizard-step="1"] #timelinePanel .video-legend,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #markerReview,
     body.wizard-mode[data-wizard-step="1"] #timelinePanel .marker-details,
     body.wizard-mode[data-wizard-step="1"] #timelinePanel #masterPlay,
     body.wizard-mode[data-wizard-step="1"] #timelinePanel .zoom-tool,
@@ -1969,7 +1983,6 @@
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoTrackTitle { display: flex; }
     body.wizard-mode[data-wizard-step="1"] #timelinePanel .video-legend,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .video-legend { display: flex; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #markerReview { display: grid; }
     body.wizard-mode[data-wizard-step="1"] #timelinePanel .marker-details { display: block; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .segment-heading { display: flex; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #segmentLane { display: block; }
@@ -2097,10 +2110,11 @@
         <div class="preview-stage">
           <div class="video-wrap" id="videoWrap">
             <video id="video" playsinline preload="metadata"></video>
+            <video id="transitionGhost" muted playsinline preload="metadata" aria-hidden="true"></video>
             <div class="empty-video" id="emptyVideo">
               <div><strong>Najskôr vložte video</strong>Waveform a časové značky sa vytvoria lokálne.</div>
             </div>
-            <div id="colorTint" style="position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:soft-light"></div>
+            <div id="colorTint" style="position:absolute;inset:0;z-index:2;pointer-events:none;opacity:0;mix-blend-mode:soft-light"></div>
             <div class="light-flash" id="lightFlash"></div>
             <div class="finish-shade" id="finishShade"></div>
           </div>
@@ -2230,8 +2244,8 @@
             <button class="btn ghost" id="markerNudgeForward" type="button" disabled>+0,1 s</button>
             <button class="btn" id="markerReviewNext" type="button" disabled>Začať kontrolu</button>
           </div>
-          <details class="marker-details">
-            <summary>Všetkých 6 časových značiek</summary>
+          <details class="marker-details" open>
+            <summary>Všetkých 6 AI návrhov · kliknutím vyberiete bod</summary>
             <div class="marker-list" id="markerList"></div>
           </details>
         </div>
@@ -2248,17 +2262,17 @@
         <div class="inspector-body">
           <div class="control-card collapsed" id="transformCard">
             <h3>Transformácia segmentu <span class="value" id="transformZoomValue">100 %</span></h3>
-            <p>Zoom a poloha sa ukladajú samostatne pre práve vybraný segment.</p>
+            <p>Zoom sa dá iba zväčšiť. Poloha X/Y využíva len bezpečný priestor, takže sa nikdy neobjaví čierny okraj.</p>
             <div class="field">
               <div class="field-line"><label for="transformZoom">Zoom</label><span class="value">1,00× – 2,50×</span></div>
               <input id="transformZoom" type="range" min="1" max="2.5" step=".01" value="1" disabled>
             </div>
             <div class="field">
-              <div class="field-line"><label for="transformX">Poloha X</label><span class="value" id="transformXValue">0</span></div>
+              <div class="field-line"><label for="transformX">Poloha X</label><span class="value" id="transformXValue">0 %</span></div>
               <input id="transformX" type="range" min="-100" max="100" step="1" value="0" disabled>
             </div>
             <div class="field">
-              <div class="field-line"><label for="transformY">Poloha Y</label><span class="value" id="transformYValue">0</span></div>
+              <div class="field-line"><label for="transformY">Poloha Y</label><span class="value" id="transformYValue">0 %</span></div>
               <input id="transformY" type="range" min="-100" max="100" step="1" value="0" disabled>
             </div>
             <button class="btn ghost" id="resetTransform" type="button" disabled style="width:100%;margin-top:10px">Obnoviť transformáciu</button>
@@ -2361,7 +2375,7 @@
 
           <div class="control-card collapsed" id="transitionCard">
             <h3>Svetelný prechod <span class="value" id="transitionValue">2,0 s</span></h3>
-            <p>Začne 0,5 s po „Give Me Five“. Vrchol whooshu sa zarovná s najjasnejším bodom.</p>
+            <p>Začne 0,5 s po „Give Me Five“. Vo vrchole sa približne 0,5 s prekryjú oba zábery pod čisto bielym svetlom a maximom whooshu.</p>
             <div class="recommendation" id="gapEditSummary">Po označení „Give Me Five“ a druhej reči sa tu zobrazí automatický strih prestávky.</div>
             <div class="field">
               <label for="transitionDuration">Dĺžka svetla 0,5–4 s</label>
@@ -2506,7 +2520,7 @@
     </div>
     <div class="guide-body">
       <div class="guide-step"><b>1</b><div><strong>Import</strong><span>Kliknite „Vybrať video“ a voliteľne „Vybrať audio“. Po analýze stlačte „Ďalej“.</span></div></div>
-      <div class="guide-step"><b>2</b><div><strong>Šesť časových bodov</strong><span>Každý bod vypočujte, podľa waveformu ho doladíte tlačidlami ±0,1 s a pokračujete na ďalší.</span></div></div>
+      <div class="guide-step"><b>2</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich navrhne automaticky. Na spoločnom waveforme upravíte iba potrebné body a jedným kliknutím potvrdíte celý krok.</span></div></div>
       <div class="guide-step"><b>3</b><div><strong>Denoise a hlučné miesta</strong><span>Najprv porovnajte AI čistenie cez A/B. V ďalšom kroku kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho.</span></div></div>
       <div class="guide-step"><b>4</b><div><strong>Prechod a hudba</strong><span>Prehrajte výsledný svetelný prechod. Dlhá prestávka sa skráti automaticky. Potom vyberte jeden z troch dropov hudby.</span></div></div>
       <div class="guide-step"><b>5</b><div><strong>Mix a obraz</strong><span>„Prehrať mix“ spustí vyčistený hlas, hudbu aj whoosh. Upravte úrovne, vyberte farebný preset a podľa potreby otvorte pokročilé nastavenia.</span></div></div>
@@ -2614,7 +2628,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.0.2";
+    const APP_VERSION = "3.1.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3174,6 +3188,11 @@
       video.pause();
       video.src = record.url;
       video.load();
+      const transitionGhost = $("#transitionGhost");
+      transitionGhost.pause();
+      transitionGhost.src = record.url;
+      transitionGhost.load();
+      transitionGhost.style.opacity = "0";
       $("#emptyVideo").classList.add("hidden");
       $("#videoScrubber").max = String(duration);
       $("#videoScrubber").value = "0";
@@ -3273,6 +3292,15 @@
         targetPauseDuration,
         tooShort: pauseDuration + .001 < targetPauseDuration
       };
+    }
+
+    function calculateAdditiveOverlap(gapEdit = calculateGapEdit()) {
+      if (!state.video || !gapEdit.active) return 0;
+      const desired = clamp(gapEdit.transitionDuration * .3, .3, .55);
+      const availableBefore = Math.max(0, (gapEdit.cutStart - state.trimStart) * 2);
+      const availableAfter = Math.max(0, (state.trimEnd - gapEdit.cutEnd) * 2);
+      const overlap = Math.min(desired, availableBefore, availableAfter);
+      return overlap >= .08 ? overlap : 0;
     }
 
     function sourceToEditedTime(time) {
@@ -3684,7 +3712,7 @@
       },
       {
         title: "Skontrolujte šesť časových bodov",
-        hint: "Každý bod prejdite samostatne. Waveform, krátky náhľad a posun ±0,1 s pomôžu s presnosťou."
+        hint: "AI nastaví všetkých šesť bodov automaticky. Skontrolujte ich naraz na spoločnom waveforme, upravte iba potrebné a potvrďte jedným kliknutím."
       },
       {
         title: "Vyčistite hovorený hlas",
@@ -3723,10 +3751,6 @@
     function setWizardStep(step, options = {}) {
       if (!state.wizard.enabled) return;
       state.wizard.step = clamp(Number(step), 0, wizardSteps.length - 1);
-      if (state.wizard.step === 1 && state.video && state.markerReviewIndex < 0) {
-        state.markerReviewIndex = 0;
-        $("#video").currentTime = markerValue(markerReviewOrder[0]);
-      }
       state.previewTailStartedAt = null;
       $("#video").pause();
       $("#music").pause();
@@ -3753,22 +3777,18 @@
       }
       const step = state.wizard.step;
       const copy = wizardSteps[step];
-      const markerKey = markerReviewOrder[state.markerReviewIndex] || markerReviewOrder[0];
-      const markerSuffix = step === 1 && state.video
-        ? ` · bod ${Math.max(1, state.markerReviewIndex + 1)}/6: ${markerInfo[markerKey].label}`
-        : "";
       $("#wizardNumber").textContent = `${step + 1}/${wizardSteps.length}`;
-      $("#wizardTitle").textContent = copy.title + markerSuffix;
+      $("#wizardTitle").textContent = copy.title;
       $("#wizardHint").textContent = copy.hint;
       $("#wizardProgress").innerHTML = wizardSteps.map((_, index) =>
         `<i class="${index < step ? "done" : index === step ? "active" : ""}"></i>`
       ).join("");
-      $("#wizardBack").disabled = step === 0 && state.markerReviewIndex <= 0;
+      $("#wizardBack").disabled = step === 0;
       $("#wizardNext").style.display = step === wizardSteps.length - 1 ? "none" : "";
       $("#wizardNext").disabled = !state.video;
       $("#wizardNext").textContent = step === 5 && !state.music ? "Pokračovať bez hudby →" : "Ďalej →";
       const timelineCopies = {
-        1: ["Časové body", "Označte šesť bodov postupne na spoločnom waveforme."],
+        1: ["Časové body", "Všetkých šesť AI návrhov je na jednom waveforme. Kliknite na riadok alebo potiahnite značku, ak ju treba upraviť."],
         3: ["Lokálne stíšenie", "Označte ľubovoľnú hlučnú oblasť bez delenia obrazu."],
         5: ["Hudba a drop", "Nájdite drop a zarovnajte ho s pokračovaním reči."],
         6: ["Finálny zvukový mix", "Hlasitosť hudby reaguje okamžite počas spoločného náhľadu."]
@@ -3789,20 +3809,11 @@
 
     function wizardNext() {
       if (!state.video) return;
-      if (state.wizard.step === 1 && state.markerReviewIndex < markerReviewOrder.length - 1) {
-        const currentKey = markerReviewOrder[Math.max(0, state.markerReviewIndex)];
-        recordUsage("marker_review_confirmed", { marker: currentKey, index: state.markerReviewIndex + 1, source: "wizard" });
-        selectMarkerForReview(markerReviewOrder[state.markerReviewIndex + 1]);
-        return;
-      }
+      if (state.wizard.step === 1) recordUsage("all_markers_confirmed", { source: "wizard" });
       setWizardStep(state.wizard.step + 1);
     }
 
     function wizardBack() {
-      if (state.wizard.step === 1 && state.markerReviewIndex > 0) {
-        selectMarkerForReview(markerReviewOrder[state.markerReviewIndex - 1]);
-        return;
-      }
       setWizardStep(state.wizard.step - 1);
     }
 
@@ -3890,8 +3901,11 @@
       $("#transformX").value = String(transform.x);
       $("#transformY").value = String(transform.y);
       $("#transformZoomValue").textContent = `${Math.round(transform.zoom * 100)} %`;
-      $("#transformXValue").textContent = String(transform.x);
-      $("#transformYValue").textContent = String(transform.y);
+      $("#transformXValue").textContent = `${transform.x} %`;
+      $("#transformYValue").textContent = `${transform.y} %`;
+      const hasSafeTravel = transform.zoom > 1.001;
+      $("#transformX").disabled = !hasSafeTravel;
+      $("#transformY").disabled = !hasSafeTravel;
     }
 
     function calculateMusicPassage() {
@@ -4013,7 +4027,7 @@
       } else if (gapEdit.tooShort) {
         $("#gapEditSummary").innerHTML = `<strong>Krátka prestávka:</strong> prechod sa automaticky skráti na minimum ${gapEdit.transitionDuration.toFixed(1)} s.`;
       } else if (gapEdit.active) {
-        $("#gapEditSummary").innerHTML = `<strong>Automatický strih:</strong> odstráni sa ${gapEdit.cutDuration.toFixed(1)} s uprostred prestávky. Prechod bude mať ${gapEdit.transitionDuration.toFixed(1)} s a skončí presne pri druhej reči.`;
+        $("#gapEditSummary").innerHTML = `<strong>Automatický strih:</strong> odstráni sa ${gapEdit.cutDuration.toFixed(1)} s uprostred prestávky. V čisto bielom vrchole sa oba zábery prekryjú ${calculateAdditiveOverlap(gapEdit).toFixed(2)} s a prechod skončí presne pri druhej reči.`;
       } else {
         $("#gapEditSummary").innerHTML = `<strong>Bez vystrihnutia:</strong> prestávka už sedí na prechod dlhý ${gapEdit.transitionDuration.toFixed(1)} s.`;
       }
@@ -4161,6 +4175,14 @@
       return sourceToEditedTime($("#video").currentTime);
     }
 
+    function safePreviewTransform(transform = {}) {
+      const zoom = clamp(Number(transform.zoom) || 1, 1, 2.5);
+      const availableTravel = zoom > 1 ? (zoom - 1) / zoom * 50 : 0;
+      const x = clamp(Number(transform.x) || 0, -100, 100) / 100 * availableTravel;
+      const y = clamp(Number(transform.y) || 0, -100, 100) / 100 * availableTravel;
+      return `scale(${zoom}) translate(${x}%, ${y}%)`;
+    }
+
     function renderPreviewEffects() {
       if (!state.video) return;
       const time = currentPreviewTime();
@@ -4171,7 +4193,7 @@
       let light = 0;
       if (time >= start && time < start + fadeIn) light = (time - start) / Math.max(.01, fadeIn);
       else if (time >= start + fadeIn && time <= end) light = 1 - ((time - start - fadeIn) / Math.max(.01, gapEdit.transitionDuration - fadeIn));
-      $("#lightFlash").style.opacity = String(clamp(light * .92, 0, .92));
+      $("#lightFlash").style.opacity = String(clamp(light * .94, 0, .94));
 
       const trimEnd = editedTrimEnd();
       const fadeStart = trimEnd - Math.min(2, trimEnd - state.trimStart);
@@ -4186,11 +4208,35 @@
       const warm = Math.abs(colour.temperature) / 100 * .18;
       const hue = colour.temperature < 0 ? -8 * warm : 8 * warm;
       const blur = finalProgress * 24;
-      $("#video").style.filter = `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
+      const previewFilter = `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
+      $("#video").style.filter = previewFilter;
       const segment = segmentAt($("#video").currentTime);
       const transform = segment?.transform || { zoom: 1, x: 0, y: 0 };
-      $("#video").style.transform = `scale(${transform.zoom}) translate(${transform.x / 2}%, ${transform.y / 2}%)`;
+      $("#video").style.transform = safePreviewTransform(transform);
       $("#video").style.transformOrigin = "center";
+
+      const transitionGhost = $("#transitionGhost");
+      const overlap = calculateAdditiveOverlap(gapEdit);
+      const transitionPeak = sourceToEditedTime(gapEdit.cutStart);
+      const overlapStart = transitionPeak - overlap / 2;
+      const overlapProgress = overlap > 0
+        ? (time - overlapStart) / overlap
+        : -1;
+      if (overlapProgress >= 0 && overlapProgress <= 1 && state.previewTailStartedAt === null) {
+        const ghostTime = overlapProgress <= .5
+          ? gapEdit.cutEnd - overlap / 2 + (time - overlapStart)
+          : gapEdit.cutStart - overlap / 2 + (time - overlapStart);
+        if (transitionGhost.readyState >= 1 && Math.abs(transitionGhost.currentTime - ghostTime) > .025) {
+          transitionGhost.currentTime = clamp(ghostTime, 0, state.video.analysis.metadata.duration);
+        }
+        const ghostSegment = segmentAt(ghostTime);
+        transitionGhost.style.filter = previewFilter;
+        transitionGhost.style.transform = safePreviewTransform(ghostSegment?.transform || transform);
+        transitionGhost.style.transformOrigin = "center";
+        transitionGhost.style.opacity = String(Math.sin(Math.PI * overlapProgress) * .76);
+      } else {
+        transitionGhost.style.opacity = "0";
+      }
       const tintOpacity = colour.mode === "individual" ? (colour.red + colour.green + colour.blue) / 300 * .24 : 0;
       $("#colorTint").style.opacity = String(tintOpacity);
       $("#colorTint").style.background = `rgb(${128 + colour.red * 1.27}, ${128 + colour.green * 1.27}, ${128 + colour.blue * 1.27})`;
@@ -5359,6 +5405,11 @@
           if (!segment) return;
           segment.transform ||= { zoom: 1, x: 0, y: 0 };
           segment.transform[key] = Number(event.target.value);
+          if (key === "zoom" && segment.transform.zoom <= 1.001) {
+            segment.transform.zoom = 1;
+            segment.transform.x = 0;
+            segment.transform.y = 0;
+          }
           rememberEdit(`Transformácia segmentu: ${key}`, `transform-${key}`);
           renderInspector();
           renderPreviewEffects();

@@ -24,7 +24,7 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 Editor sa predvolene otvorí ako desaťkrokový sprievodca. V každom kroku zobrazí iba náhľad a ovládače, ktoré práve potrebujete:
 
 1. vloženie portrétového MOV/MP4 do 60 sekúnd a voliteľnej licencovanej hudby,
-2. postupná kontrola šiestich časových bodov s waveformom a posunom ±0,1 s,
+2. spoločná kontrola všetkých šiestich AI návrhov na jednom waveforme; upravujú sa iba body, ktoré treba,
 3. AI denoise celého videa s reálnym A/B náhľadom,
 4. ľubovoľné oblasti na waveforme so stíšením 0 až −36 dB alebo úplným tichom,
 5. svetelný prechod s fast-whoosh efektom,
@@ -34,7 +34,7 @@ Editor sa predvolene otvorí ako desaťkrokový sprievodca. V každom kroku zobr
 9. kontrola plynulého blur/fade záveru,
 10. prehratie celého aktuálneho strihu a export MP4.
 
-Ak je prestávka medzi „Give Me Five“ a pokračovaním reči dlhšia než zvolený prechod, editor jej stred automaticky odstráni v najjasnejšom bode. Prechod tak skončí presne pri začiatku druhej reči. Pri kratšej prestávke sa svetelný efekt automaticky skráti, najmenej na 0,5 sekundy.
+Ak je prestávka medzi „Give Me Five“ a pokračovaním reči dlhšia než zvolený prechod, editor jej stred automaticky odstráni v najjasnejšom bode. Vo vrchole sa približne 0,5 sekundy prekryje záber pred strihom so záberom po strihu pod neutrálnym čisto bielym svetlom. Prechod tak skončí presne pri začiatku druhej reči. Pri kratšej prestávke sa svetelný efekt automaticky skráti, najmenej na 0,5 sekundy.
 
 Tlačidlo **Rozšírený režim** kedykoľvek zobrazí celý editor v jednom pracovnom priestore. Manuálne nastavenia majú vždy prednosť pred automatickými návrhmi.
 
@@ -43,6 +43,8 @@ AI denoise (DeepFilterNet3) vyčistí súvislo celý pôvodný zvuk. Vyčistená
 Hudobný analyzátor prejde celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×. Tlačidlo **Prehrať mix** prehráva aktuálny finálny zvuk: vyčistený hlas, lokálne stíšené miesta, hudbu s automatickým stíšením, whoosh +5 dB aj všetky fade efekty.
 
 Tlačidlá **Späť** a **Vpred** alebo skratky `⌘/Ctrl+Z` a `⇧⌘/Ctrl+Z` vracajú a obnovujú posledných 80 úprav. Tlačidlo **? Návod** kedykoľvek otvorí stručný postup.
+
+Zoom obrazu začína na 100 % a dá sa iba zvyšovať. Poloha X/Y sa počíta ako percento práve dostupného priestoru po zväčšení; krajné hodnoty preto skončia presne na hrane a v náhľade ani exporte nevytvoria čierny okraj.
 
 Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
