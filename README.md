@@ -9,6 +9,8 @@ Lokálna webová aplikácia pre Google Chrome. Video a audio ostávajú v počí
 3. Pri prvom spustení počkajte na inštaláciu lokálnych závislostí.
 4. Chrome otvorí adresu `http://127.0.0.1:4173`.
 
+Launcher nepotrebuje povolenie na ovládanie Terminálu cez AppleScript. Súbor `start.command` otvorí štandardným macOS spôsobom; ten spustí server, počká na jeho pripravenosť a až potom otvorí Chrome.
+
 Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte priamo, editor zobrazí pokyn na spustenie aplikácie a po zapnutí servera sa automaticky znovu pripojí.
 
 ## Pracovný postup

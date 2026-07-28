@@ -2,10 +2,14 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-LAUNCH_COMMAND="/bin/bash '$PROJECT_DIR/start.command'"
+APP_URL="http://127.0.0.1:4173"
 
-/usr/bin/osascript \
-  -e 'tell application "Terminal"' \
-  -e 'activate' \
-  -e "do script \"$LAUNCH_COMMAND\"" \
-  -e 'end tell'
+if /usr/bin/curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+  /usr/bin/open -b com.google.Chrome "$APP_URL" >/dev/null 2>&1 || /usr/bin/open "$APP_URL"
+  exit 0
+fi
+
+# LaunchServices otvorí .command priamo v Termináli. Na rozdiel od AppleScriptu
+# to nevyžaduje povolenie „ovládať Terminal“ a Terminal má prístup k Dokumentom.
+/usr/bin/open -a Terminal "$PROJECT_DIR/start.command"
+exit 0

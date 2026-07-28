@@ -14,11 +14,10 @@ pause_if_terminal() {
 }
 
 open_editor() {
-  if [ -d "/Applications/Google Chrome.app" ]; then
-    open -a "Google Chrome" "$APP_URL"
-  else
-    open "$APP_URL"
+  if open -b com.google.Chrome "$APP_URL" >/dev/null 2>&1; then
+    return 0
   fi
+  open "$APP_URL"
 }
 
 if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
@@ -71,8 +70,30 @@ fi
 
 echo "Spúšťam Give Me Five Editor…"
 echo "Správna adresa je $APP_URL"
-export GMF_OPEN_BROWSER=1
-if ! "$NODE_BIN" server.js; then
+export GMF_OPEN_BROWSER=0
+"$NODE_BIN" server.js &
+SERVER_PID=$!
+SERVER_READY=0
+
+for _attempt in $(seq 1 80); do
+  if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+    SERVER_READY=1
+    break
+  fi
+  if ! kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.25
+done
+
+if [ "$SERVER_READY" -eq 1 ]; then
+  echo "Editor je pripravený. Otváram Google Chrome…"
+  open_editor
+else
+  echo "CHYBA: Lokálny server sa nepodarilo pripraviť."
+fi
+
+if ! wait "$SERVER_PID"; then
   echo "CHYBA: Lokálny server sa nepodarilo spustiť."
   echo "Ak je port 4173 obsadený, zatvorte staré okno Terminálu a skúste to znovu."
   pause_if_terminal
