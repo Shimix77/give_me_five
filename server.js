@@ -518,8 +518,12 @@ function transcriptSuggestions(words, duration) {
   };
   const tokens = timedWords.map((word) => normaliseWord(word.text));
   for (let index = 0; index < tokens.length - 2; index++) {
-    const fiveLike = ["five", "fire", "fajv", "faiv", "fife"].includes(tokens[index + 2]) || editDistance(tokens[index + 2], "five") <= 2;
-    if (tokens[index] === "give" && tokens[index + 1] === "me" && fiveLike) {
+    const giveLike = ["give", "giv", "gib", "gyv"].includes(tokens[index]) || editDistance(tokens[index], "give") <= 1;
+    const meLike = ["me", "mi", "my"].includes(tokens[index + 1]) || editDistance(tokens[index + 1], "me") <= 1;
+    const fiveLike = ["five", "fire", "fajv", "faiv", "fife", "fajn", "fajf", "fajve"].includes(tokens[index + 2])
+      || editDistance(tokens[index + 2], "five") <= 2
+      || editDistance(tokens[index + 2], "fajv") <= 1;
+    if (giveLike && meLike && fiveLike) {
       suggestions.giveStart = timedWords[index].start;
       suggestions.giveEnd = timedWords[index + 2].end;
       const continuation = timedWords.slice(index + 3).find((word) => word.start >= suggestions.giveEnd + 0.12);
@@ -550,6 +554,31 @@ function refineSuggestionsWithAudio(suggestions, activity, duration) {
   return refined;
 }
 
+function alignTranscriptWordsToSpeech(words, activity, duration) {
+  if (!words.length || words.some((word) => Number.isFinite(word.start) && Number.isFinite(word.end))) return words;
+  const speechPoints = (activity || [])
+    .filter((item) => item?.[4] === "speech" && Number.isFinite(item[0]))
+    .map((item) => clamp(item[0], 0, duration));
+  const points = speechPoints.length >= 2
+    ? speechPoints
+    : Array.from({ length: Math.max(2, words.length) }, (_item, index) => duration * index / Math.max(1, words.length - 1));
+  const weights = words.map((word) => Math.max(1, normaliseWord(word.text).length));
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0);
+  let consumed = 0;
+  return words.map((word, index) => {
+    const middle = (consumed + weights[index] / 2) / totalWeight;
+    consumed += weights[index];
+    const pointIndex = clamp(Math.round(middle * (points.length - 1)), 0, points.length - 1);
+    const start = points[pointIndex];
+    const nextPoint = points[Math.min(points.length - 1, pointIndex + 1)];
+    return {
+      ...word,
+      start,
+      end: clamp(Math.max(start + 0.08, nextPoint), start, duration)
+    };
+  });
+}
+
 async function transcribeMedia(record, job) {
   const workerResult = await new Promise((resolve, reject) => {
     const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
@@ -574,7 +603,11 @@ async function transcribeMedia(record, job) {
       if (code !== 0 && job.status === "running") reject(new Error(`Prepisový worker skončil s kódom ${code}.`));
     });
   });
-  const words = workerResult.words || [];
+  const words = alignTranscriptWordsToSpeech(
+    workerResult.words || [],
+    record.activity,
+    record.metadata.duration
+  );
   const suggestions = refineSuggestionsWithAudio(
     transcriptSuggestions(words, record.metadata.duration),
     record.activity,
@@ -585,7 +618,7 @@ async function transcribeMedia(record, job) {
     words,
     suggestions,
     language: "sk",
-    model: "Whisper Large v3 Turbo · presný lokálny režim"
+    model: "Slovenský Whisper Large v3 Turbo · SloPalSpeech fine-tune"
   };
 }
 

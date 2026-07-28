@@ -56,13 +56,24 @@ async function main() {
   env.cacheDir = workerData.modelDir;
   env.allowLocalModels = true;
   env.allowRemoteModels = true;
-  const transcriber = await pipeline("automatic-speech-recognition", "onnx-community/whisper-large-v3-turbo", {
+  const modelParts = new Map([
+    ["encoder_model_q4.onnx", 0],
+    ["decoder_model_merged_q4.onnx", 0]
+  ]);
+  let lastModelPercent = -1;
+  const transcriber = await pipeline("automatic-speech-recognition", "Xurify/whisper-large-v3-turbo-sk-onnx", {
     dtype: "q4",
     progress_callback: (progress) => {
       if (progress.status === "progress" && Number.isFinite(progress.progress)) {
-        report(Math.min(0.52, 0.05 + progress.progress / 100 * 0.47), `Načítavam presný lokálny model… ${Math.round(progress.progress)} %`);
+        const fileName = String(progress.file || "").split("/").at(-1);
+        if (modelParts.has(fileName)) modelParts.set(fileName, progress.progress);
+        const percent = Math.round([...modelParts.values()].reduce((sum, value) => sum + value, 0) / modelParts.size);
+        if (percent > lastModelPercent) {
+          lastModelPercent = percent;
+          report(Math.min(0.52, 0.05 + percent / 100 * 0.47), `Načítavam slovenský Whisper model… ${percent} %`);
+        }
       } else if (progress.status === "ready") {
-        report(0.55, "Presný lokálny model je pripravený.");
+        report(0.55, "Slovenský Whisper model je pripravený.");
       }
     }
   });
