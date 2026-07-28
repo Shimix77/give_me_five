@@ -1731,6 +1731,16 @@
     .music-dock .level-box { padding: 6px 8px; }
     .music-dock .level-box input { margin-top: 3px; }
     .music-workspace.docked { display: none; }
+    .media-pool {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: .001;
+      pointer-events: none;
+    }
 
     .music-live-status {
       margin-top: 6px;
@@ -1848,7 +1858,7 @@
           <div class="video-wrap" id="videoWrap">
             <video id="video" playsinline preload="metadata"></video>
             <div class="empty-video" id="emptyVideo">
-              <div><strong>Najskôr vložte video</strong>Waveform, spektrogram a časové značky sa vytvoria lokálne.</div>
+              <div><strong>Najskôr vložte video</strong>Waveform a časové značky sa vytvoria lokálne.</div>
             </div>
             <div id="colorTint" style="position:absolute;inset:0;pointer-events:none;opacity:0;mix-blend-mode:soft-light"></div>
             <div class="light-flash" id="lightFlash"></div>
@@ -1875,8 +1885,8 @@
         <div style="padding:0 14px 14px;background:#0a1423">
           <div class="mixer-strip">
             <label for="voiceMaster">Hlas</label>
-            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="0">
-            <span class="value" id="voiceMasterValue">0 dB</span>
+            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="8">
+            <span class="value" id="voiceMasterValue">+8 dB</span>
           </div>
           <div class="level-meter"><i id="voiceMeter"></i></div>
           <div class="mixer-strip">
@@ -1902,7 +1912,7 @@
             </div>
             <div class="mix-loop-note">
               <span id="loopRegionLabel">Celý strih sa prehrá raz.</span>
-              <span>Hlasitosti sa menia bez zastavenia.</span>
+              <span>Každý úsek sa prehrá iba raz.</span>
             </div>
           </div>
         </div>
@@ -1912,13 +1922,9 @@
         <div class="panel-head">
           <div>
             <h2>Obraz a hovorené slovo</h2>
-            <p>Farebný waveform: reč, vietor, ostatný zvuk a ticho</p>
+            <p>Čitateľný waveform: reč, vietor, ostatný zvuk a ticho</p>
           </div>
-          <div class="view-tabs" data-tabs="video">
-            <button type="button" data-view="wave" class="active">Waveform</button>
-            <button type="button" data-view="spectrum">Spektrogram</button>
-            <button type="button" data-view="both">Oboje</button>
-          </div>
+          <span class="pill">Waveform</span>
         </div>
         <div class="timeline-toolbar">
           <button class="btn master-play" id="masterPlay" type="button" disabled>▶ Prehrať finálny mix</button>
@@ -1945,7 +1951,6 @@
             <div class="section-lane" id="sectionLane"></div>
             <div class="media-vis" id="videoMediaVis" data-view="wave">
               <canvas class="wave-view" id="videoWave"></canvas>
-              <img class="spectrogram-view" id="videoSpectrum" alt="Spektrogram zvuku videa">
               <div class="markers-layer" id="videoMarkers"></div>
               <div class="playhead" id="videoPlayhead"></div>
             </div>
@@ -2136,11 +2141,6 @@
         </div>
         <div style="display:flex;gap:7px;align-items:center">
           <button class="btn ghost" id="toggleMusicPanel" type="button">Skryť hudobný panel</button>
-          <div class="view-tabs" data-tabs="music">
-            <button type="button" data-view="wave" class="active">Waveform</button>
-            <button type="button" data-view="spectrum">Spektrogram</button>
-            <button type="button" data-view="both">Oboje</button>
-          </div>
         </div>
       </div>
       <div class="music-grid">
@@ -2158,7 +2158,6 @@
           <div class="visualizer" id="musicVisualizer">
             <div class="media-vis" id="musicMediaVis" data-view="wave">
               <canvas class="wave-view" id="musicWave"></canvas>
-              <img class="spectrogram-view" id="musicSpectrum" alt="Spektrogram hudby">
               <div class="markers-layer" id="musicMarkers"></div>
               <div class="playhead" id="musicPlayhead"></div>
             </div>
@@ -2182,15 +2181,15 @@
             <div class="music-live-status" id="musicLiveStatus">Hudba teraz: čaká na video</div>
             <div class="level-grid">
               <div class="level-box" data-music-phase="intro">
-                <div class="field-line"><label>Úvod</label><span><button class="level-audition" type="button" data-audition-region="intro" title="Prehrať slučku úvodu">▶</button> <span class="value" id="musicBaseValue">−8 dB</span></span></div>
+                <div class="field-line"><label>Úvod</label><span><button class="level-audition" type="button" data-audition-region="intro" title="Prehrať úvod raz">▶</button> <span class="value" id="musicBaseValue">−8 dB</span></span></div>
                 <input id="musicBase" type="range" min="-30" max="0" step="1" value="-8">
               </div>
               <div class="level-box" data-music-phase="speech">
-                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať slučku reči">▶</button> <span class="value" id="musicDuringValue">−22 dB</span></span></div>
+                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať úsek reči raz">▶</button> <span class="value" id="musicDuringValue">−22 dB</span></span></div>
                 <input id="musicDuring" type="range" min="-40" max="-5" step="1" value="-22">
               </div>
               <div class="level-box" data-music-phase="after">
-                <div class="field-line"><label>Po reči</label><span><button class="level-audition" type="button" data-audition-region="ending" title="Prehrať slučku záveru">▶</button> <span class="value" id="musicAfterValue">−13 dB</span></span></div>
+                <div class="field-line"><label>Po reči</label><span><button class="level-audition" type="button" data-audition-region="ending" title="Prehrať záver raz">▶</button> <span class="value" id="musicAfterValue">−13 dB</span></span></div>
                 <input id="musicAfter" type="range" min="-30" max="0" step="1" value="-13">
               </div>
             </div>
@@ -2232,6 +2231,7 @@
         <button class="btn primary export-btn" id="exportBtn" type="button" disabled>↓ Exportovať MP4</button>
       </div>
     </section>
+    <div class="media-pool" id="mediaPool" aria-hidden="true"></div>
   </div>
 
   <dialog class="guide-dialog" id="guideDialog">
@@ -2244,9 +2244,9 @@
     </div>
     <div class="guide-body">
       <div class="guide-step"><b>1</b><div><strong>Vložte video a hudbu</strong><span>Hore kliknite na „Vybrať video“ a voliteľne „Vybrať audio“. AI na pozadí pripraví prepis, značky, drop a vyčistený hlas.</span></div></div>
-      <div class="guide-step"><b>2</b><div><strong>Skontrolujte šesť značiek</strong><span>V paneli „Obraz a hovorené slovo“ použite „Rýchlu kontrolu značiek“. Slučka prehrá okolie bodu a tlačidlá ±0,1 s ho presne doladia.</span></div></div>
-      <div class="guide-step"><b>3</b><div><strong>Nastavte drop a svetelný prechod</strong><span>Vyberte jeden z troch návrhov dropu. Slučka „Drop“ opakuje prechod, takže dĺžku svetla upravíte bez opakovaného klikania na náhľad.</span></div></div>
-      <div class="guide-step"><b>4</b><div><strong>Vylaďte finálny mix</strong><span>Vľavo kliknite „Prehrať mix“. Úseky Úvod, Počas reči, Drop a Záver sa automaticky opakujú aj počas zmeny hlasitostí. Počujete AI denoise, hudbu, whoosh a všetky fade efekty.</span></div></div>
+      <div class="guide-step"><b>2</b><div><strong>Skontrolujte šesť značiek</strong><span>V paneli „Obraz a hovorené slovo“ použite „Rýchlu kontrolu značiek“. Náhľad prehrá okolie bodu raz a tlačidlá ±0,1 s ho presne doladia.</span></div></div>
+      <div class="guide-step"><b>3</b><div><strong>Nastavte drop a svetelný prechod</strong><span>Vyberte jeden z troch návrhov dropu a jednorazovým náhľadom skontrolujte prechod aj whoosh.</span></div></div>
+      <div class="guide-step"><b>4</b><div><strong>Vylaďte finálny mix</strong><span>Vľavo kliknite „Prehrať mix“. Úseky Úvod, Počas reči, Drop a Záver sa prehrajú raz a zastavia. Počujete AI denoise, hudbu, whoosh a všetky fade efekty.</span></div></div>
       <div class="guide-step"><b>5</b><div><strong>Skontrolujte celé video a exportujte</strong><span>Zvoľte „Celé“, prehrajte aktuálny strih od začiatku po čierny záver a až potom dole kliknite „Exportovať MP4“.</span></div></div>
       <div class="guide-shortcuts"><strong>Skratky:</strong> medzerník = prehrať/pozastaviť finálny mix · šípky = posun o 0,1 s · ⌘/Ctrl+Z = krok späť · ⇧⌘/Ctrl+Z = krok vpred.</div>
     </div>
@@ -2281,7 +2281,7 @@
       musicZoom: 1,
       beatSnap: true,
       markersManuallyEdited: false,
-      voiceMasterDb: 0,
+      voiceMasterDb: 8,
       colour: {
         mode: "all",
         boost: 0,
@@ -2327,7 +2327,10 @@
       previewTailStartedAt: null,
       lastCleanUrl: null,
       denoisePreview: null,
-      toastTimer: null
+      toastTimer: null,
+      musicPlayPending: false,
+      musicPlaybackError: null,
+      lastMusicPlayAttemptAt: 0
     };
 
     const editHistory = {
@@ -2339,7 +2342,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "2.3.0";
+    const APP_VERSION = "2.3.1";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -2486,6 +2489,10 @@
       title.innerHTML = "<strong>A2 · Hudba, drop a automatický ducking</strong><span>Aktívna hlasitosť sa zvýrazní počas prehrávania</span>";
       if (tabs) title.appendChild(tabs);
       dock.append(title, main, mixer);
+      ["music", "cleanVoice", "whooshPreview", "cleanPreview"].forEach((id) => {
+        const element = $(`#${id}`);
+        if (element) $("#mediaPool").appendChild(element);
+      });
       $(".music-workspace").classList.add("docked");
     }
 
@@ -2801,7 +2808,7 @@
       const card = kind === "video" ? $("#videoImportCard") : $("#musicImportCard");
       const name = kind === "video" ? $("#videoFileName") : $("#musicFileName");
       card.classList.add("loading");
-      name.textContent = `${file.name} · analyzujem waveform a spektrogram…`;
+      name.textContent = `${file.name} · analyzujem waveform…`;
       const form = new FormData();
       form.append("kind", kind);
       form.append("file", file);
@@ -2840,6 +2847,7 @@
       const duration = record.analysis.metadata.duration;
       state.trimStart = 0;
       state.trimEnd = duration;
+      state.voiceMasterDb = 8;
       state.markersManuallyEdited = false;
       state.markerReviewIndex = -1;
       state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
@@ -2873,7 +2881,6 @@
       $("#videoFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
-      $("#videoSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
       ["#masterPlay", "#finalMixPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#cleanPreviewBtn", "#markerReviewNext"].forEach((selector) => $(selector).disabled = false);
       $$("#loopRegions button").forEach((button) => button.disabled = false);
       resetEditHistory();
@@ -2886,6 +2893,8 @@
     function loadMusicRecord(record) {
       if (state.music?.url) URL.revokeObjectURL(state.music.url);
       state.music = record;
+      state.musicPlaybackError = null;
+      state.musicPlayPending = false;
       const music = $("#music");
       music.pause();
       music.src = record.url;
@@ -2896,7 +2905,6 @@
       $("#playMusic").disabled = false;
       $("#setDropBtn").disabled = false;
       $("#musicFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
-      $("#musicSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
       const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
       const recommendedDrop = record.analysis.dropAnalysis?.candidates?.[0]?.time;
       state.musicSettings.dropManual = false;
@@ -3254,11 +3262,11 @@
               : clean.error || "Vyčistený hlas ešte nie je pripravený.";
       const labels = {
         all: "Celý aktuálny strih sa prehrá raz.",
-        intro: "Úvod sa automaticky opakuje.",
-        speech: "Okolie začiatku reči sa automaticky opakuje.",
-        drop: "Give Me Five, whoosh a začiatok druhej reči sa opakujú.",
-        ending: "Posledné slová, blur a čierny záver sa opakujú.",
-        marker: "Okolie vybranej značky sa automaticky opakuje."
+        intro: "Úvod sa prehrá raz a zastaví.",
+        speech: "Okolie začiatku reči sa prehrá raz.",
+        drop: "Give Me Five, whoosh a druhá reč sa prehrajú raz.",
+        ending: "Posledné slová, blur a čierny záver sa prehrajú raz.",
+        marker: "Okolie vybranej značky sa prehrá raz."
       };
       $("#loopRegionLabel").textContent = labels[state.previewLoop.mode] || labels.all;
       $$("#loopRegions button").forEach((button) => {
@@ -3332,6 +3340,13 @@
         : `<span class="muted-copy">AI nenašla dostatočne výrazný drop; použite playhead.</span>`;
       renderMusicMarkers();
       renderMusicLevelActivity(currentPreviewTime());
+    }
+
+    function renderMasterLevels() {
+      $("#voiceMaster").value = state.voiceMasterDb;
+      $("#voiceMasterValue").textContent = formatDb(state.voiceMasterDb);
+      $("#musicOffset").value = state.musicSettings.offsetDb;
+      $("#musicOffsetValue").textContent = formatDb(state.musicSettings.offsetDb);
     }
 
     function renderColour() {
@@ -3544,6 +3559,7 @@
       renderMarkerReview();
       renderInspector();
       renderMusic();
+      renderMasterLevels();
       renderMixPreview();
       renderColour();
       renderDenoise();
@@ -3613,7 +3629,7 @@
       const value = markerValue(key);
       state.previewLoop = {
         mode: "marker",
-        enabled: true,
+        enabled: false,
         customStart: Math.max(state.trimStart, value - 1.5),
         customEnd: Math.min(state.trimEnd + (key === "trimEnd" ? 2 : 0), value + 1.5)
       };
@@ -3650,7 +3666,7 @@
       if (!state.video) return;
       state.previewLoop = {
         mode,
-        enabled: mode !== "all",
+        enabled: false,
         customStart: null,
         customEnd: null
       };
@@ -3659,7 +3675,7 @@
       $("#video").currentTime = Math.min(bounds.start, state.trimEnd);
       state.whooshPlayed = false;
       renderAll();
-      recordUsage("mix_region_selected", { region: mode, looping: state.previewLoop.enabled });
+      recordUsage("mix_region_selected", { region: mode, looping: false });
       if ($("#video").paused) await toggleVideoPlayback();
       else updateAudioMix(true);
     }
@@ -3794,10 +3810,18 @@
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return null;
       const context = new AudioContext();
-      const videoSource = context.createMediaElementSource($("#video"));
-      const musicSource = context.createMediaElementSource($("#music"));
-      const cleanVoiceSource = context.createMediaElementSource($("#cleanVoice"));
-      const whooshSource = context.createMediaElementSource($("#whooshPreview"));
+      const videoElement = $("#video");
+      const musicElement = $("#music");
+      const cleanElement = $("#cleanVoice");
+      const whooshElement = $("#whooshPreview");
+      [videoElement, musicElement, cleanElement, whooshElement].forEach((element) => {
+        element.volume = 1;
+        element.muted = false;
+      });
+      const videoSource = context.createMediaElementSource(videoElement);
+      const musicSource = context.createMediaElementSource(musicElement);
+      const cleanVoiceSource = context.createMediaElementSource(cleanElement);
+      const whooshSource = context.createMediaElementSource(whooshElement);
       const videoGain = context.createGain();
       const cleanGain = context.createGain();
       const musicGain = context.createGain();
@@ -3870,6 +3894,10 @@
         $("#musicLiveStatus").textContent = "Hudba teraz: vložte skladbu";
         return;
       }
+      if (state.musicPlaybackError) {
+        $("#musicLiveStatus").textContent = `Hudba sa nespustila: ${state.musicPlaybackError}`;
+        return;
+      }
       const labels = { intro: "Úvod", speech: "Počas reči", after: "Po reči" };
       $("#musicLiveStatus").textContent = `Hudba teraz: ${labels[phase]} · ${formatDb(musicDbAtVideoTime(time) + state.musicSettings.offsetDb)}`;
     }
@@ -3880,6 +3908,42 @@
       const otherSolo = state.channel[`${other}Solo`];
       const ownSolo = state.channel[`${channel}Solo`];
       return !muted && (!otherSolo || ownSolo);
+    }
+
+    function musicTargetAtPreviewTime(previewTime = currentPreviewTime()) {
+      if (!state.video || !state.music) return null;
+      const passage = calculateMusicPassage();
+      const duration = state.music.analysis.metadata.duration;
+      if (!passage || passage.start < 0 || passage.end > duration) return null;
+      const target = passage.start + (previewTime - state.trimStart);
+      return target >= passage.start && target <= passage.end ? target : null;
+    }
+
+    async function ensureMusicPreviewPlaying(forceSync = false) {
+      const music = $("#music");
+      const target = musicTargetAtPreviewTime();
+      if (!Number.isFinite(target) || !channelAudible("music")) {
+        if (!music.paused) music.pause();
+        return false;
+      }
+      if (forceSync || Math.abs(music.currentTime - target) > .12) music.currentTime = target;
+      if (!music.paused || state.musicPlayPending) return true;
+      const now = performance.now();
+      if (now - state.lastMusicPlayAttemptAt < 700) return false;
+      state.lastMusicPlayAttemptAt = now;
+      state.musicPlayPending = true;
+      try {
+        await music.play();
+        state.musicPlaybackError = null;
+        return true;
+      } catch (error) {
+        state.musicPlaybackError = error?.message || "Prehliadač zablokoval prehrávanie.";
+        recordUsage("music_preview_failed", { reason: "media_play_rejected" });
+        return false;
+      } finally {
+        state.musicPlayPending = false;
+        renderMusicLevelActivity(currentPreviewTime());
+      }
     }
 
     function updateAudioMix(forceSync = false) {
@@ -3933,16 +3997,7 @@
       }
 
       if (state.video && state.music && (!video.paused || state.previewTailStartedAt !== null)) {
-        const passage = calculateMusicPassage();
-        if (passage && passage.start >= 0 && passage.end <= state.music.analysis.metadata.duration) {
-          const target = passage.start + (previewTime - state.trimStart);
-          if (target >= passage.start && target <= passage.end) {
-            if (forceSync || Math.abs(music.currentTime - target) > .12) music.currentTime = target;
-            if (music.paused) music.play().catch(() => {});
-          }
-        } else if (!music.paused) {
-          music.pause();
-        }
+        ensureMusicPreviewPlaying(forceSync);
       } else if (video.paused && state.previewTailStartedAt === null && !music.paused) {
         music.pause();
       }
@@ -3991,6 +4046,7 @@
       state.whooshPlayed = video.currentTime > state.markers.giveEnd + .5 + state.transitionDuration * .3 - .44;
       updateAudioMix(true);
       await video.play();
+      await ensureMusicPreviewPlaying(true);
       updateAudioMix(true);
       renderMixPreview();
     }
@@ -4005,7 +4061,7 @@
 
     async function previewTransition() {
       if (!state.video) return;
-      state.previewLoop = { mode: "drop", enabled: true, customStart: null, customEnd: null };
+      state.previewLoop = { mode: "drop", enabled: false, customStart: null, customEnd: null };
       const bounds = previewLoopBounds("drop");
       state.previewTailStartedAt = null;
       $("#video").currentTime = bounds.start;
@@ -4014,11 +4070,11 @@
       recordUsage("transition_previewed", {
         durationSeconds: state.transitionDuration,
         transitionStartSeconds: state.markers.giveEnd + .5,
-        continuousLoop: true
+        continuousLoop: false
       });
       if ($("#video").paused) await toggleVideoPlayback();
       else updateAudioMix(true);
-      toast("Prechod sa opakuje v slučke. Dĺžku svetla môžete meniť počas prehrávania.");
+      toast("Prechod sa prehrá raz. Dĺžku svetla môžete meniť aj počas náhľadu.");
     }
 
     async function previewCleanedSegment() {
@@ -4481,6 +4537,7 @@
         }
       });
       $("#music").addEventListener("play", () => {
+        state.musicPlaybackError = null;
         $("#playMusic").textContent = "❚❚";
         if ($("#video").paused) recordUsage("music_solo_previewed");
       });
@@ -4766,14 +4823,14 @@
     function animationLoop() {
       if (state.video && (!$("#video").paused || state.previewTailStartedAt !== null)) {
         const bounds = previewLoopBounds();
-        if (state.previewLoop.enabled && bounds && currentPreviewTime() >= bounds.end) {
+        if (state.previewLoop.mode !== "all" && bounds && currentPreviewTime() >= bounds.end) {
           state.previewTailStartedAt = null;
-          $("#video").currentTime = Math.min(bounds.start, state.trimEnd);
+          $("#video").pause();
+          $("#music").pause();
           $("#cleanVoice").pause();
           $("#whooshPreview").pause();
-          state.whooshPlayed = false;
-          updateAudioMix(true);
-          if ($("#video").paused) $("#video").play().then(() => updateAudioMix(true)).catch(() => {});
+          state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
+          renderMixPreview();
         } else if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= 2000) {
           state.previewTailStartedAt = null;
           $("#music").pause();

@@ -432,14 +432,11 @@ async function analyseMedia(filePath, id, kind) {
   if (!metadata.hasAudio) {
     return { metadata, peaks: [], activity: [], noiseFloorDb: -72, spectrogramUrl: null, dropAnalysis: null };
   }
-  const [pcm, spectrogramUrl] = await Promise.all([
-    extractMonoPcm(filePath, 8000),
-    createSpectrogram(filePath, id)
-  ]);
+  const pcm = await extractMonoPcm(filePath, 8000);
   return {
     metadata,
     ...analysePcm(pcm, 8000, metadata.duration),
-    spectrogramUrl,
+    spectrogramUrl: null,
     dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null
   };
 }
