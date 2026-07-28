@@ -1123,6 +1123,31 @@ app.get("/api/jobs/:id/download", (request, response) => {
   stream.pipe(response);
 });
 
+app.get("/api/denoised-audio/:videoId", async (request, response) => {
+  const record = media.get(request.params.videoId);
+  if (!record) {
+    response.status(404).json({ error: "Importujte video znova." });
+    return;
+  }
+  const strength = Math.round(clamp(numeric(request.query.strength, 72), 1, 100));
+  try {
+    const denoisedAudioPath = await prepareDenoisedTrack(record, {
+      enabled: true,
+      strength,
+      lowCut: 50,
+      clarity: 0
+    });
+    if (!denoisedAudioPath) throw new Error("AI denoise nie je zapnutý.");
+    response.setHeader("Content-Type", "audio/wav");
+    response.setHeader("Cache-Control", "private, max-age=3600");
+    response.sendFile(denoisedAudioPath, { dotfiles: "allow" }, (error) => {
+      if (error && !response.headersSent) response.status(error.statusCode || 500).json({ error: "Vyčistený hlas sa nepodarilo načítať." });
+    });
+  } catch (error) {
+    response.status(422).json({ error: error.message || "Vyčistený hlas sa nepodarilo pripraviť." });
+  }
+});
+
 app.post("/api/preview-audio", async (request, response) => {
   const record = media.get(request.body.videoId);
   if (!record) {

@@ -848,6 +848,43 @@
       background: rgba(7, 16, 29, .35);
     }
 
+    .marker-row.active {
+      border-color: rgba(var(--accent-rgb), .48);
+      background: rgba(var(--accent-rgb), .08);
+    }
+
+    .marker-review {
+      display: grid;
+      grid-template-columns: minmax(150px, 1fr) auto auto auto auto;
+      align-items: center;
+      gap: 7px;
+      margin-top: 14px;
+      padding: 10px;
+      border: 1px solid rgba(var(--accent-rgb), .25);
+      border-radius: 11px;
+      background: rgba(var(--accent-rgb), .055);
+    }
+
+    .marker-review strong,
+    .marker-review small {
+      display: block;
+    }
+
+    .marker-review strong { font-size: 10px; }
+
+    .marker-review small {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .marker-review .btn {
+      min-height: 31px;
+      padding: 5px 8px;
+      font-size: 9px;
+      white-space: nowrap;
+    }
+
     .marker-row i {
       width: 9px;
       height: 9px;
@@ -994,6 +1031,77 @@
     }
 
     .mixer-strip label { font-size: 9px; }
+
+    .mix-preview-card {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid rgba(115, 221, 177, .26);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(115, 221, 177, .1), rgba(var(--accent-rgb), .055));
+    }
+
+    .mix-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .mix-preview-head strong {
+      display: block;
+      font-size: 11px;
+    }
+
+    .mix-preview-head small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .mix-preview-play {
+      min-width: 132px;
+      min-height: 39px;
+      border: 1px solid rgba(115, 221, 177, .42);
+      border-radius: 10px;
+      background: rgba(115, 221, 177, .16);
+      color: #d4f9e7;
+      font-weight: 850;
+    }
+
+    .loop-regions {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .loop-regions button {
+      min-height: 29px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0a1524;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .loop-regions button.active {
+      border-color: rgba(var(--accent-rgb), .58);
+      background: rgba(var(--accent-rgb), .16);
+      color: var(--accent-2);
+    }
+
+    .mix-loop-note {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 9px;
+    }
 
     .level-meter {
       height: 7px;
@@ -1395,6 +1503,90 @@
       transform: translateY(0);
     }
 
+    dialog.guide-dialog {
+      width: min(760px, calc(100vw - 40px));
+      max-height: calc(100vh - 50px);
+      overflow: auto;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #0d1829;
+      box-shadow: 0 28px 100px rgba(0, 0, 0, .68);
+      color: var(--text);
+    }
+
+    dialog.guide-dialog::backdrop {
+      background: rgba(2, 7, 13, .76);
+      backdrop-filter: blur(5px);
+    }
+
+    .guide-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 20px 22px;
+      border-bottom: 1px solid var(--line-soft);
+      background: linear-gradient(135deg, rgba(var(--accent-rgb), .14), transparent);
+    }
+
+    .guide-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .guide-head p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .guide-body {
+      display: grid;
+      gap: 9px;
+      padding: 18px 22px 22px;
+    }
+
+    .guide-step {
+      display: grid;
+      grid-template-columns: 30px 1fr;
+      gap: 11px;
+      padding: 12px;
+      border: 1px solid var(--line-soft);
+      border-radius: 11px;
+      background: rgba(7, 16, 29, .42);
+    }
+
+    .guide-step > b {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      background: rgba(var(--accent-rgb), .17);
+      color: var(--accent-2);
+    }
+
+    .guide-step strong {
+      display: block;
+      margin-bottom: 2px;
+      font-size: 11px;
+    }
+
+    .guide-step span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .guide-shortcuts {
+      padding: 11px 12px;
+      border: 1px solid rgba(240, 199, 94, .2);
+      border-radius: 10px;
+      background: rgba(240, 199, 94, .055);
+      color: #d9d2bb;
+      font-size: 10px;
+    }
+
     @media (max-width: 1450px) {
       .workspace { grid-template-columns: minmax(690px, 1fr) 330px; }
       .preview-stage { min-height: 430px; }
@@ -1413,6 +1605,7 @@
         </div>
       </div>
       <div class="top-actions">
+        <button class="btn ghost" id="openGuide" type="button">? Návod</button>
         <div class="palette" aria-label="Farebná téma">
           <button type="button" data-palette="ocean" class="active" style="--swatch:#6fa8ff" title="Ocean"></button>
           <button type="button" data-palette="amber" style="--swatch:#f0b85d" title="Amber"></button>
@@ -1512,6 +1705,26 @@
             <span class="value" id="musicOffsetValue">0 dB</span>
           </div>
           <div class="level-meter"><i id="musicMeter"></i></div>
+          <div class="mix-preview-card">
+            <div class="mix-preview-head">
+              <div>
+                <strong>Finálny mix už počas úprav</strong>
+                <small id="mixPreviewStatus">Vložte video. Náhľad použije AI hlas, hudbu, whoosh aj fade.</small>
+              </div>
+              <button class="mix-preview-play" id="finalMixPlay" type="button" disabled>▶ Prehrať mix</button>
+            </div>
+            <div class="loop-regions" id="loopRegions" aria-label="Úseky náhľadu">
+              <button type="button" data-loop-region="all" class="active" disabled>Celé</button>
+              <button type="button" data-loop-region="intro" disabled>Úvod</button>
+              <button type="button" data-loop-region="speech" disabled>Počas reči</button>
+              <button type="button" data-loop-region="drop" disabled>Drop</button>
+              <button type="button" data-loop-region="ending" disabled>Záver</button>
+            </div>
+            <div class="mix-loop-note">
+              <span id="loopRegionLabel">Celý strih sa prehrá raz.</span>
+              <span>Hlasitosti sa menia bez zastavenia.</span>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1528,7 +1741,7 @@
           </div>
         </div>
         <div class="timeline-toolbar">
-          <button class="btn master-play" id="masterPlay" type="button" disabled>▶ Prehrať všetky stopy</button>
+          <button class="btn master-play" id="masterPlay" type="button" disabled>▶ Prehrať finálny mix</button>
           <button class="btn" id="razorBtn" type="button" disabled>✂ Rozrezať v playheade</button>
           <button class="btn ghost" id="mergeBtn" type="button" disabled>Zlúčiť s ďalším</button>
           <button class="btn ghost" id="setTrimIn" type="button" disabled>Nastaviť začiatok</button>
@@ -1565,6 +1778,16 @@
             <span class="muted-copy" id="segmentCount">0 segmentov</span>
           </div>
           <div class="segment-lane" id="segmentLane"></div>
+          <div class="marker-review" id="markerReview">
+            <div>
+              <strong id="markerReviewTitle">Rýchla kontrola značiek</strong>
+              <small id="markerReviewHint">Prejdite šesť bodov postupne; každý môžete doladiť o 0,1 s.</small>
+            </div>
+            <button class="btn ghost" id="markerNudgeBack" type="button" disabled>−0,1 s</button>
+            <button class="btn ghost" id="markerAudition" type="button" disabled>▶ Slučka</button>
+            <button class="btn ghost" id="markerNudgeForward" type="button" disabled>+0,1 s</button>
+            <button class="btn" id="markerReviewNext" type="button" disabled>Začať kontrolu</button>
+          </div>
           <div class="marker-list" id="markerList"></div>
         </div>
       </section>
@@ -1791,6 +2014,8 @@
             <h3>Použitá pasáž</h3>
             <p id="musicPassage">Po vložení hudby sa tu zobrazí začiatok, koniec a kontrola dĺžky.</p>
             <audio id="music" preload="metadata"></audio>
+            <audio id="cleanVoice" preload="auto" crossorigin="anonymous"></audio>
+            <audio id="whooshPreview" preload="auto" crossorigin="anonymous" src="/assets/fast-whoosh.mp3"></audio>
             <audio id="cleanPreview" preload="auto"></audio>
           </div>
         </aside>
@@ -1819,6 +2044,24 @@
       </div>
     </section>
   </div>
+
+  <dialog class="guide-dialog" id="guideDialog">
+    <div class="guide-head">
+      <div>
+        <h2>Ako upraviť Give Me Five video</h2>
+        <p>Od vloženia videa po finálny MP4 v piatich krokoch.</p>
+      </div>
+      <button class="btn ghost" id="closeGuide" type="button">Zavrieť</button>
+    </div>
+    <div class="guide-body">
+      <div class="guide-step"><b>1</b><div><strong>Vložte video a hudbu</strong><span>Hore kliknite na „Vybrať video“ a voliteľne „Vybrať audio“. AI na pozadí pripraví prepis, značky, drop a vyčistený hlas.</span></div></div>
+      <div class="guide-step"><b>2</b><div><strong>Skontrolujte šesť značiek</strong><span>V paneli „Obraz a hovorené slovo“ použite „Rýchlu kontrolu značiek“. Slučka prehrá okolie bodu a tlačidlá ±0,1 s ho presne doladia.</span></div></div>
+      <div class="guide-step"><b>3</b><div><strong>Nastavte drop a svetelný prechod</strong><span>Vyberte jeden z troch návrhov dropu. Slučka „Drop“ opakuje prechod, takže dĺžku svetla upravíte bez opakovaného klikania na náhľad.</span></div></div>
+      <div class="guide-step"><b>4</b><div><strong>Vylaďte finálny mix</strong><span>Vľavo kliknite „Prehrať mix“. Úseky Úvod, Počas reči, Drop a Záver sa automaticky opakujú aj počas zmeny hlasitostí. Počujete AI denoise, hudbu, whoosh a všetky fade efekty.</span></div></div>
+      <div class="guide-step"><b>5</b><div><strong>Skontrolujte celé video a exportujte</strong><span>Zvoľte „Celé“, prehrajte aktuálny strih od začiatku po čierny záver a až potom dole kliknite „Exportovať MP4“.</span></div></div>
+      <div class="guide-shortcuts"><strong>Skratky:</strong> medzerník = prehrať/pozastaviť finálny mix · šípky = posun o 0,1 s · M = stíšiť stopu · S = sólo stopy.</div>
+    </div>
+  </dialog>
 
   <div class="toast" id="toast"></div>
 
@@ -1887,13 +2130,18 @@
       musicView: "wave",
       drag: null,
       audioGraph: null,
+      cleanVoice: { key: null, ready: false, loading: false, error: null },
+      cleanVoiceTimer: null,
+      whooshPlayed: false,
+      previewLoop: { mode: "all", enabled: false, customStart: null, customEnd: null },
+      markerReviewIndex: -1,
       previewTailStartedAt: null,
       lastCleanUrl: null,
       denoisePreview: null,
       toastTimer: null
     };
 
-    const APP_VERSION = "2.1.0";
+    const APP_VERSION = "2.2.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -2129,6 +2377,7 @@
       speechEnd: { label: "Koniec hovoreného slova", hint: "hudba sa začne dvíhať", color: "#73ddb1" },
       trimEnd: { label: "Koniec videa", hint: "ľubovoľný trim OUT", color: "#eef3fb" }
     };
+    const markerReviewOrder = ["trimStart", "speechStart", "giveEnd", "continueStart", "speechEnd", "trimEnd"];
 
     function formatTime(seconds) {
       const safe = Math.max(0, Number(seconds) || 0);
@@ -2249,6 +2498,10 @@
       state.trimStart = 0;
       state.trimEnd = duration;
       state.markersManuallyEdited = false;
+      state.markerReviewIndex = -1;
+      state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
+      state.cleanVoice = { key: null, ready: false, loading: false, error: null };
+      state.whooshPlayed = false;
       state.markers = {
         speechStart: clamp(2, 0, duration),
         giveEnd: clamp(6, 0, duration),
@@ -2278,9 +2531,11 @@
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
       $("#videoSpectrum").src = record.analysis.spectrogramUrl ? `${API_ORIGIN}${record.analysis.spectrogramUrl}` : "";
-      ["#masterPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#cleanPreviewBtn"].forEach((selector) => $(selector).disabled = false);
+      ["#masterPlay", "#finalMixPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#cleanPreviewBtn", "#markerReviewNext"].forEach((selector) => $(selector).disabled = false);
+      $$("#loopRegions button").forEach((button) => button.disabled = false);
       renderAll();
       requestAnimationFrame(renderWaveforms);
+      primeCleanVoice();
       startTranscript();
     }
 
@@ -2564,6 +2819,7 @@
         list.innerHTML = "";
         return;
       }
+      const activeKey = markerReviewOrder[state.markerReviewIndex] || null;
       const values = [
         ["trimStart", state.trimStart],
         ["speechStart", state.markers.speechStart],
@@ -2574,13 +2830,94 @@
       ];
       list.innerHTML = values.map(([key, value]) => {
         const info = markerInfo[key];
-        return `<div class="marker-row" style="--marker:${info.color}">
+        return `<div class="marker-row${key === activeKey ? " active" : ""}" data-review-marker="${key}" style="--marker:${info.color}">
           <i></i>
           <span><strong>${info.label}</strong><small>${info.hint}</small></span>
           <code>${formatTime(value)}</code>
           <button class="btn ghost" type="button" data-set-marker="${key}">Na playhead</button>
         </div>`;
       }).join("");
+    }
+
+    function markerValue(key) {
+      return key === "trimStart" || key === "trimEnd" ? state[key] : state.markers[key];
+    }
+
+    function renderMarkerReview() {
+      const key = markerReviewOrder[state.markerReviewIndex] || null;
+      const hasVideo = Boolean(state.video);
+      $("#markerNudgeBack").disabled = !key;
+      $("#markerAudition").disabled = !key;
+      $("#markerNudgeForward").disabled = !key;
+      $("#markerReviewNext").disabled = !hasVideo;
+      if (!key) {
+        $("#markerReviewTitle").textContent = hasVideo ? "Rýchla kontrola značiek" : "Rýchla kontrola značiek";
+        $("#markerReviewHint").textContent = hasVideo
+          ? "AI návrhy prejdete za sebou; každý bod sa dá doladiť o 0,1 s."
+          : "Najskôr vložte video.";
+        $("#markerReviewNext").textContent = "Začať kontrolu";
+        return;
+      }
+      const info = markerInfo[key];
+      $("#markerReviewTitle").textContent = `${state.markerReviewIndex + 1}/6 · ${info.label} · ${formatTime(markerValue(key))}`;
+      $("#markerReviewHint").textContent = info.hint;
+      $("#markerReviewNext").textContent = state.markerReviewIndex === markerReviewOrder.length - 1 ? "Dokončiť" : "Potvrdiť + ďalšia";
+    }
+
+    function previewLoopBounds(mode = state.previewLoop.mode) {
+      if (!state.video) return null;
+      const m = state.markers;
+      const minimumSpan = .35;
+      let start = state.trimStart;
+      let end = state.trimEnd + 2;
+      if (mode === "intro") {
+        end = Math.min(state.trimEnd, m.speechStart + .6);
+      } else if (mode === "speech") {
+        start = Math.max(state.trimStart, m.speechStart - 1.1);
+        end = Math.min(state.trimEnd, Math.max(m.speechStart + .8, Math.min(m.giveEnd, m.speechStart + 7)));
+      } else if (mode === "drop") {
+        start = Math.max(state.trimStart, m.giveEnd - .8);
+        end = Math.min(state.trimEnd, m.continueStart + 3);
+      } else if (mode === "ending") {
+        start = Math.max(state.trimStart, m.speechEnd - 2);
+        end = state.trimEnd + 2;
+      } else if (mode === "marker" && Number.isFinite(state.previewLoop.customStart) && Number.isFinite(state.previewLoop.customEnd)) {
+        start = state.previewLoop.customStart;
+        end = state.previewLoop.customEnd;
+      }
+      if (end - start < minimumSpan) end = Math.min(state.trimEnd + 2, start + minimumSpan);
+      return { start, end };
+    }
+
+    function renderMixPreview() {
+      const hasVideo = Boolean(state.video);
+      const playing = hasVideo && (!$("#video").paused || state.previewTailStartedAt !== null);
+      $("#finalMixPlay").disabled = !hasVideo;
+      $("#finalMixPlay").textContent = playing ? "❚❚ Pozastaviť" : "▶ Prehrať mix";
+      $("#masterPlay").textContent = playing ? "❚❚ Pozastaviť finálny mix" : "▶ Prehrať finálny mix";
+      const clean = state.cleanVoice;
+      $("#mixPreviewStatus").textContent = !hasVideo
+        ? "Vložte video. Náhľad použije AI hlas, hudbu, whoosh aj fade."
+        : !state.globalDenoise.enabled
+          ? "Finálny mix je pripravený · AI denoise je vypnutý."
+          : clean.loading
+            ? "AI pripravuje vyčistený hlas; dovtedy náhľad používa pôvodný zvuk."
+            : clean.ready
+              ? "Finálny mix pripravený · AI hlas, hudba, whoosh a fade."
+              : clean.error || "Vyčistený hlas ešte nie je pripravený.";
+      const labels = {
+        all: "Celý aktuálny strih sa prehrá raz.",
+        intro: "Úvod sa automaticky opakuje.",
+        speech: "Okolie začiatku reči sa automaticky opakuje.",
+        drop: "Give Me Five, whoosh a začiatok druhej reči sa opakujú.",
+        ending: "Posledné slová, blur a čierny záver sa opakujú.",
+        marker: "Okolie vybranej značky sa automaticky opakuje."
+      };
+      $("#loopRegionLabel").textContent = labels[state.previewLoop.mode] || labels.all;
+      $$("#loopRegions button").forEach((button) => {
+        button.disabled = !hasVideo;
+        button.classList.toggle("active", button.dataset.loopRegion === state.previewLoop.mode);
+      });
     }
 
     function renderInspector() {
@@ -2856,8 +3193,10 @@
       renderSectionLane();
       renderSegments();
       renderMarkerList();
+      renderMarkerReview();
       renderInspector();
       renderMusic();
+      renderMixPreview();
       renderColour();
       renderDenoise();
       renderTranscript();
@@ -2898,6 +3237,82 @@
           debounceMs: 450
         });
       }
+    }
+
+    function selectMarkerForReview(key) {
+      const index = markerReviewOrder.indexOf(key);
+      if (index < 0 || !state.video) return;
+      state.markerReviewIndex = index;
+      state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
+      state.previewTailStartedAt = null;
+      $("#video").currentTime = markerValue(key);
+      renderAll();
+      recordUsage("marker_review_selected", { marker: key, index: index + 1 });
+    }
+
+    function nudgeReviewedMarker(delta) {
+      const key = markerReviewOrder[state.markerReviewIndex];
+      if (!key) return;
+      setMarker(key, markerValue(key) + delta);
+      $("#video").currentTime = markerValue(key);
+      updateAudioMix(true);
+    }
+
+    async function auditionReviewedMarker() {
+      const key = markerReviewOrder[state.markerReviewIndex];
+      if (!key || !state.video) return;
+      const value = markerValue(key);
+      state.previewLoop = {
+        mode: "marker",
+        enabled: true,
+        customStart: Math.max(state.trimStart, value - 1.5),
+        customEnd: Math.min(state.trimEnd + (key === "trimEnd" ? 2 : 0), value + 1.5)
+      };
+      state.previewTailStartedAt = null;
+      $("#video").currentTime = state.previewLoop.customStart;
+      state.whooshPlayed = false;
+      renderAll();
+      recordUsage("marker_review_auditioned", { marker: key });
+      if ($("#video").paused) await toggleVideoPlayback();
+      else updateAudioMix(true);
+    }
+
+    async function advanceMarkerReview() {
+      if (!state.video) return;
+      if (state.markerReviewIndex < 0) {
+        selectMarkerForReview(markerReviewOrder[0]);
+        await auditionReviewedMarker();
+        return;
+      }
+      const currentKey = markerReviewOrder[state.markerReviewIndex];
+      recordUsage("marker_review_confirmed", { marker: currentKey, index: state.markerReviewIndex + 1 });
+      if (state.markerReviewIndex >= markerReviewOrder.length - 1) {
+        state.markerReviewIndex = -1;
+        state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
+        renderAll();
+        toast("Všetkých šesť značiek je skontrolovaných.");
+        return;
+      }
+      selectMarkerForReview(markerReviewOrder[state.markerReviewIndex + 1]);
+      await auditionReviewedMarker();
+    }
+
+    async function selectPreviewRegion(mode) {
+      if (!state.video) return;
+      state.previewLoop = {
+        mode,
+        enabled: mode !== "all",
+        customStart: null,
+        customEnd: null
+      };
+      const bounds = previewLoopBounds(mode);
+      state.previewTailStartedAt = null;
+      $("#video").currentTime = Math.min(bounds.start, state.trimEnd);
+      state.whooshPlayed = false;
+      renderAll();
+      recordUsage("mix_region_selected", { region: mode, looping: state.previewLoop.enabled });
+      if ($("#video").paused) await toggleVideoPlayback();
+      else updateAudioMix(true);
     }
 
     function seekFromPointer(event, element, kind) {
@@ -2960,6 +3375,67 @@
       window.addEventListener("pointerup", up);
     }
 
+    function cleanVoiceCacheKey() {
+      if (!state.video || !state.globalDenoise.enabled || state.globalDenoise.strength <= 0) return null;
+      return `${state.video.analysis.id}:${Math.round(state.globalDenoise.strength)}`;
+    }
+
+    function primeCleanVoice() {
+      const key = cleanVoiceCacheKey();
+      const clean = $("#cleanVoice");
+      if (!key) {
+        clean.pause();
+        state.cleanVoice = { key: null, ready: false, loading: false, error: null };
+        renderMixPreview();
+        updateAudioMix(true);
+        return;
+      }
+      if (state.cleanVoice.key === key && (state.cleanVoice.ready || state.cleanVoice.loading)) return;
+      const [videoId, strength] = key.split(":");
+      const sourceTime = state.video ? $("#video").currentTime : 0;
+      const shouldResume = state.video && !$("#video").paused;
+      clean.pause();
+      state.cleanVoice = { key, ready: false, loading: true, error: null };
+      renderMixPreview();
+      updateAudioMix(true);
+
+      const ready = () => {
+        if (state.cleanVoice.key !== key) return;
+        cleanup();
+        state.cleanVoice.ready = true;
+        state.cleanVoice.loading = false;
+        state.cleanVoice.error = null;
+        clean.currentTime = clamp(sourceTime, 0, clean.duration || sourceTime);
+        renderMixPreview();
+        updateAudioMix(true);
+        if (shouldResume && !$("#video").paused) clean.play().catch(() => {});
+        recordUsage("final_mix_voice_ready", { strength: Number(strength) });
+      };
+      const failed = () => {
+        if (state.cleanVoice.key !== key) return;
+        cleanup();
+        state.cleanVoice.ready = false;
+        state.cleanVoice.loading = false;
+        state.cleanVoice.error = "AI hlas sa nepodarilo pripraviť; náhľad dočasne používa pôvodný zvuk.";
+        renderMixPreview();
+        updateAudioMix(true);
+        recordUsage("final_mix_voice_failed");
+      };
+      const cleanup = () => {
+        clean.removeEventListener("canplay", ready);
+        clean.removeEventListener("error", failed);
+      };
+      clean.addEventListener("canplay", ready, { once: true });
+      clean.addEventListener("error", failed, { once: true });
+      clean.src = `${API_ORIGIN}/api/denoised-audio/${encodeURIComponent(videoId)}?strength=${encodeURIComponent(strength)}`;
+      clean.load();
+    }
+
+    function scheduleCleanVoiceRefresh(delay = 450) {
+      clearTimeout(state.cleanVoiceTimer);
+      state.cleanVoiceTimer = setTimeout(primeCleanVoice, delay);
+    }
+
     async function ensureAudioGraph() {
       if (state.audioGraph) {
         await state.audioGraph.context.resume();
@@ -2970,11 +3446,39 @@
       const context = new AudioContext();
       const videoSource = context.createMediaElementSource($("#video"));
       const musicSource = context.createMediaElementSource($("#music"));
+      const cleanVoiceSource = context.createMediaElementSource($("#cleanVoice"));
+      const whooshSource = context.createMediaElementSource($("#whooshPreview"));
       const videoGain = context.createGain();
+      const cleanGain = context.createGain();
       const musicGain = context.createGain();
+      const whooshGain = context.createGain();
+      const cleanHighpass = context.createBiquadFilter();
+      const cleanPresence = context.createBiquadFilter();
+      const cleanCompensation = context.createGain();
+      cleanHighpass.type = "highpass";
+      cleanHighpass.Q.value = .7;
+      cleanPresence.type = "peaking";
+      cleanPresence.frequency.value = 2700;
+      cleanPresence.Q.value = 1.25;
+      cleanCompensation.gain.value = 1.333521;
       videoSource.connect(videoGain).connect(context.destination);
       musicSource.connect(musicGain).connect(context.destination);
-      state.audioGraph = { context, videoGain, musicGain };
+      cleanVoiceSource
+        .connect(cleanHighpass)
+        .connect(cleanPresence)
+        .connect(cleanCompensation)
+        .connect(cleanGain)
+        .connect(context.destination);
+      whooshSource.connect(whooshGain).connect(context.destination);
+      state.audioGraph = {
+        context,
+        videoGain,
+        cleanGain,
+        musicGain,
+        whooshGain,
+        cleanHighpass,
+        cleanPresence
+      };
       await context.resume();
       return state.audioGraph;
     }
@@ -3007,11 +3511,18 @@
     function updateAudioMix(forceSync = false) {
       const video = $("#video");
       const music = $("#music");
+      const clean = $("#cleanVoice");
+      const whoosh = $("#whooshPreview");
       const previewTime = currentPreviewTime();
       const segment = segmentAt(video.currentTime);
-      const videoLevel = channelAudible("video") && !segment?.muted && state.previewTailStartedAt === null
+      const voiceLevel = channelAudible("video") && !segment?.muted && state.previewTailStartedAt === null
         ? dbToLinear((segment?.gainDb || 0) + state.voiceMasterDb)
         : 0;
+      const useCleanVoice = state.globalDenoise.enabled
+        && state.globalDenoise.strength > 0
+        && state.cleanVoice.ready;
+      const videoLevel = useCleanVoice ? 0 : voiceLevel;
+      const cleanLevel = useCleanVoice ? voiceLevel : 0;
       const finalFadeStart = state.trimEnd - 2;
       const finalFactor = state.video && previewTime > finalFadeStart
         ? clamp((state.trimEnd + 2 - previewTime) / 4, 0, 1)
@@ -3021,10 +3532,24 @@
         : 0;
       if (state.audioGraph) {
         state.audioGraph.videoGain.gain.setTargetAtTime(videoLevel, state.audioGraph.context.currentTime, .015);
+        state.audioGraph.cleanGain.gain.setTargetAtTime(cleanLevel, state.audioGraph.context.currentTime, .015);
         state.audioGraph.musicGain.gain.setTargetAtTime(musicLevel, state.audioGraph.context.currentTime, .02);
+        state.audioGraph.whooshGain.gain.setTargetAtTime(dbToLinear(5), state.audioGraph.context.currentTime, .01);
+        state.audioGraph.cleanHighpass.frequency.setTargetAtTime(state.globalDenoise.lowCut, state.audioGraph.context.currentTime, .02);
+        state.audioGraph.cleanPresence.gain.setTargetAtTime(state.globalDenoise.clarity / 100 * 2.2, state.audioGraph.context.currentTime, .02);
       } else {
         video.volume = clamp(videoLevel, 0, 1);
+        clean.volume = clamp(cleanLevel, 0, 1);
         music.volume = clamp(musicLevel, 0, 1);
+        whoosh.volume = 1;
+      }
+
+      if (state.video && useCleanVoice) {
+        const target = clamp(video.currentTime, 0, clean.duration || video.currentTime);
+        if (forceSync || Math.abs(clean.currentTime - target) > .08) clean.currentTime = target;
+        if (!video.paused && state.previewTailStartedAt === null && clean.paused) clean.play().catch(() => {});
+      } else if (!clean.paused) {
+        clean.pause();
       }
 
       if (state.video && state.music && (!video.paused || state.previewTailStartedAt !== null)) {
@@ -3035,9 +3560,26 @@
             if (forceSync || Math.abs(music.currentTime - target) > .12) music.currentTime = target;
             if (music.paused) music.play().catch(() => {});
           }
+        } else if (!music.paused) {
+          music.pause();
+        }
+      } else if (video.paused && state.previewTailStartedAt === null && !music.paused) {
+        music.pause();
+      }
+
+      if (state.video && !video.paused && state.previewTailStartedAt === null) {
+        const transitionStart = state.markers.giveEnd + .5;
+        const peakTime = transitionStart + state.transitionDuration * .3;
+        const whooshStart = Math.max(state.trimStart, peakTime - .44);
+        if (video.currentTime < whooshStart - .04) state.whooshPlayed = false;
+        if (!state.whooshPlayed && video.currentTime >= whooshStart && video.currentTime <= whooshStart + .22) {
+          state.whooshPlayed = true;
+          whoosh.currentTime = 0;
+          whoosh.play().catch(() => {});
         }
       }
       renderChannelButtons();
+      renderMixPreview();
     }
 
     function renderChannelButtons() {
@@ -3054,13 +3596,22 @@
         state.previewTailStartedAt = null;
         video.pause();
         $("#music").pause();
+        $("#cleanVoice").pause();
+        $("#whooshPreview").pause();
+        renderMixPreview();
         return;
       }
       await ensureAudioGraph();
-      if (video.currentTime < state.trimStart || video.currentTime >= state.trimEnd) video.currentTime = state.trimStart;
+      const loop = previewLoopBounds();
+      const start = loop?.start ?? state.trimStart;
+      const end = loop?.end ?? state.trimEnd + 2;
+      if (video.currentTime < start || currentPreviewTime() >= end || video.currentTime >= state.trimEnd) video.currentTime = Math.min(start, state.trimEnd);
       state.previewTailStartedAt = null;
+      state.whooshPlayed = video.currentTime > state.markers.giveEnd + .5 + state.transitionDuration * .3 - .44;
       updateAudioMix(true);
       await video.play();
+      updateAudioMix(true);
+      renderMixPreview();
     }
 
     async function toggleMusicPlayback() {
@@ -3073,24 +3624,20 @@
 
     async function previewTransition() {
       if (!state.video) return;
-      const start = state.markers.giveEnd + .5;
-      const previewStart = Math.max(state.trimStart, start - .55);
-      const peakTime = start + state.transitionDuration * .3;
-      const whooshStart = Math.max(previewStart, peakTime - .44);
-      const video = $("#video");
-      video.currentTime = previewStart;
+      state.previewLoop = { mode: "drop", enabled: true, customStart: null, customEnd: null };
+      const bounds = previewLoopBounds("drop");
+      state.previewTailStartedAt = null;
+      $("#video").currentTime = bounds.start;
+      state.whooshPlayed = false;
+      renderAll();
       recordUsage("transition_previewed", {
         durationSeconds: state.transitionDuration,
-        transitionStartSeconds: start
+        transitionStartSeconds: state.markers.giveEnd + .5,
+        continuousLoop: true
       });
-      await toggleVideoPlayback();
-      setTimeout(() => {
-        if (!video.paused) {
-          const sound = new Audio(`${API_ORIGIN}/assets/fast-whoosh.mp3`);
-          sound.volume = 1;
-          sound.play().catch(() => {});
-        }
-      }, Math.max(0, (whooshStart - previewStart) * 1000));
+      if ($("#video").paused) await toggleVideoPlayback();
+      else updateAudioMix(true);
+      toast("Prechod sa opakuje v slučke. Dĺžku svetla môžete meniť počas prehrávania.");
     }
 
     async function previewCleanedSegment() {
@@ -3418,9 +3965,18 @@
       });
       $("#markerList").addEventListener("click", (event) => {
         const button = event.target.closest("[data-set-marker]");
-        if (!button || !state.video) return;
-        setMarker(button.dataset.setMarker, $("#video").currentTime);
+        if (button && state.video) {
+          setMarker(button.dataset.setMarker, $("#video").currentTime);
+          selectMarkerForReview(button.dataset.setMarker);
+          return;
+        }
+        const row = event.target.closest("[data-review-marker]");
+        if (row) selectMarkerForReview(row.dataset.reviewMarker);
       });
+      $("#markerNudgeBack").addEventListener("click", () => nudgeReviewedMarker(-.1));
+      $("#markerNudgeForward").addEventListener("click", () => nudgeReviewedMarker(.1));
+      $("#markerAudition").addEventListener("click", auditionReviewedMarker);
+      $("#markerReviewNext").addEventListener("click", advanceMarkerReview);
 
       $("#razorBtn").addEventListener("click", splitAtPlayhead);
       $("#mergeBtn").addEventListener("click", mergeSelected);
@@ -3438,7 +3994,20 @@
       $("#previewTransition").addEventListener("click", previewTransition);
       $("#playVideo").addEventListener("click", toggleVideoPlayback);
       $("#masterPlay").addEventListener("click", toggleVideoPlayback);
+      $("#finalMixPlay").addEventListener("click", toggleVideoPlayback);
+      $("#loopRegions").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-loop-region]");
+        if (button) selectPreviewRegion(button.dataset.loopRegion);
+      });
       $("#playMusic").addEventListener("click", toggleMusicPlayback);
+      $("#openGuide").addEventListener("click", () => {
+        $("#guideDialog").showModal();
+        recordUsage("guide_opened");
+      });
+      $("#closeGuide").addEventListener("click", () => $("#guideDialog").close());
+      $("#guideDialog").addEventListener("click", (event) => {
+        if (event.target === $("#guideDialog")) $("#guideDialog").close();
+      });
       $("#showTranscript").addEventListener("click", () => {
         $("#transcriptCard").classList.remove("collapsed");
         $("#transcriptCard").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3508,14 +4077,16 @@
 
       $("#video").addEventListener("play", () => {
         $("#playVideo").textContent = "❚❚";
-        $("#masterPlay").textContent = "❚❚ Pozastaviť všetky stopy";
+        renderMixPreview();
         recordUsage("preview_played", { synchronizedMusic: Boolean(state.music) });
       });
       $("#video").addEventListener("pause", () => {
         if (state.previewTailStartedAt === null) {
           $("#playVideo").textContent = "▶";
-          $("#masterPlay").textContent = "▶ Prehrať všetky stopy";
           $("#music").pause();
+          $("#cleanVoice").pause();
+          $("#whooshPreview").pause();
+          renderMixPreview();
         }
       });
       $("#music").addEventListener("play", () => {
@@ -3526,6 +4097,7 @@
       $("#video").addEventListener("ended", () => {
         if (state.video && state.previewTailStartedAt === null) {
           state.previewTailStartedAt = performance.now();
+          $("#cleanVoice").pause();
           updateAudioMix(true);
         }
       });
@@ -3533,6 +4105,7 @@
         if (state.video && !$("#video").paused && $("#video").currentTime >= state.trimEnd) {
           state.previewTailStartedAt = performance.now();
           $("#video").pause();
+          $("#cleanVoice").pause();
           $("#video").currentTime = state.trimEnd;
         }
         renderPlayheads();
@@ -3544,11 +4117,14 @@
       $("#globalDenoiseEnabled").addEventListener("change", (event) => {
         state.globalDenoise.enabled = event.target.checked;
         renderDenoise();
+        scheduleCleanVoiceRefresh(0);
+        updateAudioMix(true);
         recordUsage("denoise_toggled", { enabled: state.globalDenoise.enabled });
       });
       bindIntegerPair("globalStrength", "globalStrengthNumber", 0, 100, (value) => {
         state.globalDenoise.strength = value;
         renderDenoise();
+        scheduleCleanVoiceRefresh();
         recordUsage("denoise_adjusted", state.globalDenoise, {
           debounceKey: "denoise-settings",
           debounceMs: 550
@@ -3557,6 +4133,7 @@
       bindIntegerPair("denoiseLowCut", "denoiseLowCutNumber", 50, 250, (value) => {
         state.globalDenoise.lowCut = value;
         renderDenoise();
+        updateAudioMix();
         recordUsage("denoise_adjusted", state.globalDenoise, {
           debounceKey: "denoise-settings",
           debounceMs: 550
@@ -3565,6 +4142,7 @@
       bindIntegerPair("denoiseClarity", "denoiseClarityNumber", 0, 100, (value) => {
         state.globalDenoise.clarity = value;
         renderDenoise();
+        updateAudioMix();
         recordUsage("denoise_adjusted", state.globalDenoise, {
           debounceKey: "denoise-settings",
           debounceMs: 550
@@ -3759,16 +4337,31 @@
         if (document.hidden) {
           $("#video").pause();
           $("#music").pause();
+          $("#cleanVoice").pause();
+          $("#whooshPreview").pause();
         }
       });
     }
 
     function animationLoop() {
-      if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= 2000) {
-        state.previewTailStartedAt = null;
-        $("#music").pause();
-        $("#playVideo").textContent = "▶";
-        $("#masterPlay").textContent = "▶ Prehrať všetky stopy";
+      if (state.video && (!$("#video").paused || state.previewTailStartedAt !== null)) {
+        const bounds = previewLoopBounds();
+        if (state.previewLoop.enabled && bounds && currentPreviewTime() >= bounds.end) {
+          state.previewTailStartedAt = null;
+          $("#video").currentTime = Math.min(bounds.start, state.trimEnd);
+          $("#cleanVoice").pause();
+          $("#whooshPreview").pause();
+          state.whooshPlayed = false;
+          updateAudioMix(true);
+          if ($("#video").paused) $("#video").play().then(() => updateAudioMix(true)).catch(() => {});
+        } else if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= 2000) {
+          state.previewTailStartedAt = null;
+          $("#music").pause();
+          $("#cleanVoice").pause();
+          $("#whooshPreview").pause();
+          $("#playVideo").textContent = "▶";
+          renderMixPreview();
+        }
       }
       renderPlayheads();
       renderPreviewEffects();
@@ -3783,6 +4376,7 @@
       document.body.dataset.theme = storedTheme;
       $$(".palette button").forEach((button) => button.classList.toggle("active", button.dataset.palette === storedTheme));
     }
+    $("#whooshPreview").src = `${API_ORIGIN}/assets/fast-whoosh.mp3`;
     recordUsage("app_loaded", {
       appVersion: APP_VERSION,
       reloadCount: usageSession.reloadCount,
@@ -3792,6 +4386,12 @@
     renderWaveforms();
     renderAll();
     checkServer();
+    if (!localStorage.getItem("gmf-guide-seen-v2")) {
+      localStorage.setItem("gmf-guide-seen-v2", "1");
+      setTimeout(() => {
+        if (!$("#guideDialog").open) $("#guideDialog").showModal();
+      }, 650);
+    }
     setInterval(() => {
       if (!state.serverReady) checkServer();
     }, 4000);

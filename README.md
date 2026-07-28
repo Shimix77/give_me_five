@@ -15,12 +15,16 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 
 1. Vložte portrétové MOV/MP4 do 60 sekúnd.
 2. Na farebnom waveforme alebo spektrograme nastavte trim, začiatok reči, koniec „Give Me Five“, začiatok druhej reči a koniec hovoreného slova.
+   - Rýchla kontrola značiek prejde všetkých šesť bodov v poradí. Každý bod môžete vypočuť v automatickej slučke a doladiť o 0,1 s bez presúvania playheadu a opakovaného klikania.
 3. AI denoise (DeepFilterNet3) vyčistí súvislo celý pôvodný zvuk. Silu, odrezanie vetra a jemnú prítomnosť hlasu môžete doladiť a overiť skutočným A/B náhľadom. Vyčistená stopa sa ukladá do lokálnej cache a rovnaká verzia sa použije v exporte.
 4. Rezátkom rozdeľte pôvodné audio. Každý segment má vlastnú hlasitosť a absolútne stíšenie.
 5. V pravom Inspectore nastavte samostatný zoom/polohu segmentu a globálne farby, teplotu, intenzitu či ostrosť. Slidery farieb majú aj celočíselný vstup.
 6. Voliteľne vložte licencované MP3/WAV/M4A. Editor analyzuje celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×.
 7. Informačný slovenský prepis vytvára presný Whisper Large v3 Turbo na pozadí. Pri prvom použití sa stiahne model; ďalšie prepisy ho používajú z počítača.
-8. Skontrolujte synchronizovaný náhľad a exportujte MP4.
+8. Tlačidlo **Prehrať mix** prehráva priebežne aktuálny finálny zvuk: rovnaký DeepFilterNet3 hlas ako export, hudbu s automatickým stíšením, whoosh +5 dB a záverečný fade. Slučky **Úvod**, **Počas reči**, **Drop** a **Záver** pokračujú aj počas posúvania hlasitostí.
+9. Zvoľte **Celé**, skontrolujte video od začiatku až po dve sekundy čierneho obrazu a exportujte MP4.
+
+Tlačidlo **? Návod** v hornej lište kedykoľvek otvorí stručný päťkrokový postup a klávesové skratky.
 9. Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
 Predvolený hudobný podmaz je počas reči o 14 dB tichší. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
