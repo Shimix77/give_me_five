@@ -11,6 +11,12 @@ Lokálna webová aplikácia pre Google Chrome. Video a audio ostávajú v počí
 
 Launcher nepotrebuje povolenie na ovládanie Terminálu cez AppleScript. Súbor `start.command` otvorí štandardným macOS spôsobom; ten spustí server, počká na jeho pripravenosť a až potom otvorí Chrome.
 
+## Súkromie a dočasné súbory
+
+Každá karta Chromu používa samostatnú pracovnú session. Nahrané video, hudba, vyčistené audio, analýzy a nedownloadované exporty sa po zatvorení karty automaticky odstránia. Obyčajný reload session zachová. Ak Chrome spadne bez odoslania informácie o zatvorení, záložné čistenie prebehne po 30 minútach bez heartbeat-u.
+
+Pri spustení server odstráni aj dočasné zvyšky z predchádzajúceho procesu. AI model pre slovenský prepis zostáva v cache, aby sa pri každom videu nemusel znovu sťahovať.
+
 Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte priamo, editor zobrazí pokyn na spustenie aplikácie a po zapnutí servera sa automaticky znovu pripojí.
 
 ## Pracovný postup

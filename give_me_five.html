@@ -2528,6 +2528,9 @@
     const uid = () => globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     const dbToLinear = (db) => Math.pow(10, Number(db) / 20);
     const css = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+    const MEDIA_SESSION_KEY = "gmf-media-session-v1";
+    const MEDIA_SESSION_ID = sessionStorage.getItem(MEDIA_SESSION_KEY) || uid();
+    sessionStorage.setItem(MEDIA_SESSION_KEY, MEDIA_SESSION_ID);
 
     const state = {
       serverReady: false,
@@ -2611,7 +2614,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.0.1";
+    const APP_VERSION = "3.0.2";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3031,7 +3034,9 @@
 
     async function api(url, options = {}) {
       const target = /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
-      const response = await fetch(target, options);
+      const headers = new Headers(options.headers || {});
+      headers.set("X-GMF-Session", MEDIA_SESSION_ID);
+      const response = await fetch(target, { ...options, headers });
       if (!response.ok) {
         let message = `Chyba ${response.status}`;
         try {
@@ -3041,6 +3046,18 @@
         throw new Error(message);
       }
       return response;
+    }
+
+    async function heartbeatMediaSession() {
+      if (!state.serverReady) return;
+      try {
+        await api("/api/session/heartbeat", { method: "POST" });
+      } catch {}
+    }
+
+    function signalMediaSessionClosing() {
+      const target = `${API_ORIGIN}/api/session/closing?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
+      navigator.sendBeacon?.(target);
     }
 
     async function checkServer() {
@@ -4426,7 +4443,7 @@
       };
       clean.addEventListener("canplay", ready, { once: true });
       clean.addEventListener("error", failed, { once: true });
-      clean.src = `${API_ORIGIN}/api/denoised-audio/${encodeURIComponent(videoId)}?strength=${encodeURIComponent(strength)}`;
+      clean.src = `${API_ORIGIN}/api/denoised-audio/${encodeURIComponent(videoId)}?strength=${encodeURIComponent(strength)}&sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
       clean.load();
     }
 
@@ -4950,7 +4967,7 @@
         });
         toast("MP4 je pripravené a sťahuje sa.");
         const link = document.createElement("a");
-        link.href = `${API_ORIGIN}${job.downloadUrl}`;
+        link.href = `${API_ORIGIN}${job.downloadUrl}?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
         link.download = "give_me_five_edited.mp4";
         document.body.appendChild(link);
         link.click();
@@ -5521,6 +5538,7 @@
 
       window.addEventListener("resize", () => requestAnimationFrame(renderWaveforms));
       window.addEventListener("pagehide", flushUsageEvents);
+      window.addEventListener("pagehide", signalMediaSessionClosing);
       window.addEventListener("error", () => recordUsage("client_error", { type: "runtime_error" }));
       window.addEventListener("unhandledrejection", () => recordUsage("client_error", { type: "unhandled_promise" }));
       document.addEventListener("visibilitychange", () => {
@@ -5529,6 +5547,8 @@
           $("#music").pause();
           $("#cleanVoice").pause();
           $("#whooshPreview").pause();
+        } else {
+          heartbeatMediaSession();
         }
       });
     }
@@ -5586,6 +5606,7 @@
     setInterval(() => {
       if (!state.serverReady) checkServer();
     }, 4000);
+    setInterval(heartbeatMediaSession, 15000);
     requestAnimationFrame(animationLoop);
   </script>
 </body>

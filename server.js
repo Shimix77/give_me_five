@@ -26,6 +26,8 @@ const DEEPFILTER_PATH = path.join(APP_DIR, "tools", "deep-filter");
 const HOST = "127.0.0.1";
 const PORT = Number(process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+const SESSION_CLOSE_GRACE_MS = 8000;
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 
 for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, DENOISE_DIR, MODEL_DIR, ASSET_DIR]) {
   fs.mkdirSync(directory, { recursive: true });
@@ -36,7 +38,100 @@ const media = new Map();
 const jobs = new Map();
 const transcriptJobs = new Map();
 const denoisePromises = new Map();
+const sessions = new Map();
 let whooshPeakSeconds = 0.44;
+
+function normaliseSessionId(value) {
+  const id = String(value || "").trim();
+  return /^[a-zA-Z0-9-]{8,80}$/.test(id) ? id : null;
+}
+
+function requestSessionId(request) {
+  return normaliseSessionId(
+    request.headers["x-gmf-session"]
+    || request.query?.sessionId
+    || request.body?.sessionId
+  );
+}
+
+function touchSession(sessionId) {
+  if (!sessionId) return null;
+  const session = sessions.get(sessionId) || {
+    id: sessionId,
+    createdAt: Date.now(),
+    lastSeenAt: Date.now(),
+    closingAt: null,
+    activeWork: 0
+  };
+  session.lastSeenAt = Date.now();
+  session.closingAt = null;
+  sessions.set(sessionId, session);
+  return session;
+}
+
+function beginSessionWork(sessionId) {
+  const session = touchSession(sessionId);
+  if (session) session.activeWork = Number(session.activeWork || 0) + 1;
+}
+
+function endSessionWork(sessionId) {
+  const session = sessions.get(sessionId);
+  if (session) session.activeWork = Math.max(0, Number(session.activeWork || 0) - 1);
+}
+
+function safeRemove(targetPath) {
+  if (!targetPath) return;
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(`Could not remove temporary file ${path.basename(targetPath)}:`, error.message);
+  }
+}
+
+function removeMediaRecord(record) {
+  if (!record) return;
+  safeRemove(record.path);
+  for (const generatedPath of record.generatedFiles || []) safeRemove(generatedPath);
+  media.delete(record.id);
+}
+
+function sessionHasRunningWork(sessionId) {
+  return Number(sessions.get(sessionId)?.activeWork || 0) > 0
+    || [...jobs.values()].some((job) => job.sessionId === sessionId && job.status === "running")
+    || [...transcriptJobs.values()].some((job) => job.sessionId === sessionId && job.status === "running");
+}
+
+function cleanupSession(sessionId, options = {}) {
+  if (!sessionId || (!options.force && sessionHasRunningWork(sessionId))) return false;
+  for (const record of [...media.values()]) {
+    if (record.sessionId === sessionId) removeMediaRecord(record);
+  }
+  for (const [jobId, job] of jobs.entries()) {
+    if (job.sessionId !== sessionId) continue;
+    safeRemove(job.outputPath);
+    jobs.delete(jobId);
+  }
+  for (const [jobId, job] of transcriptJobs.entries()) {
+    if (job.sessionId === sessionId) transcriptJobs.delete(jobId);
+  }
+  sessions.delete(sessionId);
+  return true;
+}
+
+function purgeTemporaryWorkspace() {
+  for (const directory of [UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, DENOISE_DIR]) {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      safeRemove(path.join(directory, entry.name));
+    }
+  }
+}
+
+function mediaForRequest(request, mediaId) {
+  const record = media.get(mediaId);
+  const sessionId = requestSessionId(request);
+  if (!record || !sessionId || record.sessionId !== sessionId) return null;
+  return record;
+}
 
 const storage = multer.diskStorage({
   destination: (_request, _file, callback) => callback(null, UPLOAD_DIR),
@@ -66,6 +161,11 @@ app.use((request, response, next) => {
 });
 
 app.use(express.json({ limit: "8mb" }));
+app.use("/api", (request, _response, next) => {
+  request.gmfSessionId = requestSessionId(request);
+  if (request.gmfSessionId) touchSession(request.gmfSessionId);
+  next();
+});
 app.use("/assets", express.static(ASSET_DIR, { fallthrough: false }));
 app.use("/api/analysis", express.static(ANALYSIS_DIR, { fallthrough: false }));
 
@@ -83,6 +183,23 @@ app.get("/api/health", (_request, response) => {
     rnnoise: fs.existsSync(RNNOISE_MODEL_PATH),
     deepfilter: fs.existsSync(DEEPFILTER_PATH)
   });
+});
+
+app.post("/api/session/heartbeat", (request, response) => {
+  const sessionId = request.gmfSessionId || requestSessionId(request);
+  if (!sessionId) {
+    response.status(400).json({ error: "Session ID is missing." });
+    return;
+  }
+  touchSession(sessionId);
+  response.json({ ok: true });
+});
+
+app.post("/api/session/closing", (request, response) => {
+  const sessionId = request.gmfSessionId || requestSessionId(request);
+  const session = sessionId ? sessions.get(sessionId) : null;
+  if (session) session.closingAt = Date.now();
+  response.status(202).json({ ok: true });
 });
 
 function numeric(value, fallback = 0) {
@@ -446,8 +563,15 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
     response.status(400).json({ error: "No media file was uploaded." });
     return;
   }
+  const sessionId = request.gmfSessionId;
+  if (!sessionId) {
+    fs.rmSync(request.file.path, { force: true });
+    response.status(400).json({ error: "The browser session is missing. Refresh the editor and try again." });
+    return;
+  }
   const id = path.parse(request.file.filename).name;
   const kind = request.body.kind === "music" ? "music" : "video";
+  beginSessionWork(sessionId);
   try {
     const analysis = await analyseMedia(request.file.path, id, kind);
     if (kind === "video" && !analysis.metadata.hasVideo) throw new Error("The selected file has no video stream.");
@@ -458,8 +582,16 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
       path: request.file.path,
       originalName: request.file.originalname,
       size: request.file.size,
+      sessionId,
+      generatedFiles: new Set(),
       ...analysis
     };
+    for (const existing of [...media.values()]) {
+      const inUse = [...jobs.values()].some((job) =>
+        job.status === "running" && job.mediaIds?.includes(existing.id)
+      );
+      if (existing.sessionId === sessionId && existing.kind === kind && !inUse) removeMediaRecord(existing);
+    }
     media.set(id, record);
     response.json({
       id,
@@ -476,6 +608,8 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
   } catch (error) {
     fs.rmSync(request.file.path, { force: true });
     response.status(422).json({ error: error.message || "The file could not be analysed." });
+  } finally {
+    endSessionWork(sessionId);
   }
 });
 
@@ -620,7 +754,7 @@ async function transcribeMedia(record, job) {
 }
 
 app.post("/api/transcript", (request, response) => {
-  const record = media.get(request.body.videoId);
+  const record = mediaForRequest(request, request.body.videoId);
   if (!record) {
     response.status(404).json({ error: "Importujte video znova." });
     return;
@@ -632,7 +766,8 @@ app.post("/api/transcript", (request, response) => {
     progress: record.transcript ? 1 : 0,
     message: record.transcript ? "Prepis je pripravený." : "Čakám na lokálny prepis…",
     result: record.transcript || null,
-    error: null
+    error: null,
+    sessionId: record.sessionId
   };
   transcriptJobs.set(id, job);
   if (!record.transcript) {
@@ -653,7 +788,7 @@ app.post("/api/transcript", (request, response) => {
 
 app.get("/api/transcript/:id", (request, response) => {
   const job = transcriptJobs.get(request.params.id);
-  if (!job) {
+  if (!job || !request.gmfSessionId || job.sessionId !== request.gmfSessionId) {
     response.status(404).json({ error: "Prepisová úloha sa nenašla." });
     return;
   }
@@ -704,7 +839,10 @@ async function prepareDenoisedTrack(record, denoise) {
     .digest("hex")
     .slice(0, 18);
   const outputPath = path.join(DENOISE_DIR, `${cacheKey}.wav`);
-  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1024) return outputPath;
+  if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1024) {
+    record.generatedFiles?.add(outputPath);
+    return outputPath;
+  }
   if (denoisePromises.has(cacheKey)) return denoisePromises.get(cacheKey);
 
   const promise = (async () => {
@@ -735,6 +873,7 @@ async function prepareDenoisedTrack(record, denoise) {
       const enhancedPath = path.join(temporaryDirectory, path.basename(sourcePath));
       if (!fs.existsSync(enhancedPath)) throw new Error("DeepFilterNet3 nevytvoril vyčistenú zvukovú stopu.");
       fs.renameSync(enhancedPath, outputPath);
+      record.generatedFiles?.add(outputPath);
       return outputPath;
     } finally {
       fs.rmSync(sourcePath, { force: true });
@@ -1153,7 +1292,7 @@ function renderExportPlan(job, plan) {
   });
 }
 
-function startExportJob(payload) {
+function startExportJob(payload, sessionId) {
   const id = crypto.randomUUID();
   const job = {
     id,
@@ -1163,14 +1302,18 @@ function startExportJob(payload) {
     outputPath: null,
     details: null,
     error: null,
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    sessionId,
+    mediaIds: [payload.videoId, payload.musicId].filter(Boolean)
   };
   jobs.set(id, job);
 
   (async () => {
     try {
       const video = media.get(payload.videoId);
-      if (!video) throw new Error("Zdrojové video už nie je načítané. Vložte ho znova.");
+      const music = payload.musicId ? media.get(payload.musicId) : null;
+      if (!video || video.sessionId !== sessionId) throw new Error("Zdrojové video už nie je načítané. Vložte ho znova.");
+      if (payload.musicId && (!music || music.sessionId !== sessionId)) throw new Error("Hudba už nie je načítaná. Vložte ju znova.");
       let denoisedAudioPath = null;
       if (denoiseEnabled(payload.globalDenoise)) {
         job.message = "DeepFilterNet3 oddeľuje hlas od vetra a okolitého šumu…";
@@ -1197,7 +1340,8 @@ function startExportJob(payload) {
 
 app.post("/api/export", (request, response) => {
   try {
-    const job = startExportJob(request.body || {});
+    if (!request.gmfSessionId) throw new Error("The browser session is missing. Refresh the editor.");
+    const job = startExportJob(request.body || {}, request.gmfSessionId);
     response.status(202).json({
       jobId: job.id,
       status: job.status,
@@ -1210,7 +1354,7 @@ app.post("/api/export", (request, response) => {
 
 app.get("/api/jobs/:id", (request, response) => {
   const job = jobs.get(request.params.id);
-  if (!job) {
+  if (!job || !request.gmfSessionId || job.sessionId !== request.gmfSessionId) {
     response.status(404).json({ error: "Export job not found." });
     return;
   }
@@ -1226,7 +1370,7 @@ app.get("/api/jobs/:id", (request, response) => {
 
 app.get("/api/jobs/:id/download", (request, response) => {
   const job = jobs.get(request.params.id);
-  if (!job || job.status !== "completed" || !fs.existsSync(job.outputPath)) {
+  if (!job || !request.gmfSessionId || job.sessionId !== request.gmfSessionId || job.status !== "completed" || !fs.existsSync(job.outputPath)) {
     response.status(404).json({ error: "The exported file is not available." });
     return;
   }
@@ -1240,16 +1384,23 @@ app.get("/api/jobs/:id/download", (request, response) => {
     if (!response.headersSent) response.status(500).json({ error: "The exported file could not be read." });
     else response.destroy(error);
   });
+  response.on("finish", () => {
+    setTimeout(() => {
+      safeRemove(job.outputPath);
+      jobs.delete(job.id);
+    }, 2000);
+  });
   stream.pipe(response);
 });
 
 app.get("/api/denoised-audio/:videoId", async (request, response) => {
-  const record = media.get(request.params.videoId);
+  const record = mediaForRequest(request, request.params.videoId);
   if (!record) {
     response.status(404).json({ error: "Importujte video znova." });
     return;
   }
   const strength = Math.round(clamp(numeric(request.query.strength, 72), 1, 100));
+  beginSessionWork(record.sessionId);
   try {
     const denoisedAudioPath = await prepareDenoisedTrack(record, {
       enabled: true,
@@ -1261,15 +1412,17 @@ app.get("/api/denoised-audio/:videoId", async (request, response) => {
     response.setHeader("Content-Type", "audio/wav");
     response.setHeader("Cache-Control", "private, max-age=3600");
     response.sendFile(denoisedAudioPath, { dotfiles: "allow" }, (error) => {
+      endSessionWork(record.sessionId);
       if (error && !response.headersSent) response.status(error.statusCode || 500).json({ error: "Vyčistený hlas sa nepodarilo načítať." });
     });
   } catch (error) {
+    endSessionWork(record.sessionId);
     response.status(422).json({ error: error.message || "Vyčistený hlas sa nepodarilo pripraviť." });
   }
 });
 
 app.post("/api/preview-audio", async (request, response) => {
-  const record = media.get(request.body.videoId);
+  const record = mediaForRequest(request, request.body.videoId);
   if (!record) {
     response.status(404).json({ error: "Import the video again." });
     return;
@@ -1287,6 +1440,8 @@ app.post("/api/preview-audio", async (request, response) => {
   const gain = dbToLinear(sourceSegment.gainDb || 0);
   const denoise = request.body.denoise || { enabled: true, strength: 72, lowCut: 110, clarity: 18 };
   const previewPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp3`);
+  beginSessionWork(record.sessionId);
+  response.once("close", () => endSessionWork(record.sessionId));
   try {
     const denoisedAudioPath = await prepareDenoisedTrack(record, denoise);
     if (!denoisedAudioPath) throw new Error("Zapnite AI čistenie a nastavte jeho silu nad 0 %.");
@@ -1339,6 +1494,16 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ error: "Unexpected local-server error." });
 });
 
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, session] of sessions.entries()) {
+    const closeExpired = Number.isFinite(session.closingAt)
+      && now - session.closingAt >= SESSION_CLOSE_GRACE_MS;
+    const idleExpired = now - session.lastSeenAt >= SESSION_IDLE_TIMEOUT_MS;
+    if (closeExpired || idleExpired) cleanupSession(sessionId);
+  }
+}, 5000).unref();
+
 async function detectWhooshPeak() {
   try {
     if (!fs.existsSync(WHOOSH_PATH)) return;
@@ -1361,6 +1526,7 @@ async function detectWhooshPeak() {
 
 detectWhooshPeak().finally(() => {
   app.listen(PORT, HOST, () => {
+    purgeTemporaryWorkspace();
     const url = `http://${HOST}:${PORT}`;
     console.log(`Give Me Five editor is ready at ${url}`);
     if (process.env.GMF_OPEN_BROWSER === "1") {
