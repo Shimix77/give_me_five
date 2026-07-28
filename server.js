@@ -842,6 +842,87 @@ function normaliseSegments(segments, trimStart, trimEnd) {
   return sorted;
 }
 
+function calculateGapEdit(markers, trimStart, trimEnd, requestedTransitionDuration) {
+  const giveEnd = clamp(numeric(markers?.giveEnd, trimStart), trimStart, trimEnd);
+  const continueStart = clamp(numeric(markers?.continueStart, giveEnd), giveEnd, trimEnd);
+  const pauseDuration = Math.max(0, continueStart - giveEnd);
+  const requested = clamp(numeric(requestedTransitionDuration, 2), 0.5, 4);
+  const maximumFittingDuration = pauseDuration - 0.5;
+  const transitionDuration = maximumFittingDuration >= 0.5
+    ? Math.min(requested, maximumFittingDuration)
+    : 0.5;
+  const targetPauseDuration = 0.5 + transitionDuration;
+  const cutDuration = Math.max(0, pauseDuration - targetPauseDuration);
+  const cutStart = clamp(
+    giveEnd + 0.5 + transitionDuration * 0.3,
+    giveEnd,
+    continueStart
+  );
+  const cutEnd = clamp(cutStart + cutDuration, cutStart, continueStart);
+  return {
+    pauseDuration,
+    transitionDuration,
+    targetPauseDuration,
+    cutStart,
+    cutEnd,
+    cutDuration: Math.max(0, cutEnd - cutStart),
+    active: cutEnd - cutStart > 0.015,
+    tooShort: pauseDuration + 0.001 < targetPauseDuration
+  };
+}
+
+function removeGapFromSegments(segments, gapEdit) {
+  if (!gapEdit.active) return segments;
+  const pieces = [];
+  for (const segment of segments) {
+    const leftEnd = Math.min(segment.end, gapEdit.cutStart);
+    if (leftEnd - segment.start > 0.01) {
+      pieces.push({ ...segment, id: `${segment.id || "segment"}-before-gap`, end: leftEnd });
+    }
+    const rightStart = Math.max(segment.start, gapEdit.cutEnd);
+    if (segment.end - rightStart > 0.01) {
+      pieces.push({ ...segment, id: `${segment.id || "segment"}-after-gap`, start: rightStart });
+    }
+  }
+  return pieces;
+}
+
+function applyAudioRanges(segments, ranges, trimStart, trimEnd) {
+  const normalisedRanges = (Array.isArray(ranges) ? ranges : [])
+    .map((range) => ({
+      start: clamp(numeric(range.start), trimStart, trimEnd),
+      end: clamp(numeric(range.end), trimStart, trimEnd),
+      gainDb: clamp(numeric(range.gainDb, -36), -60, 0),
+      muted: Boolean(range.muted)
+    }))
+    .filter((range) => range.end - range.start > 0.01);
+  if (!normalisedRanges.length) return segments;
+
+  return segments.flatMap((segment) => {
+    const boundaries = [segment.start, segment.end];
+    normalisedRanges.forEach((range) => {
+      if (range.start > segment.start && range.start < segment.end) boundaries.push(range.start);
+      if (range.end > segment.start && range.end < segment.end) boundaries.push(range.end);
+    });
+    const sorted = [...new Set(boundaries)].sort((a, b) => a - b);
+    return sorted.slice(0, -1).map((start, index) => {
+      const end = sorted[index + 1];
+      const middle = (start + end) / 2;
+      const active = normalisedRanges.filter((range) => middle >= range.start && middle < range.end);
+      const muted = segment.muted || active.some((range) => range.muted);
+      const rangeGainDb = active.length ? Math.min(...active.map((range) => range.gainDb)) : 0;
+      return {
+        ...segment,
+        id: `${segment.id || "segment"}-audio-${index}`,
+        start,
+        end,
+        muted,
+        gainDb: numeric(segment.gainDb) + rangeGainDb
+      };
+    }).filter((segment) => segment.end - segment.start > 0.01);
+  });
+}
+
 function musicVolumeExpression(settings, timing) {
   const offset = numeric(settings.offsetDb);
   const base = dbToLinear(numeric(settings.baseDb, -8) + offset);
@@ -867,15 +948,16 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   const sourceDuration = video.metadata.duration;
   const trimStart = clamp(numeric(payload.trimStart), 0, sourceDuration - 0.1);
   const trimEnd = clamp(numeric(payload.trimEnd, sourceDuration), trimStart + 0.1, sourceDuration);
-  const visibleDuration = trimEnd - trimStart;
-  const blackTailDuration = 2;
-  const outputDuration = visibleDuration + blackTailDuration;
   const markers = payload.markers || {};
   const speechStart = clamp(numeric(markers.speechStart, trimStart), trimStart, trimEnd);
   const giveEnd = clamp(numeric(markers.giveEnd, speechStart), speechStart, trimEnd);
   const continueStart = clamp(numeric(markers.continueStart, giveEnd), giveEnd, trimEnd);
   const speechEnd = clamp(numeric(markers.speechEnd, continueStart), continueStart, trimEnd);
-  const transitionDuration = clamp(numeric(payload.transitionDuration, 2), 0.5, 4);
+  const gapEdit = calculateGapEdit(markers, trimStart, trimEnd, payload.transitionDuration);
+  const transitionDuration = gapEdit.transitionDuration;
+  const visibleDuration = trimEnd - trimStart - gapEdit.cutDuration;
+  const blackTailDuration = 2;
+  const outputDuration = visibleDuration + blackTailDuration;
   const transitionStartRel = giveEnd + 0.5 - trimStart;
   const transitionFadeIn = transitionDuration * 0.3;
   const transitionFadeOut = transitionDuration - transitionFadeIn;
@@ -895,7 +977,7 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     blackTailDuration,
     outputDuration,
     speechStartRel: speechStart - trimStart,
-    speechEndRel: speechEnd - trimStart,
+    speechEndRel: speechEnd - trimStart - gapEdit.cutDuration,
     transitionStartRel,
     transitionPeakRel,
     whooshStartRel,
@@ -919,7 +1001,10 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   inputArgs.push("-i", WHOOSH_PATH);
 
   const filters = [];
-  const segments = normaliseSegments(payload.segments, trimStart, trimEnd);
+  const segments = removeGapFromSegments(
+    normaliseSegments(payload.segments, trimStart, trimEnd),
+    gapEdit
+  );
   const videoSegmentLabels = [];
   segments.forEach((segment, index) => {
     const label = `pictureSegment${index}`;
@@ -940,8 +1025,9 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     `[sharpFinal][blurredFinal]blend=all_expr='A*(1-clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1))+B*clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1)',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[vout]`
   );
 
+  const audioSegments = applyAudioRanges(segments, payload.muteRanges, trimStart, trimEnd);
   const segmentLabels = [];
-  segments.forEach((segment, index) => {
+  audioSegments.forEach((segment, index) => {
     const label = `voiceSegment${index}`;
     segmentLabels.push(label);
     filters.push(segmentFilter(voiceInputIndex, segment, label, payload.voiceMasterDb));
@@ -965,7 +1051,7 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   if (musicInputIndex !== null) {
     const musicSettings = payload.music || {};
     const dropTime = clamp(numeric(musicSettings.dropTime), 0, music.metadata.duration);
-    musicStart = dropTime - (continueStart - trimStart);
+    musicStart = dropTime - (continueStart - trimStart - gapEdit.cutDuration);
     musicEnd = musicStart + outputDuration;
     if (musicStart < -0.01) {
       throw new Error("The chosen music drop is too early to let the music start with the video.");
@@ -1020,7 +1106,11 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
       musicStart,
       musicEnd,
       transitionDuration,
-      whooshPeakSeconds
+      whooshPeakSeconds,
+      gapCutDuration: gapEdit.cutDuration,
+      gapCutStart: gapEdit.cutStart,
+      gapCutEnd: gapEdit.cutEnd,
+      muteRangeCount: Array.isArray(payload.muteRanges) ? payload.muteRanges.length : 0
     }
   };
 }
