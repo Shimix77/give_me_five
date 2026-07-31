@@ -227,6 +227,30 @@
 
     .import-card.music::after { background: rgba(240, 199, 94, .075); }
 
+    .quick-preview-card {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(260px, .8fr) minmax(280px, 1.2fr);
+      gap: 18px;
+      align-items: center;
+    }
+    .quick-preview-copy { position: relative; z-index: 1; }
+    .quick-preview-media {
+      position: relative;
+      min-height: 280px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #030812;
+    }
+    .quick-preview-media video {
+      display: block;
+      width: 100%;
+      height: min(46vh, 520px);
+      object-fit: contain;
+    }
+    .quick-preview-media video:not([src]) { visibility: hidden; }
+
     .import-row {
       position: relative;
       z-index: 1;
@@ -1211,6 +1235,35 @@
       gap: 12px;
     }
 
+    .field-label-with-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .info-button {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 1px solid rgba(var(--accent-rgb), .45);
+      border-radius: 50%;
+      background: rgba(var(--accent-rgb), .12);
+      color: var(--accent-2);
+      font: 900 11px/1 system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    .info-button:hover,
+    .info-button:focus-visible {
+      border-color: var(--accent);
+      background: rgba(var(--accent-rgb), .22);
+      outline: none;
+    }
+
     .range-number {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 58px;
@@ -1377,6 +1430,7 @@
       border-color: rgba(236, 125, 179, .65);
       background: rgba(236, 125, 179, .1);
     }
+    .drop-candidate.auditioning { box-shadow: inset 0 0 0 1px var(--gold); }
 
     .drop-candidate strong,
     .drop-candidate small { display: block; }
@@ -1386,6 +1440,8 @@
       color: var(--muted);
       font-size: 8px;
     }
+    .drop-actions { display: flex; gap: 5px; margin-top: 7px; }
+    .drop-actions .btn { flex: 1; min-height: 27px; padding: 4px 6px; font-size: 8px; }
 
     .ab-status {
       min-height: 16px;
@@ -1600,6 +1656,13 @@
       backdrop-filter: blur(5px);
     }
 
+    dialog.info-dialog { width: min(520px, calc(100vw - 40px)); }
+    dialog.info-dialog .guide-body {
+      color: #cbd6e5;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
     .guide-head {
       display: flex;
       align-items: flex-start;
@@ -1688,6 +1751,14 @@
       min-height: 76px;
       padding: 10px 13px;
       border-radius: 12px;
+    }
+
+    .quick-preview-card { min-height: 310px; padding: 12px; }
+    .quick-preview-card .eyebrow { display: block; }
+    .quick-preview-card h2 { font-size: 17px; }
+
+    @media (max-width: 850px) {
+      .quick-preview-card { grid-template-columns: 1fr; }
     }
 
     .import-row {
@@ -1930,10 +2001,8 @@
     body.wizard-mode[data-wizard-step="4"] .workspace,
     body.wizard-mode[data-wizard-step="5"] .workspace,
     body.wizard-mode[data-wizard-step="6"] .workspace,
-    body.wizard-mode[data-wizard-step="7"] .workspace,
-    body.wizard-mode[data-wizard-step="8"] .workspace,
-    body.wizard-mode[data-wizard-step="9"] .workspace { display: grid; }
-    body.wizard-mode[data-wizard-step="9"] .finish-panel { display: grid; }
+    body.wizard-mode[data-wizard-step="7"] .workspace { display: grid; }
+    body.wizard-mode[data-wizard-step="7"] .finish-panel { display: grid; }
 
     body.wizard-mode .workspace {
       grid-template-columns: minmax(230px, 290px) minmax(560px, 1fr);
@@ -1946,14 +2015,11 @@
     body.wizard-mode #inspectorPanel { display: none; }
     body.wizard-mode[data-wizard-step="1"] #timelinePanel,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel,
-    body.wizard-mode[data-wizard-step="5"] #timelinePanel,
-    body.wizard-mode[data-wizard-step="6"] #timelinePanel { display: block; }
+    body.wizard-mode[data-wizard-step="5"] #timelinePanel { display: block; }
     body.wizard-mode[data-wizard-step="2"] #inspectorPanel,
     body.wizard-mode[data-wizard-step="4"] #inspectorPanel,
-    body.wizard-mode[data-wizard-step="7"] #inspectorPanel,
-    body.wizard-mode[data-wizard-step="8"] #inspectorPanel { display: block; }
-    body.wizard-mode[data-wizard-step="9"] .workspace { grid-template-columns: minmax(260px, 360px); }
-    body.wizard-mode[data-wizard-step="9"] #previewPanel { grid-column: 1; }
+    body.wizard-mode[data-wizard-step="6"] #inspectorPanel,
+    body.wizard-mode[data-wizard-step="7"] #inspectorPanel { display: block; }
 
     body.wizard-mode #timelinePanel .timeline-toolbar > *,
     body.wizard-mode #timelinePanel #musicDock,
@@ -1982,8 +2048,7 @@
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #mergeBtn,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .zoom-tool,
     body.wizard-mode[data-wizard-step="4"] #previewTransition,
-    body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock,
-    body.wizard-mode[data-wizard-step="6"] #timelinePanel #musicDock { display: flex; }
+    body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock { display: flex; }
     body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoVisualizer,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoVisualizer { display: block; }
     body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoTrackTitle,
@@ -1994,15 +2059,14 @@
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .segment-heading { display: flex; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #segmentLane { display: block; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #audioRangeEditor { display: grid; }
-    body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock,
-    body.wizard-mode[data-wizard-step="6"] #timelinePanel #musicDock { display: grid; }
+    body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock { display: grid; }
 
     body.wizard-mode #inspectorPanel .control-card { display: none; }
     body.wizard-mode[data-wizard-step="2"] #denoiseCard,
     body.wizard-mode[data-wizard-step="4"] #transitionCard,
-    body.wizard-mode[data-wizard-step="7"] #transformCard,
-    body.wizard-mode[data-wizard-step="7"] #colourCard,
-    body.wizard-mode[data-wizard-step="8"] #finishCard { display: block; }
+    body.wizard-mode[data-wizard-step="6"] #transformCard,
+    body.wizard-mode[data-wizard-step="6"] #colourCard,
+    body.wizard-mode[data-wizard-step="7"] #finishCard { display: block; }
     body.wizard-mode #inspectorPanel .control-card.collapsed > :not(h3) { display: block; }
     body.wizard-mode #transcriptCard,
     body.wizard-mode #segmentCard { display: none !important; }
@@ -2040,7 +2104,6 @@
           <button class="btn ghost" id="redoBtn" type="button" disabled title="Krok vpred (⇧⌘Z)">↷ Vpred</button>
         </div>
         <button class="btn ghost" id="openGuide" type="button">? Návod</button>
-        <button class="btn ghost" id="toggleWorkflowMode" type="button">Rozšírený režim</button>
         <div class="palette" aria-label="Farebná téma">
           <button type="button" data-palette="ocean" class="active" style="--swatch:#6fa8ff" title="Ocean"></button>
           <button type="button" data-palette="amber" style="--swatch:#f0b85d" title="Amber"></button>
@@ -2060,7 +2123,7 @@
 
     <section class="wizard-bar" id="wizardBar" aria-live="polite">
       <div class="wizard-copy">
-        <span class="wizard-number" id="wizardNumber">1/10</span>
+        <span class="wizard-number" id="wizardNumber">1/8</span>
         <div>
           <strong id="wizardTitle">Vložte video a voliteľnú hudbu</strong>
           <small id="wizardHint">Predvolené nastavenia môžete nechať tak. Keď bude video pripravené, pokračujte tlačidlom Ďalej.</small>
@@ -2080,7 +2143,7 @@
           <div>
             <p class="eyebrow">Zdrojové video</p>
             <h2>Vložte portrétové video</h2>
-            <p>MOV alebo MP4 · do 60 sekúnd · pôvodné rozlíšenie a FPS zostanú zachované</p>
+            <p>MOV alebo MP4 · do 90 sekúnd · pôvodné rozlíšenie a FPS zostanú zachované</p>
             <span class="file-name" id="videoFileName">Zatiaľ nebolo vybrané video</span>
           </div>
           <label class="btn primary" for="videoFile">Vybrať video</label>
@@ -2102,6 +2165,24 @@
           <input id="musicFile" type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/*">
         </div>
         <div class="loading-line"></div>
+      </article>
+
+      <article class="import-card quick-preview-card" id="quickPreviewCard">
+        <div class="quick-preview-copy">
+          <p class="eyebrow">Automatický prvý návrh</p>
+          <h2>Pozrite si výsledok s odporúčanými nastaveniami</h2>
+          <p id="quickPreviewStatus">Po vložení videa aplikácia nájde reč, navrhne denoise, prechod a hudobný drop a pripraví presný náhľad.</p>
+          <div class="progress-track"><div class="progress-fill" id="quickPreviewProgress"></div></div>
+          <div class="button-pair" style="margin-top:10px">
+            <button class="btn" id="quickEditBtn" type="button" disabled>Chcem video upraviť</button>
+            <button class="btn primary" id="quickExportBtn" type="button" disabled>Exportovať tento návrh</button>
+          </div>
+          <button class="btn ghost" id="quickRenderBtn" type="button" disabled style="width:100%;margin-top:7px">↻ Obnoviť presný náhľad</button>
+        </div>
+        <div class="quick-preview-media">
+          <video id="quickPreviewVideo" controls playsinline preload="metadata"></video>
+          <div class="empty-video" id="quickPreviewEmpty"><div><strong>Náhľad sa pripraví automaticky</strong>Prvé spracovanie môže chvíľu trvať.</div></div>
+        </div>
       </article>
     </section>
 
@@ -2145,9 +2226,18 @@
         </div>
         <div style="padding:0 14px 14px;background:#0a1423">
           <div class="mixer-strip">
-            <label for="voiceMaster">Hlas</label>
-            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="8">
-            <span class="value" id="voiceMasterValue">+8 dB</span>
+            <label for="loudnessProfile">Výsledná hlasitosť</label>
+            <select id="loudnessProfile">
+              <option value="-11" selected>Hlasnejšie +5 dB · −11 LUFS</option>
+              <option value="-16">Štandard · −16 LUFS</option>
+              <option value="-14">Vyvážené · −14 LUFS</option>
+            </select>
+            <span class="value" id="loudnessProfileValue">−11 LUFS</span>
+          </div>
+          <div class="mixer-strip">
+            <label for="voiceMaster">Korekcia hlasu</label>
+            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="0">
+            <span class="value" id="voiceMasterValue">0 dB</span>
           </div>
           <div class="level-meter"><i id="voiceMeter"></i></div>
           <div class="mixer-strip">
@@ -2195,7 +2285,7 @@
           <button class="btn ghost" id="setTrimIn" type="button" disabled>Nastaviť začiatok</button>
           <button class="btn ghost" id="setTrimOut" type="button" disabled>Nastaviť koniec</button>
           <button class="btn ghost" id="autoTrimSpeech" type="button" disabled>Začiatok −2 s pred rečou</button>
-          <button class="btn ghost" id="autoTail" type="button" disabled>Záver +6 s</button>
+          <button class="btn ghost" id="autoTail" type="button" disabled>Automatický záver</button>
           <button class="btn ghost" id="previewTransition" type="button" disabled>✦ Náhľad prechodu</button>
           <button class="btn ghost" id="showTranscript" type="button" disabled>ⓘ Prepis</button>
           <label class="zoom-tool">Zoom stopy <input id="timelineZoom" type="range" min="1" max="8" step=".25" value="1"><span id="timelineZoomValue">1×</span></label>
@@ -2339,32 +2429,44 @@
           <div class="control-card collapsed" id="denoiseCard">
             <h3>AI denoise celého videa <span class="value" id="globalStrengthValue">72 %</span></h3>
             <p>DeepFilterNet3 oddeľuje hovorený hlas od vetra a stáleho šumu. Čistenie sa aplikuje súvislo na celé video aj export.</p>
+            <div class="recommendation" id="denoiseRecommendation">Po prepise aplikácia zmeria šum a automaticky odporučí bezpečné nastavenia.</div>
+            <div class="ab-status" id="denoiseTestPhrase">Testovacia veta sa vyberie z úseku s istou hovorenou rečou.</div>
             <div class="field">
               <label class="toggle-line"><input id="globalDenoiseEnabled" type="checkbox" checked> AI čistenie je zapnuté</label>
             </div>
             <div class="field">
-              <label for="globalStrength">Sila odstránenia šumu</label>
+              <div class="field-label-with-info">
+                <label for="globalStrength">Sila odstránenia šumu</label>
+                <button class="info-button" type="button" data-info-title="Sila odstránenia šumu" data-info-text="Zvýšte ju, ak stále počujete vietor alebo stabilný šum. Znížte ju, ak hlas začne znieť kovovo, vodnato alebo neprirodzene." aria-label="Vysvetliť silu odstránenia šumu">i</button>
+              </div>
               <div class="range-number">
                 <input id="globalStrength" type="range" min="0" max="100" step="1" value="72">
                 <input id="globalStrengthNumber" type="number" min="0" max="100" step="1" value="72" aria-label="Sila denoise v percentách">
               </div>
             </div>
             <div class="field">
-              <label for="denoiseLowCut">Odstránenie vetra / nízkych tónov (Hz)</label>
+              <div class="field-label-with-info">
+                <label for="denoiseLowCut">Odstránenie vetra / nízkych tónov (Hz)</label>
+                <button class="info-button" type="button" data-info-title="Odstránenie vetra a nízkych tónov" data-info-text="Zvýšte hranicu, ak zostáva dunenie alebo hlboký vietor. Znížte ju, ak hlas stráca plnosť a znie príliš tenko." aria-label="Vysvetliť odstránenie vetra">i</button>
+              </div>
               <div class="range-number">
                 <input id="denoiseLowCut" type="range" min="50" max="250" step="1" value="110">
                 <input id="denoiseLowCutNumber" type="number" min="50" max="250" step="1" value="110" aria-label="Dolná hranica denoise v hertzoch">
               </div>
             </div>
             <div class="field">
-              <label for="denoiseClarity">Prítomnosť hlasu (jemné EQ)</label>
+              <div class="field-label-with-info">
+                <label for="denoiseClarity">Prítomnosť hlasu (jemné EQ)</label>
+                <button class="info-button" type="button" data-info-title="Prítomnosť hlasu – jemné EQ" data-info-text="Tento parameter po denoise jemne zvýrazní frekvencie dôležité pre zrozumiteľnosť reči. Zvýšte ho, ak je hlas tlmený alebo vzdialený. Znížte ho, ak je príliš ostrý, sykavý alebo únavný. Neodstraňuje šum – iba dolaďuje farbu už vyčisteného hlasu." aria-label="Vysvetliť jemné EQ">i</button>
+              </div>
               <div class="range-number">
                 <input id="denoiseClarity" type="range" min="0" max="100" step="1" value="18">
                 <input id="denoiseClarityNumber" type="number" min="0" max="100" step="1" value="18" aria-label="Zvýraznenie hlasu v percentách">
               </div>
             </div>
             <button class="btn" id="cleanPreviewBtn" type="button" disabled style="width:100%;margin-top:10px">▶ A/B: pôvodný vs. AI denoise</button>
-            <div class="ab-status" id="denoisePreviewStatus">Náhľad prehrá tú istú 3-sekundovú pasáž najprv pôvodnú, potom vyčistenú. Prvé spracovanie môže chvíľu trvať.</div>
+            <button class="btn ghost" id="applyDenoiseRecommendation" type="button" disabled style="width:100%;margin-top:7px">Použiť automatické odporúčanie</button>
+            <div class="ab-status" id="denoisePreviewStatus">Náhľad prehrá vybranú hovorenú vetu najprv pôvodnú, potom vyčistenú. Prvé spracovanie môže chvíľu trvať.</div>
           </div>
 
           <div class="control-card" id="segmentCard">
@@ -2397,12 +2499,10 @@
 
           <div class="control-card collapsed" id="finishCard">
             <h3>Finálny obraz</h3>
-            <p>Po posledných slovách ostane obraz 4 s, potom 2 s plynulo silnie blur aj stmievanie a následne ostanú 2 s úplne čierneho obrazu. Hudba plynulo dohrá až do konca čiernej.</p>
-            <div class="button-pair">
-              <span class="pill">Obraz +4 s</span>
-              <span class="pill">Blur/fade 2 s</span>
-            </div>
-            <span class="pill" style="width:100%;justify-content:center;margin-top:7px">Čierna +2 s · hudba doznie</span>
+            <p>Ak v zdroji chýba dostatok obrazu, posledný vhodný záber sa automaticky zmrazí. Hudba plynulo dohrá až do konca čiernej.</p>
+            <div class="field"><div class="field-line"><label for="endingHold">Obraz po reči</label><span class="value" id="endingHoldValue">4,0 s</span></div><input id="endingHold" type="range" min="0" max="10" step=".5" value="4"></div>
+            <div class="field"><div class="field-line"><label for="endingBlur">Blur/fade</label><span class="value" id="endingBlurValue">2,0 s</span></div><input id="endingBlur" type="range" min=".5" max="5" step=".5" value="2"></div>
+            <div class="field"><div class="field-line"><label for="endingBlack">Čierny obraz</label><span class="value" id="endingBlackValue">2,0 s</span></div><input id="endingBlack" type="range" min="0" max="5" step=".5" value="2"></div>
           </div>
 
           <div class="control-card collapsed" id="transcriptCard">
@@ -2451,7 +2551,7 @@
             <span><i style="--dot:var(--green)"></i>pasáž použitá vo videu</span>
           </div>
           <div class="drop-note">
-            <span><strong>Drop:</strong> AI navrhne tri momenty z celej skladby. Vybraný môžete ďalej presne potiahnuť a prichytiť na beat.</span>
+            <span><strong>Drop:</strong> Každý z troch návrhov môžete najprv vyskúšať spolu s videom, prechodom a whooshom.</span>
             <button class="btn" id="setDropBtn" type="button" disabled>Nastaviť drop</button>
           </div>
           <div class="drop-candidates" id="dropCandidates"></div>
@@ -2529,15 +2629,28 @@
       <button class="btn ghost" id="closeGuide" type="button">Zavrieť</button>
     </div>
     <div class="guide-body">
-      <div class="guide-step"><b>1</b><div><strong>Import</strong><span>Kliknite „Vybrať video“ a voliteľne „Vybrať audio“. Po analýze stlačte „Ďalej“.</span></div></div>
+      <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video a voliteľnú hudbu. Aplikácia pripraví presný automatický náhľad; potom ho môžete rovno exportovať alebo ďalej upraviť.</span></div></div>
       <div class="guide-step"><b>2</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich navrhne automaticky. Na spoločnom waveforme upravíte iba potrebné body a jedným kliknutím potvrdíte celý krok.</span></div></div>
-      <div class="guide-step"><b>3</b><div><strong>Denoise a hlučné miesta</strong><span>Najprv porovnajte AI čistenie cez A/B. V ďalšom kroku kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho.</span></div></div>
-      <div class="guide-step"><b>4</b><div><strong>Prechod a hudba</strong><span>Prehrajte výsledný svetelný prechod. Dlhá prestávka sa skráti automaticky. Potom vyberte jeden z troch dropov hudby.</span></div></div>
-      <div class="guide-step"><b>5</b><div><strong>Mix a obraz</strong><span>„Prehrať mix“ spustí vyčistený hlas, hudbu aj whoosh. Upravte úrovne, vyberte farebný preset a podľa potreby otvorte pokročilé nastavenia.</span></div></div>
-      <div class="guide-step"><b>6</b><div><strong>Záver a export</strong><span>Skontrolujte 2 s blur do čiernej, 2 s čierny obraz a doznievajúcu hudbu. V poslednom kroku prehrajte celé video a kliknite „Exportovať MP4“.</span></div></div>
-      <div class="guide-shortcuts"><strong>Tip:</strong> „Rozšírený režim“ zobrazí všetky panely naraz; sprievodcu môžete znova zapnúť rovnakým tlačidlom.</div>
+      <div class="guide-step"><b>3</b><div><strong>AI denoise</strong><span>Aplikácia sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
+      <div class="guide-step"><b>4</b><div><strong>Hlučné miesta</strong><span>Kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho bez strihu obrazu.</span></div></div>
+      <div class="guide-step"><b>5</b><div><strong>Svetelný prechod</strong><span>Prehrajte Give Me Five, whoosh a pokračovanie reči. Dlhá prestávka medzi nimi sa skráti automaticky.</span></div></div>
+      <div class="guide-step"><b>6</b><div><strong>Hudba, drop a hlasitosť</strong><span>V jednom kroku vyskúšate tri navrhnuté dropy, nastavíte hlasitosť úvodu, podmazu aj záveru a prehráte ich spolu s videom, hlasom, prechodom a whooshom.</span></div></div>
+      <div class="guide-step"><b>7</b><div><strong>Vzhľad obrazu</strong><span>Vyberte farebný preset a iba podľa potreby otvorte farby, teplotu, ostrosť alebo zoom pre konkrétny segment.</span></div></div>
+      <div class="guide-step"><b>8</b><div><strong>Záver a export</strong><span>Nastavte obraz po reči, 2 s blur/fade a 2 s čiernej s doznievajúcou hudbou. Náhľad vľavo zostáva dostupný, preto môžete rovno exportovať MP4.</span></div></div>
+      <div class="guide-shortcuts"><strong>Tip:</strong> Každý krok ukazuje iba ovládače, ktoré práve potrebujete. Späť a Ďalej nemenia už nastavené hodnoty.</div>
       <div class="guide-shortcuts"><strong>Skratky:</strong> medzerník = prehrať/pozastaviť finálny mix · šípky = posun o 0,1 s · ⌘/Ctrl+Z = krok späť · ⇧⌘/Ctrl+Z = krok vpred.</div>
     </div>
+  </dialog>
+
+  <dialog class="guide-dialog info-dialog" id="infoDialog">
+    <div class="guide-head">
+      <div>
+        <h2 id="infoDialogTitle">Vysvetlenie nastavenia</h2>
+        <p>Čo počúvať pri A/B porovnaní</p>
+      </div>
+      <button class="btn ghost" id="closeInfoDialog" type="button">Zavrieť</button>
+    </div>
+    <div class="guide-body" id="infoDialogText"></div>
   </dialog>
 
   <div class="toast" id="toast"></div>
@@ -2552,9 +2665,7 @@
     const uid = () => globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     const dbToLinear = (db) => Math.pow(10, Number(db) / 20);
     const css = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
-    const MEDIA_SESSION_KEY = "gmf-media-session-v1";
-    const MEDIA_SESSION_ID = sessionStorage.getItem(MEDIA_SESSION_KEY) || uid();
-    sessionStorage.setItem(MEDIA_SESSION_KEY, MEDIA_SESSION_ID);
+    const MEDIA_SESSION_ID = uid();
 
     const state = {
       serverReady: false,
@@ -2571,12 +2682,15 @@
       audioRangeSelecting: false,
       audioRangeDraft: null,
       globalDenoise: { enabled: true, strength: 72, lowCut: 110, clarity: 18 },
+      denoiseManuallyEdited: false,
       transitionDuration: 2,
       timelineZoom: 1,
       musicZoom: 1,
       beatSnap: true,
       markersManuallyEdited: false,
-      voiceMasterDb: 8,
+      voiceMasterDb: 0,
+      loudnessTargetLufs: -11,
+      ending: { holdDuration: 4, blurDuration: 2, blackDuration: 2 },
       colour: {
         mode: "all",
         boost: 0,
@@ -2604,6 +2718,7 @@
         manual: false,
         dropManual: false
       },
+      auditionDropTime: null,
       channel: {
         videoMuted: false,
         musicMuted: false,
@@ -2626,7 +2741,8 @@
       toastTimer: null,
       musicPlayPending: false,
       musicPlaybackError: null,
-      lastMusicPlayAttemptAt: 0
+      lastMusicPlayAttemptAt: 0,
+      renderedPreview: { url: null, rendering: false, ready: false, key: null, token: null, stale: false }
     };
 
     const editHistory = {
@@ -2638,7 +2754,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.2.0";
+    const APP_VERSION = "3.4.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -2653,12 +2769,15 @@
         muteRanges: state.muteRanges,
         selectedMuteRangeId: state.selectedMuteRangeId,
         globalDenoise: state.globalDenoise,
+        denoiseManuallyEdited: state.denoiseManuallyEdited,
         transitionDuration: state.transitionDuration,
         timelineZoom: state.timelineZoom,
         musicZoom: state.musicZoom,
         beatSnap: state.beatSnap,
         markersManuallyEdited: state.markersManuallyEdited,
         voiceMasterDb: state.voiceMasterDb,
+        loudnessTargetLufs: state.loudnessTargetLufs,
+        ending: state.ending,
         colour: state.colour,
         musicSettings: state.musicSettings,
         channel: state.channel
@@ -2706,6 +2825,7 @@
 
     function rememberEdit(label, debounceKey = null) {
       if (!state.video || editHistory.restoring) return;
+      clearRenderedPreview();
       if (!editHistory.current) editHistory.current = captureEditState();
       if (debounceKey) {
         if (editHistory.pending?.key !== debounceKey) flushEditHistory();
@@ -2742,16 +2862,20 @@
       state.audioRangeSelecting = false;
       state.audioRangeDraft = null;
       state.globalDenoise = structuredClone(snapshot.globalDenoise);
+      state.denoiseManuallyEdited = Boolean(snapshot.denoiseManuallyEdited);
       state.transitionDuration = snapshot.transitionDuration;
       state.timelineZoom = snapshot.timelineZoom;
       state.musicZoom = snapshot.musicZoom;
       state.beatSnap = snapshot.beatSnap;
       state.markersManuallyEdited = snapshot.markersManuallyEdited;
       state.voiceMasterDb = snapshot.voiceMasterDb;
+      state.loudnessTargetLufs = Number(snapshot.loudnessTargetLufs ?? -11);
+      state.ending = structuredClone(snapshot.ending || { holdDuration: 4, blurDuration: 2, blackDuration: 2 });
       state.colour = structuredClone(snapshot.colour);
       state.musicSettings = structuredClone(snapshot.musicSettings);
       state.channel = structuredClone(snapshot.channel);
       editHistory.restoring = false;
+      clearRenderedPreview();
       scheduleCleanVoiceRefresh(0);
       renderAll();
     }
@@ -2824,7 +2948,8 @@
       return newUsageSession();
     }
 
-    const usageSession = loadUsageSession();
+    sessionStorage.removeItem(USAGE_STORAGE_KEY);
+    const usageSession = newUsageSession();
 
     function roundedLogNumber(value, decimals = 3) {
       return Number(Number(value || 0).toFixed(decimals));
@@ -2975,9 +3100,11 @@
         segmentCount: state.segments.length,
         localAudioRangeCount: state.muteRanges.length,
         gapEdit: state.video ? calculateGapEdit() : null,
-        workflowMode: state.wizard.enabled ? "wizard" : "advanced",
+        workflowMode: "wizard",
         wizardStep: state.wizard.step + 1,
         denoise: state.globalDenoise,
+        loudnessTargetLufs: state.loudnessTargetLufs,
+        ending: state.ending,
         colour: state.colour,
         transitionDurationSeconds: state.transitionDuration,
         voiceMasterDb: state.voiceMasterDb,
@@ -3177,7 +3304,10 @@
       const duration = record.analysis.metadata.duration;
       state.trimStart = 0;
       state.trimEnd = duration;
-      state.voiceMasterDb = 8;
+      state.voiceMasterDb = 0;
+      state.loudnessTargetLufs = -11;
+      state.denoiseManuallyEdited = false;
+      state.ending = { holdDuration: 4, blurDuration: 2, blackDuration: 2 };
       state.muteRanges = [];
       state.selectedMuteRangeId = null;
       state.audioRangeSelecting = false;
@@ -3187,6 +3317,8 @@
       state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
       state.cleanVoice = { key: null, ready: false, loading: false, error: null };
       state.whooshPlayed = false;
+      state.auditionDropTime = null;
+      clearRenderedPreview({ force: true });
       state.markers = {
         speechStart: clamp(2, 0, duration),
         giveEnd: clamp(6, 0, duration),
@@ -3220,9 +3352,10 @@
       $("#videoFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
-      ["#masterPlay", "#finalMixPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#cleanPreviewBtn", "#markerReviewNext"].forEach((selector) => $(selector).disabled = false);
+      ["#masterPlay", "#finalMixPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#markerReviewNext"].forEach((selector) => $(selector).disabled = false);
       $$("#loopRegions button").forEach((button) => button.disabled = false);
       resetEditHistory();
+      $("#quickPreviewStatus").textContent = "Analyzujem hovorenú reč a pripravujem odporúčané nastavenia…";
       renderAll();
       requestAnimationFrame(renderWaveforms);
       primeCleanVoice();
@@ -3260,6 +3393,7 @@
       rememberEdit("Načítanie hudby a automatický drop");
       renderAll();
       requestAnimationFrame(renderWaveforms);
+      maybePrepareQuickPreview();
     }
 
     function enforceMarkerOrder() {
@@ -3338,6 +3472,22 @@
 
     function editedTrimEnd() {
       return sourceToEditedTime(state.trimEnd);
+    }
+
+    function endingVisibleEnd() {
+      if (!state.video) return 0;
+      const requested = sourceToEditedTime(state.markers.speechEnd)
+        + state.ending.holdDuration
+        + state.ending.blurDuration;
+      return Math.max(editedTrimEnd(), requested);
+    }
+
+    function editedOutputEnd() {
+      return endingVisibleEnd() + state.ending.blackDuration;
+    }
+
+    function previewTailDuration() {
+      return Math.max(0, editedOutputEnd() - editedTrimEnd());
     }
 
     function editedMarkerTime(key) {
@@ -3561,7 +3711,7 @@
       const candidateLines = (dropAnalysis?.candidates || []).map((candidate, index) =>
         `<button type="button" class="drop-candidate-line" data-drop-candidate="${candidate.time}" style="left:${markerPercent(candidate.time, duration)}" title="Návrh ${index + 1}: ${candidate.reason}"><span>#${index + 1} · ${candidate.score}%</span></button>`
       ).join("");
-      layer.innerHTML = selection + beatLines.join("") + candidateLines + `<div class="marker" data-music-marker="drop" style="left:${markerPercent(state.musicSettings.dropTime, duration)};--marker:#ec7db3"><span>Drop hudby</span></div>`;
+      layer.innerHTML = selection + beatLines.join("") + candidateLines + `<div class="marker" data-music-marker="drop" style="left:${markerPercent(effectiveDropTime(), duration)};--marker:#ec7db3"><span>${Number.isFinite(state.auditionDropTime) ? "Testovaný drop" : "Drop hudby"}</span></div>`;
     }
 
     function renderSegments() {
@@ -3714,7 +3864,9 @@
       if (!key) {
         $("#markerReviewTitle").textContent = hasVideo ? "Rýchla kontrola značiek" : "Rýchla kontrola značiek";
         $("#markerReviewHint").textContent = hasVideo
-          ? "AI návrhy prejdete za sebou; každý bod sa dá doladiť o 0,1 s."
+          ? state.markersManuallyEdited
+            ? "Manuálny režim: po prvej zmene už AI neposunie žiadny zo šiestich bodov."
+            : "AI návrhy prejdete za sebou; prvá manuálna zmena prepne všetkých šesť bodov do manuálneho režimu."
           : "Najskôr vložte video.";
         $("#markerReviewNext").textContent = "Začať kontrolu";
         return;
@@ -3727,8 +3879,8 @@
 
     const wizardSteps = [
       {
-        title: "Vložte video a voliteľnú hudbu",
-        hint: "Video sa analyzuje lokálne. Hudbu môžete vložiť teraz alebo ju preskočiť."
+        title: "Vložte video, hudbu a pozrite si prvý návrh",
+        hint: "Po analýze sa automaticky pripraví presný náhľad. Ak sa vám páči, môžete ho rovno exportovať; inak pokračujte v úpravách."
       },
       {
         title: "Skontrolujte šesť časových bodov",
@@ -3747,24 +3899,16 @@
         hint: "Dlhá prestávka sa automaticky vystrihne v najjasnejšom bode. Prechod skončí presne pri druhej reči."
       },
       {
-        title: "Nájdite drop hudby",
-        hint: "AI odporučí tri dropy. Vybraný drop sa zarovná so začiatkom druhej časti hovoreného slova."
-      },
-      {
-        title: "Vylaďte hlas a hudobný podmaz",
-        hint: "Prehrajte finálny mix. Zmeny úvodu, reči a záveru sa prejavia okamžite."
+        title: "Nastavte hudbu, drop a hlasitosť",
+        hint: "Vyskúšajte tri navrhnuté dropy, nastavte úvod, podmaz aj záver a priebežne ich prehrávajte spolu s finálnym zvukom videa."
       },
       {
         title: "Vyberte vzhľad videa",
         hint: "Začnite jedným z troch presetov. Pokročilé farby, ostrosť a transformáciu rozbaľte iba podľa potreby."
       },
       {
-        title: "Skontrolujte záver",
-        hint: "Po reči zostane obraz, nasleduje 2 s postupný blur do čiernej a potom 2 s čierny obraz s doznievajúcou hudbou."
-      },
-      {
-        title: "Prehrajte celé video a exportujte",
-        hint: "Náhľad obsahuje vyčistený hlas, stíšené miesta, hudbu, whoosh, prechod aj finálny fade."
+        title: "Nastavte záver a exportujte",
+        hint: "Predvolené je 4 s obrazu, 2 s blur a 2 s čierna. Náhľad vľavo zostáva dostupný; po kontrole môžete rovno exportovať MP4."
       }
     ];
 
@@ -3787,7 +3931,6 @@
       const enabled = state.wizard.enabled;
       document.body.classList.toggle("wizard-mode", enabled);
       document.body.dataset.wizardStep = String(state.wizard.step);
-      $("#toggleWorkflowMode").textContent = enabled ? "Rozšírený režim" : "Sprievodca";
       if (!enabled) {
         $("#timelinePanelTitle").textContent = "Obraz a hovorené slovo";
         $("#timelinePanelHint").textContent = "Čitateľný waveform: reč, vietor, ostatný zvuk a ticho";
@@ -3806,18 +3949,21 @@
       $("#wizardBack").disabled = step === 0;
       $("#wizardNext").style.display = step === wizardSteps.length - 1 ? "none" : "";
       $("#wizardNext").disabled = !state.video;
-      $("#wizardNext").textContent = step === 5 && !state.music ? "Pokračovať bez hudby →" : "Ďalej →";
+      $("#wizardNext").textContent = step === 0
+        ? "Chcem video upraviť →"
+        : step === 5 && !state.music
+          ? "Pokračovať bez hudby →"
+          : "Ďalej →";
       const timelineCopies = {
         1: ["Časové body", "Všetkých šesť AI návrhov je na jednom waveforme. Kliknite na riadok alebo potiahnite značku, ak ju treba upraviť."],
         3: ["Lokálne stíšenie", "Označte ľubovoľnú hlučnú oblasť bez delenia obrazu."],
-        5: ["Hudba a drop", "Nájdite drop a zarovnajte ho s pokračovaním reči."],
-        6: ["Finálny zvukový mix", "Hlasitosť hudby reaguje okamžite počas spoločného náhľadu."]
+        5: ["Hudba, drop a hlasitosť", "Drop aj tri úrovne hudby nastavíte na jednej stope. Prehrať mix použije každú zmenu okamžite."]
       };
       const inspectorCopies = {
         2: ["AI denoise", "Vyčistenie sa aplikuje na celé video."],
         4: ["Give Me Five prechod", "Automatický strih dlhej prestávky a synchronizovaný whoosh."],
-        7: ["Vzhľad videa", "Preset najprv, pokročilé nastavenia iba podľa potreby."],
-        8: ["Finálny obraz", "Plynulý blur do čiernej a doznievajúca hudba."]
+        6: ["Vzhľad videa", "Preset najprv, pokročilé nastavenia iba podľa potreby."],
+        7: ["Finálny obraz", "Plynulý blur do čiernej, doznievajúca hudba a priamy export."]
       };
       const timelineCopy = timelineCopies[step] || ["Obraz a hovorené slovo", "Čitateľný waveform: reč, vietor, ostatný zvuk a ticho"];
       const inspectorCopy = inspectorCopies[step] || ["Zvuk a efekty", "Manuálne nastavenie má vždy prednosť"];
@@ -3837,19 +3983,12 @@
       setWizardStep(state.wizard.step - 1);
     }
 
-    function toggleWorkflowMode() {
-      state.wizard.enabled = !state.wizard.enabled;
-      renderAll();
-      requestAnimationFrame(renderWaveforms);
-      recordUsage("workflow_mode_changed", { mode: state.wizard.enabled ? "wizard" : "advanced" });
-    }
-
     function previewLoopBounds(mode = state.previewLoop.mode) {
       if (!state.video) return null;
       const m = state.markers;
       const minimumSpan = .35;
       let start = state.trimStart;
-      let end = editedTrimEnd() + 2;
+      let end = editedOutputEnd();
       if (mode === "intro") {
         end = Math.min(editedTrimEnd(), sourceToEditedTime(m.speechStart) + .6);
       } else if (mode === "speech") {
@@ -3860,12 +3999,12 @@
         end = Math.min(editedTrimEnd(), sourceToEditedTime(m.continueStart) + 3);
       } else if (mode === "ending") {
         start = Math.max(state.trimStart, sourceToEditedTime(m.speechEnd) - 2);
-        end = editedTrimEnd() + 2;
+        end = editedOutputEnd();
       } else if (mode === "marker" && Number.isFinite(state.previewLoop.customStart) && Number.isFinite(state.previewLoop.customEnd)) {
         start = state.previewLoop.customStart;
         end = state.previewLoop.customEnd;
       }
-      if (end - start < minimumSpan) end = Math.min(editedTrimEnd() + 2, start + minimumSpan);
+      if (end - start < minimumSpan) end = Math.min(editedOutputEnd(), start + minimumSpan);
       return { start, end };
     }
 
@@ -3930,10 +4069,14 @@
 
     function calculateMusicPassage() {
       if (!state.video || !state.music) return null;
-      const outputDuration = editedTrimEnd() - state.trimStart + 2;
+      const outputDuration = editedOutputEnd() - state.trimStart;
       const continuationRelative = sourceToEditedTime(state.markers.continueStart) - state.trimStart;
-      const start = state.musicSettings.dropTime - continuationRelative;
+      const start = effectiveDropTime() - continuationRelative;
       return { start, end: start + outputDuration, duration: outputDuration };
+    }
+
+    function effectiveDropTime() {
+      return Number.isFinite(state.auditionDropTime) ? state.auditionDropTime : state.musicSettings.dropTime;
     }
 
     function renderMusic() {
@@ -3960,10 +4103,12 @@
       $("#dropCandidates").innerHTML = candidates.length
         ? candidates.map((candidate, index) => {
           const active = Math.abs(candidate.time - state.musicSettings.dropTime) < .08;
-          return `<button type="button" class="drop-candidate${active ? " active" : ""}" data-drop-candidate="${candidate.time}">
+          const auditioning = Number.isFinite(state.auditionDropTime) && Math.abs(candidate.time - state.auditionDropTime) < .08;
+          return `<div class="drop-candidate${active ? " active" : ""}${auditioning ? " auditioning" : ""}">
             <strong>${index === 0 ? "Odporúčaný" : `Alternatíva ${index}`} · ${formatTime(candidate.time)} · ${candidate.score}%</strong>
             <small>${candidate.reason}</small>
-          </button>`;
+            <span class="drop-actions"><button class="btn ghost" type="button" data-preview-drop="${candidate.time}">▶ Vyskúšať</button><button class="btn" type="button" data-use-drop="${candidate.time}">${active ? "Používa sa" : "Použiť"}</button></span>
+          </div>`;
         }).join("")
         : `<span class="muted-copy">AI nenašla dostatočne výrazný drop; použite playhead.</span>`;
       renderMusicMarkers();
@@ -3973,6 +4118,8 @@
     function renderMasterLevels() {
       $("#voiceMaster").value = state.voiceMasterDb;
       $("#voiceMasterValue").textContent = formatDb(state.voiceMasterDb);
+      $("#loudnessProfile").value = String(state.loudnessTargetLufs);
+      $("#loudnessProfileValue").textContent = `${state.loudnessTargetLufs} LUFS`;
       $("#musicOffset").value = state.musicSettings.offsetDb;
       $("#musicOffsetValue").textContent = formatDb(state.musicSettings.offsetDb);
     }
@@ -4032,6 +4179,50 @@
       $("#denoiseClarity").value = denoise.clarity;
       $("#denoiseClarityNumber").value = denoise.clarity;
       $("#globalStrengthValue").textContent = denoise.enabled ? `${denoise.strength} %` : "Vypnuté";
+      const recommendation = state.transcript.result?.denoiseRecommendation;
+      const phrase = state.transcript.result?.testPhrase;
+      const confidenceLabels = { high: "vysoká", medium: "stredná", low: "nízka" };
+      $("#denoiseRecommendation").innerHTML = recommendation
+        ? `<strong>Automatický návrh:</strong> sila ${recommendation.strength} %, vietor ${recommendation.lowCut} Hz, prítomnosť ${recommendation.clarity} % · istota ${confidenceLabels[recommendation.confidence] || "stredná"}.`
+        : "Po prepise aplikácia zmeria šum a automaticky odporučí bezpečné nastavenia.";
+      $("#denoiseTestPhrase").textContent = phrase
+        ? `Test ${formatTime(phrase.start)} – ${formatTime(phrase.end)} · „${phrase.text}“`
+        : state.transcript.status === "running"
+          ? "Hľadám súvislú pasáž s istou hovorenou rečou…"
+          : "Testovacia veta sa vyberie z úseku s istou hovorenou rečou.";
+      $("#applyDenoiseRecommendation").disabled = !recommendation;
+      $("#cleanPreviewBtn").disabled = !state.video || !phrase || !denoise.enabled || denoise.strength <= 0;
+    }
+
+    function useDenoiseRecommendation(result = state.transcript.result, manualClick = false) {
+      const recommendation = result?.denoiseRecommendation;
+      if (!recommendation || (!manualClick && state.denoiseManuallyEdited)) return;
+      state.globalDenoise = {
+        enabled: true,
+        strength: recommendation.strength,
+        lowCut: recommendation.lowCut,
+        clarity: recommendation.clarity
+      };
+      state.denoiseManuallyEdited = Boolean(manualClick);
+      if (manualClick) rememberEdit("Automatické odporúčanie denoise");
+      scheduleCleanVoiceRefresh(0);
+      renderDenoise();
+      updateAudioMix(true);
+      recordUsage("denoise_recommendation_applied", {
+        automatic: !manualClick,
+        confidence: recommendation.confidence,
+        strength: recommendation.strength,
+        lowCut: recommendation.lowCut,
+        clarity: recommendation.clarity
+      });
+    }
+
+    function renderEnding() {
+      const ending = state.ending;
+      [["endingHold", ending.holdDuration], ["endingBlur", ending.blurDuration], ["endingBlack", ending.blackDuration]].forEach(([id, value]) => {
+        $(`#${id}`).value = String(value);
+        $(`#${id}Value`).textContent = `${Number(value).toFixed(1).replace(".", ",")} s`;
+      });
     }
 
     function renderTransitionStatus() {
@@ -4096,7 +4287,7 @@
       const previewTime = currentPreviewTime();
       const passage = calculateMusicPassage();
       const musicTime = passage ? passage.start + (previewTime - state.trimStart) : $("#music").currentTime;
-      const voicePeak = meterPeak(state.video, videoTime) * dbToLinear(state.voiceMasterDb);
+      const voicePeak = meterPeak(state.video, videoTime) * dbToLinear(state.voiceMasterDb + voiceLoudnessCompensationDb());
       const musicPeak = meterPeak(state.music, musicTime) * dbToLinear(musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb);
       $("#voiceMeter").style.width = `${clamp(voicePeak * 100, 0, 100)}%`;
       $("#musicMeter").style.width = `${clamp(musicPeak * 100, 0, 100)}%`;
@@ -4117,7 +4308,7 @@
       const meta = state.video.analysis.metadata;
       if (meta.height <= meta.width) errors.push("Video musí byť na výšku.");
       else checks.push({ text: `${meta.width} × ${meta.height} portrét` });
-      if (meta.duration > 60.05) errors.push("Video je dlhšie ako 60 sekúnd.");
+      if (meta.duration > 90.05) errors.push("Video je dlhšie ako 90 sekúnd.");
       else checks.push({ text: `${formatTime(meta.duration)} zdroj` });
       checks.push({ text: `${meta.fps.toFixed(2).replace(".00", "")} FPS výstup` });
 
@@ -4136,10 +4327,12 @@
         checks.push({ text: `Prestávka ${gapEdit.pauseDuration.toFixed(1)} s bez strihu` });
       }
       checks.push({ text: `Svetelný prechod ${gapEdit.transitionDuration.toFixed(1)} s` });
-      const tail = state.trimEnd - m.speechEnd;
-      if (tail < 6) warnings.push(`Po reči zostáva ${tail.toFixed(1)} s; recept 4 s obraz + 2 s blur/fade sa na konci prekryje.`);
-      else checks.push({ text: `Záver ${tail.toFixed(1)} s` });
-      checks.push({ text: "Čierny obraz +2 s" });
+      const sourceTail = state.trimEnd - m.speechEnd;
+      const requestedSourceTail = state.ending.holdDuration + state.ending.blurDuration;
+      const freezeDuration = Math.max(0, requestedSourceTail - sourceTail);
+      checks.push({ text: `Obraz ${state.ending.holdDuration.toFixed(1)} s + blur ${state.ending.blurDuration.toFixed(1)} s` });
+      if (freezeDuration > .01) checks.push({ text: `Zmrazený záber ${freezeDuration.toFixed(1)} s` });
+      checks.push({ text: `Čierny obraz +${state.ending.blackDuration.toFixed(1)} s` });
       if (state.muteRanges.length) checks.push({ text: `${state.muteRanges.length} lokálne stíšené oblasti` });
 
       if (state.music) {
@@ -4167,7 +4360,10 @@
         : result.warnings.length
           ? `Export je možný. Upozornenie: ${result.warnings[0]}`
           : "Všetky podmienky sú splnené. Výstup zachová rozlíšenie a FPS zdroja.";
-      $("#exportBtn").disabled = state.exporting || result.errors.length > 0;
+      $("#exportBtn").disabled = state.exporting || state.renderedPreview.rendering || result.errors.length > 0;
+      $("#quickRenderBtn").disabled = state.renderedPreview.rendering || result.errors.length > 0 || state.transcript.status === "running";
+      $("#quickEditBtn").disabled = !state.video;
+      $("#quickExportBtn").disabled = !state.renderedPreview.ready || state.renderedPreview.rendering || result.errors.length > 0 || state.exporting;
       return result;
     }
 
@@ -4190,7 +4386,7 @@
 
     function currentPreviewTime() {
       if (state.previewTailStartedAt !== null) {
-        return editedTrimEnd() + clamp((performance.now() - state.previewTailStartedAt) / 1000, 0, 2);
+        return editedTrimEnd() + clamp((performance.now() - state.previewTailStartedAt) / 1000, 0, previewTailDuration());
       }
       return sourceToEditedTime($("#video").currentTime);
     }
@@ -4215,10 +4411,10 @@
       else if (time >= start + fadeIn && time <= end) light = 1 - ((time - start - fadeIn) / Math.max(.01, gapEdit.transitionDuration - fadeIn));
       $("#lightFlash").style.opacity = String(clamp(light * .94, 0, .94));
 
-      const trimEnd = editedTrimEnd();
-      const fadeStart = trimEnd - Math.min(2, trimEnd - state.trimStart);
-      const finalProgress = time >= fadeStart ? clamp((time - fadeStart) / Math.max(.01, trimEnd - fadeStart), 0, 1) : 0;
-      $("#finishShade").style.opacity = String(time >= trimEnd ? 1 : finalProgress);
+      const visibleEnd = endingVisibleEnd();
+      const fadeStart = visibleEnd - state.ending.blurDuration;
+      const finalProgress = time >= fadeStart ? clamp((time - fadeStart) / Math.max(.01, state.ending.blurDuration), 0, 1) : 0;
+      $("#finishShade").style.opacity = String(time >= visibleEnd ? 1 : finalProgress);
       const colour = state.colour;
       const saturation = colour.mode === "all"
         ? 1 + colour.boost / 100 * .85
@@ -4275,6 +4471,7 @@
       renderMixPreview();
       renderColour();
       renderDenoise();
+      renderEnding();
       renderTransitionStatus();
       renderTranscript();
       renderTimelineZoom();
@@ -4420,6 +4617,7 @@
 
     function chooseDrop(time, manual = true) {
       if (!state.music) return;
+      state.auditionDropTime = null;
       state.musicSettings.dropTime = clamp(Number(time), 0, state.music.analysis.metadata.duration);
       if (manual) state.musicSettings.dropManual = true;
       $("#music").currentTime = state.musicSettings.dropTime;
@@ -4431,6 +4629,21 @@
           beatSnap: state.beatSnap
         }, { debounceKey: "music-drop", debounceMs: 450 });
       }
+    }
+
+    async function previewDropCandidate(time) {
+      if (!state.music || !state.video) return;
+      state.auditionDropTime = snapMusicTime(Number(time));
+      const passage = calculateMusicPassage();
+      if (!passage || passage.start < 0 || passage.end > state.music.analysis.metadata.duration) {
+        state.auditionDropTime = null;
+        toast("Tento drop nemá v skladbe dosť hudby pred alebo po videu.");
+        renderMusic();
+        return;
+      }
+      renderMusic();
+      recordUsage("music_drop_candidate_previewed", { dropSeconds: state.auditionDropTime });
+      await selectPreviewRegion("drop");
     }
 
     function startMarkerDrag(event, kind, key) {
@@ -4545,21 +4758,28 @@
       const cleanHighpass = context.createBiquadFilter();
       const cleanPresence = context.createBiquadFilter();
       const cleanCompensation = context.createGain();
+      const masterLimiter = context.createDynamicsCompressor();
       cleanHighpass.type = "highpass";
       cleanHighpass.Q.value = .7;
       cleanPresence.type = "peaking";
       cleanPresence.frequency.value = 2700;
       cleanPresence.Q.value = 1.25;
       cleanCompensation.gain.value = 1.333521;
-      videoSource.connect(videoGain).connect(context.destination);
-      musicSource.connect(musicGain).connect(context.destination);
+      masterLimiter.threshold.value = -2;
+      masterLimiter.knee.value = 0;
+      masterLimiter.ratio.value = 20;
+      masterLimiter.attack.value = .002;
+      masterLimiter.release.value = .08;
+      masterLimiter.connect(context.destination);
+      videoSource.connect(videoGain).connect(masterLimiter);
+      musicSource.connect(musicGain).connect(masterLimiter);
       cleanVoiceSource
         .connect(cleanHighpass)
         .connect(cleanPresence)
         .connect(cleanCompensation)
         .connect(cleanGain)
-        .connect(context.destination);
-      whooshSource.connect(whooshGain).connect(context.destination);
+        .connect(masterLimiter);
+      whooshSource.connect(whooshGain).connect(masterLimiter);
       state.audioGraph = {
         context,
         videoGain,
@@ -4567,7 +4787,8 @@
         musicGain,
         whooshGain,
         cleanHighpass,
-        cleanPresence
+        cleanPresence,
+        masterLimiter
       };
       await context.resume();
       return state.audioGraph;
@@ -4626,6 +4847,12 @@
       return !muted && (!otherSolo || ownSolo);
     }
 
+    function voiceLoudnessCompensationDb() {
+      const measured = Number(state.video?.analysis?.loudness?.integratedLufs);
+      if (!Number.isFinite(measured)) return 0;
+      return clamp(state.loudnessTargetLufs - measured, -18, 18);
+    }
+
     function musicTargetAtPreviewTime(previewTime = currentPreviewTime()) {
       if (!state.video || !state.music) return null;
       const passage = calculateMusicPassage();
@@ -4673,16 +4900,17 @@
       const rangeMuted = activeRanges.some((range) => range.muted);
       const rangeGainDb = activeRanges.length ? Math.min(...activeRanges.map((range) => range.gainDb)) : 0;
       const voiceLevel = channelAudible("video") && !segment?.muted && !rangeMuted && state.previewTailStartedAt === null
-        ? dbToLinear((segment?.gainDb || 0) + state.voiceMasterDb + rangeGainDb)
+        ? dbToLinear((segment?.gainDb || 0) + state.voiceMasterDb + voiceLoudnessCompensationDb() + rangeGainDb)
         : 0;
       const useCleanVoice = state.globalDenoise.enabled
         && state.globalDenoise.strength > 0
         && state.cleanVoice.ready;
       const videoLevel = useCleanVoice ? 0 : voiceLevel;
       const cleanLevel = useCleanVoice ? voiceLevel : 0;
-      const finalFadeStart = editedTrimEnd() - 2;
+      const finalFadeStart = endingVisibleEnd() - state.ending.blurDuration;
+      const finalFadeSpan = state.ending.blurDuration + state.ending.blackDuration;
       const finalFactor = state.video && previewTime > finalFadeStart
-        ? clamp((editedTrimEnd() + 2 - previewTime) / 4, 0, 1)
+        ? clamp((editedOutputEnd() - previewTime) / Math.max(.01, finalFadeSpan), 0, 1)
         : 1;
       const musicLevel = channelAudible("music") && state.music
         ? dbToLinear(musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb) * finalFactor
@@ -4754,13 +4982,15 @@
         $("#music").pause();
         $("#cleanVoice").pause();
         $("#whooshPreview").pause();
+        state.auditionDropTime = null;
+        renderMusic();
         renderMixPreview();
         return;
       }
       await ensureAudioGraph();
       const loop = previewLoopBounds();
       const start = loop?.start ?? state.trimStart;
-      const end = loop?.end ?? editedTrimEnd() + 2;
+      const end = loop?.end ?? editedOutputEnd();
       if (currentPreviewTime() < start || currentPreviewTime() >= end || video.currentTime >= state.trimEnd) {
         video.currentTime = Math.min(editedToSourceTime(start), state.trimEnd);
       }
@@ -4801,8 +5031,12 @@
     }
 
     async function previewCleanedSegment() {
-      const segment = getSelectedSegment();
-      if (!state.video || !segment) return;
+      const phrase = state.transcript.result?.testPhrase;
+      if (!state.video || !phrase) {
+        toast("Počkajte, kým prepis vyberie spoľahlivú testovaciu vetu.");
+        return;
+      }
+      const segment = { start: phrase.start, end: phrase.end, gainDb: 0, muted: false };
       const button = $("#cleanPreviewBtn");
       button.disabled = true;
       button.textContent = "DeepFilterNet3 čistí hlas…";
@@ -4822,7 +5056,7 @@
           body: JSON.stringify({
             videoId: state.video.analysis.id,
             segment,
-            playhead: $("#video").currentTime,
+            playhead: (phrase.start + phrase.end) / 2,
             denoise: state.globalDenoise
           })
         });
@@ -4831,7 +5065,7 @@
         state.lastCleanUrl = URL.createObjectURL(blob);
         const preview = $("#cleanPreview");
         preview.src = state.lastCleanUrl;
-        state.denoisePreview = { phaseDuration: 3, gapDuration: .35 };
+        state.denoisePreview = { phaseDuration: Math.min(5, phrase.end - phrase.start), gapDuration: .35 };
         await preview.play();
         recordUsage("denoise_preview_ready", {
           processingSeconds: roundedLogNumber((performance.now() - previewStartedAt) / 1000, 2)
@@ -4869,7 +5103,7 @@
       if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd, state.markers.continueStart, duration);
       enforceMarkerOrder();
       state.trimStart = Math.max(0, state.markers.speechStart - 2);
-      state.trimEnd = Math.min(duration, state.markers.speechEnd + 6);
+      state.trimEnd = Math.min(duration, state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration);
       enforceMarkerOrder();
       rememberEdit("AI návrh časových značiek");
       recordUsage("markers_auto_applied", {
@@ -4938,8 +5172,10 @@
           finalPhraseFound: foundPeace,
           wordCount: job.result?.words?.length || null
         });
+        useDenoiseRecommendation(job.result, false);
         applyTranscriptSuggestions(job.result);
         renderAll();
+        maybePrepareQuickPreview();
         return;
       }
       if (job.status === "failed") {
@@ -4951,6 +5187,142 @@
       renderTranscript();
       await new Promise((resolve) => setTimeout(resolve, 1000));
       return pollTranscript(jobId, videoId, 0);
+    }
+
+    function clearRenderedPreview(options = {}) {
+      const current = state.renderedPreview;
+      if (current?.rendering && !options.force) {
+        current.stale = true;
+        current.ready = false;
+        $("#quickPreviewEmpty")?.classList.remove("hidden");
+        if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
+        if ($("#quickPreviewStatus")) {
+          $("#quickPreviewStatus").textContent = "Nastavenia sa zmenili. Dokončujem rozpracovaný náhľad a potom automaticky pripravím aktuálnu verziu…";
+        }
+        return;
+      }
+      if (current?.url) URL.revokeObjectURL(current.url);
+      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false };
+      ["quickPreviewVideo"].forEach((id) => {
+        const video = $(`#${id}`);
+        if (!video) return;
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      });
+      $("#quickPreviewEmpty")?.classList.remove("hidden");
+      if ($("#quickPreviewProgress")) $("#quickPreviewProgress").style.width = "0%";
+      if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
+    }
+
+    function previewProjectKey() {
+      if (!state.video) return null;
+      return JSON.stringify(exportPayload());
+    }
+
+    function maybePrepareQuickPreview() {
+      if (!state.video || state.transcript.status !== "completed" || state.renderedPreview.rendering) return;
+      const validation = validate();
+      if (validation.errors.length) {
+        $("#quickPreviewStatus").textContent = `Automatický návrh potrebuje kontrolu: ${validation.errors[0]}`;
+        $("#quickRenderBtn").disabled = false;
+        return;
+      }
+      const key = previewProjectKey();
+      if (state.renderedPreview.ready && state.renderedPreview.key === key) return;
+      renderProjectPreview({ automatic: true });
+    }
+
+    async function renderProjectPreview(options = {}) {
+      if (!state.video || state.renderedPreview.rendering) return;
+      const validation = renderValidation();
+      if (validation.errors.length) {
+        if (!options.automatic) toast(validation.errors[0]);
+        $("#quickPreviewStatus").textContent = `Náhľad sa nedá pripraviť: ${validation.errors[0]}`;
+        return;
+      }
+      clearRenderedPreview();
+      const key = previewProjectKey();
+      const token = uid();
+      state.renderedPreview = { url: null, rendering: true, ready: false, key, token, stale: false };
+      $("#quickPreviewStatus").textContent = "Pripravujem presný náhľad s aktuálnym denoise, hudbou a efektmi…";
+      $("#quickRenderBtn").disabled = true;
+      recordUsage("exact_preview_started", { automatic: Boolean(options.automatic) });
+      try {
+        const response = await api("/api/render-preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(exportPayload())
+        });
+        const data = await response.json();
+        await pollRenderedPreview(data.jobId, key, token);
+      } catch (error) {
+        if (state.renderedPreview.token !== token) return;
+        state.renderedPreview.rendering = false;
+        $("#quickPreviewStatus").textContent = error.message;
+        recordUsage("exact_preview_failed", { reason: "render_error" });
+        if (!options.automatic) toast(error.message);
+        renderValidation();
+      }
+    }
+
+    function restartSupersededPreview(key, token) {
+      if (state.renderedPreview.token !== token) return;
+      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false };
+      $("#quickPreviewProgress").style.width = "0%";
+      $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Pripravujem ich aktuálnu verziu…";
+      recordUsage("exact_preview_superseded", { projectChanged: key !== previewProjectKey() });
+      renderValidation();
+      setTimeout(() => renderProjectPreview({ automatic: true }), 50);
+    }
+
+    async function pollRenderedPreview(jobId, key, token) {
+      const response = await api(`/api/jobs/${jobId}`);
+      const job = await response.json();
+      const percent = Math.round((job.progress || 0) * 100);
+      const ownsPreviewState = state.renderedPreview.token === token;
+      if (ownsPreviewState) {
+        $("#quickPreviewProgress").style.width = `${percent}%`;
+        $("#quickPreviewStatus").textContent = state.renderedPreview.stale
+          ? `Dokončujem rozpracovaný náhľad; potom pripravím aktuálnu verziu… ${percent} %`
+          : `${job.message || "Pripravujem náhľad…"} ${percent} %`;
+        $("#progressLabel").textContent = job.message || "Pripravujem presný náhľad…";
+        $("#progressPercent").textContent = `${percent} %`;
+        $("#progressFill").style.width = `${percent}%`;
+      }
+      if (job.status === "failed") throw new Error(job.error || "Presný náhľad zlyhal.");
+      if (job.status !== "completed") {
+        await new Promise((resolve) => setTimeout(resolve, 850));
+        return pollRenderedPreview(jobId, key, token);
+      }
+      if (!ownsPreviewState) return;
+      if (state.renderedPreview.stale || key !== previewProjectKey()) {
+        restartSupersededPreview(key, token);
+        return;
+      }
+      const mediaResponse = await api(job.downloadUrl);
+      const blob = await mediaResponse.blob();
+      if (state.renderedPreview.token !== token) return;
+      if (state.renderedPreview.stale || key !== previewProjectKey()) {
+        restartSupersededPreview(key, token);
+        return;
+      }
+      const url = URL.createObjectURL(blob);
+      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false };
+      ["quickPreviewVideo"].forEach((id) => {
+        const video = $(`#${id}`);
+        video.src = url;
+        video.load();
+      });
+      $("#quickPreviewEmpty").classList.add("hidden");
+      const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
+      const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
+      $("#quickPreviewStatus").textContent = `Presný automatický náhľad je pripravený${loudnessLabel}. Môžete ho exportovať alebo pokračovať v úpravách.`;
+      $("#quickPreviewProgress").style.width = "100%";
+      $("#quickExportBtn").disabled = false;
+      recordUsage("exact_preview_completed", { sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1) });
+      renderValidation();
+      $("#quickPreviewVideo").play().catch(() => {});
     }
 
     function exportPayload() {
@@ -4965,6 +5337,8 @@
         muteRanges: state.muteRanges,
         voiceMasterDb: state.voiceMasterDb,
         globalDenoise: state.globalDenoise,
+        loudness: { targetLufs: state.loudnessTargetLufs },
+        ending: state.ending,
         colour: state.colour,
         music: {
           enabled: Boolean(state.music),
@@ -4990,7 +5364,7 @@
       }
       const exportStartedAt = performance.now();
       recordUsage("export_started", {
-        outputDurationSeconds: editedTrimEnd() - state.trimStart + 2,
+        outputDurationSeconds: editedOutputEnd() - state.trimStart,
         hasMusic: Boolean(state.music),
         segmentCount: state.segments.length,
         audioRangeCount: state.muteRanges.length,
@@ -5038,9 +5412,14 @@
         state.exporting = false;
         renderValidation();
         recordUsage("export_completed", {
-          processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1)
+          processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1),
+          integratedLufs: job.details?.finalLoudness?.integratedLufs ?? null,
+          truePeakDb: job.details?.finalLoudness?.truePeakDb ?? null
         });
-        toast("MP4 je pripravené a sťahuje sa.");
+        const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
+        toast(Number.isFinite(measuredLufs)
+          ? `MP4 je pripravené · ${measuredLufs.toFixed(1)} LUFS · sťahuje sa.`
+          : "MP4 je pripravené a sťahuje sa.");
         const link = document.createElement("a");
         link.href = `${API_ORIGIN}${job.downloadUrl}?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
         link.download = "give_me_five_edited.mp4";
@@ -5210,7 +5589,7 @@
       $("#autoTail").addEventListener("click", () => {
         if (!state.video) return;
         recordUsage("trim_shortcut_used", { shortcut: "six_seconds_after_speech" });
-        setMarker("trimEnd", Math.min(state.video.analysis.metadata.duration, state.markers.speechEnd + 6));
+        setMarker("trimEnd", Math.min(state.video.analysis.metadata.duration, state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration));
       });
       $("#previewTransition").addEventListener("click", previewTransition);
       $("#previewTransitionCard").addEventListener("click", previewTransition);
@@ -5221,7 +5600,6 @@
       $("#redoBtn").addEventListener("click", redoEdit);
       $("#wizardBack").addEventListener("click", wizardBack);
       $("#wizardNext").addEventListener("click", wizardNext);
-      $("#toggleWorkflowMode").addEventListener("click", toggleWorkflowMode);
       $("#loopRegions").addEventListener("click", (event) => {
         const button = event.target.closest("[data-loop-region]");
         if (button) selectPreviewRegion(button.dataset.loopRegion);
@@ -5238,6 +5616,20 @@
       $("#closeGuide").addEventListener("click", () => $("#guideDialog").close());
       $("#guideDialog").addEventListener("click", (event) => {
         if (event.target === $("#guideDialog")) $("#guideDialog").close();
+      });
+      $$('[data-info-text]').forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          $("#infoDialogTitle").textContent = button.dataset.infoTitle || "Vysvetlenie nastavenia";
+          $("#infoDialogText").textContent = button.dataset.infoText;
+          $("#infoDialog").showModal();
+          recordUsage("parameter_help_opened", { parameter: button.dataset.infoTitle || "unknown" });
+        });
+      });
+      $("#closeInfoDialog").addEventListener("click", () => $("#infoDialog").close());
+      $("#infoDialog").addEventListener("click", (event) => {
+        if (event.target === $("#infoDialog")) $("#infoDialog").close();
       });
       $("#showTranscript").addEventListener("click", () => {
         $("#transcriptCard").classList.remove("collapsed");
@@ -5282,8 +5674,13 @@
         recordUsage("beat_snap_toggled", { enabled: state.beatSnap });
       });
       $("#dropCandidates").addEventListener("click", (event) => {
-        const candidate = event.target.closest("[data-drop-candidate]");
-        if (candidate) chooseDrop(snapMusicTime(Number(candidate.dataset.dropCandidate)));
+        const preview = event.target.closest("[data-preview-drop]");
+        if (preview) {
+          previewDropCandidate(Number(preview.dataset.previewDrop));
+          return;
+        }
+        const use = event.target.closest("[data-use-drop]");
+        if (use) chooseDrop(snapMusicTime(Number(use.dataset.useDrop)));
       });
       $("#setDropBtn").addEventListener("click", () => {
         chooseDrop(snapMusicTime($("#music").currentTime));
@@ -5357,6 +5754,7 @@
 
       $("#globalDenoiseEnabled").addEventListener("change", (event) => {
         state.globalDenoise.enabled = event.target.checked;
+        state.denoiseManuallyEdited = true;
         rememberEdit("Zapnutie AI denoise");
         renderDenoise();
         scheduleCleanVoiceRefresh(0);
@@ -5365,6 +5763,7 @@
       });
       bindIntegerPair("globalStrength", "globalStrengthNumber", 0, 100, (value) => {
         state.globalDenoise.strength = value;
+        state.denoiseManuallyEdited = true;
         rememberEdit("Sila AI denoise", "denoise-settings");
         renderDenoise();
         scheduleCleanVoiceRefresh();
@@ -5375,6 +5774,7 @@
       });
       bindIntegerPair("denoiseLowCut", "denoiseLowCutNumber", 50, 250, (value) => {
         state.globalDenoise.lowCut = value;
+        state.denoiseManuallyEdited = true;
         rememberEdit("Odstránenie vetra", "denoise-settings");
         renderDenoise();
         updateAudioMix();
@@ -5385,6 +5785,7 @@
       });
       bindIntegerPair("denoiseClarity", "denoiseClarityNumber", 0, 100, (value) => {
         state.globalDenoise.clarity = value;
+        state.denoiseManuallyEdited = true;
         rememberEdit("Zrozumiteľnosť hlasu", "denoise-settings");
         renderDenoise();
         updateAudioMix();
@@ -5393,6 +5794,7 @@
           debounceMs: 550
         });
       });
+      $("#applyDenoiseRecommendation").addEventListener("click", () => useDenoiseRecommendation(state.transcript.result, true));
 
       $$(".inspector-body .control-card h3").forEach((heading) => {
         heading.addEventListener("click", () => {
@@ -5522,6 +5924,13 @@
           debounceMs: 500
         });
       });
+      $("#loudnessProfile").addEventListener("change", (event) => {
+        state.loudnessTargetLufs = Number(event.target.value);
+        rememberEdit("LUFS profil výsledku");
+        renderMasterLevels();
+        updateAudioMix(true);
+        recordUsage("loudness_profile_changed", { targetLufs: state.loudnessTargetLufs });
+      });
       $("#musicOffset").addEventListener("input", (event) => {
         state.musicSettings.offsetDb = Number(event.target.value);
         rememberEdit("Celková hlasitosť hudby", "music-offset");
@@ -5541,6 +5950,22 @@
         recordUsage("transition_duration_adjusted", { durationSeconds: state.transitionDuration }, {
           debounceKey: "transition-duration",
           debounceMs: 500
+        });
+      });
+
+      [["endingHold", "holdDuration"], ["endingBlur", "blurDuration"], ["endingBlack", "blackDuration"]].forEach(([id, key]) => {
+        $(`#${id}`).addEventListener("input", (event) => {
+          state.ending[key] = Number(event.target.value);
+          if (state.video && key !== "blackDuration") {
+            state.trimEnd = Math.min(
+              state.video.analysis.metadata.duration,
+              state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration
+            );
+            enforceMarkerOrder();
+          }
+          rememberEdit("Dĺžka finálneho obrazu", "ending-settings");
+          renderAll();
+          recordUsage("ending_adjusted", state.ending, { debounceKey: "ending-settings", debounceMs: 500 });
         });
       });
 
@@ -5579,6 +6004,9 @@
       });
 
       $("#exportBtn").addEventListener("click", exportProject);
+      $("#quickRenderBtn").addEventListener("click", () => renderProjectPreview({ automatic: false }));
+      $("#quickEditBtn").addEventListener("click", () => setWizardStep(1));
+      $("#quickExportBtn").addEventListener("click", exportProject);
       $("#exportUsageLog").addEventListener("click", exportUsageLog);
       $("#usageLogPanel").addEventListener("toggle", () => {
         recordUsage("usage_log_panel_toggled", { open: $("#usageLogPanel").open });
@@ -5642,9 +6070,10 @@
           $("#music").pause();
           $("#cleanVoice").pause();
           $("#whooshPreview").pause();
+          state.auditionDropTime = null;
           state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
-          renderMixPreview();
-        } else if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= 2000) {
+          renderAll();
+        } else if (state.previewTailStartedAt !== null && performance.now() - state.previewTailStartedAt >= previewTailDuration() * 1000) {
           state.previewTailStartedAt = null;
           $("#music").pause();
           $("#cleanVoice").pause();

@@ -1,0 +1,10 @@
+{$GMF_DOMAIN} {
+  encode zstd gzip
+
+  header {
+    -Server
+  }
+
+  reverse_proxy editor:4173
+}
+

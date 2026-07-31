@@ -2,8 +2,12 @@
 
 const { spawn } = require("child_process");
 const { parentPort, workerData } = require("worker_threads");
+const path = require("path");
 
-const ffmpegPath = require("ffmpeg-static");
+const bundledFfmpegPath = require("ffmpeg-static");
+const ffmpegPath = process.env.GMF_FFMPEG_PATH
+  ? path.resolve(process.env.GMF_FFMPEG_PATH)
+  : bundledFfmpegPath;
 
 function runProcess(executable, args) {
   return new Promise((resolve, reject) => {

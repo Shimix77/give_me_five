@@ -9,15 +9,20 @@ const { Worker } = require("worker_threads");
 
 const express = require("express");
 const FFT = require("fft.js");
-const ffmpegPath = require("ffmpeg-static");
-const ffprobePath = require("ffprobe-static").path;
+const bundledFfmpegPath = require("ffmpeg-static");
+const bundledFfprobePath = require("ffprobe-static").path;
 const multer = require("multer");
 
 const APP_DIR = __dirname;
 const IS_RENDER = process.env.RENDER === "true";
+const HOST = process.env.GMF_HOST || (IS_RENDER ? "0.0.0.0" : "127.0.0.1");
+const IS_LOCAL_HOST = ["127.0.0.1", "localhost", "::1"].includes(HOST);
+const IS_PUBLIC_DEPLOYMENT = IS_RENDER || !IS_LOCAL_HOST;
+const TRUST_PROXY = IS_RENDER || process.env.GMF_TRUST_PROXY === "true";
+const IS_HTTPS_DEPLOYMENT = IS_RENDER || process.env.GMF_HTTPS === "true";
 const WORK_DIR = process.env.GMF_WORK_DIR
   ? path.resolve(process.env.GMF_WORK_DIR)
-  : IS_RENDER
+  : IS_PUBLIC_DEPLOYMENT
     ? path.join(os.tmpdir(), "give-me-five")
     : path.join(APP_DIR, ".gmf-work");
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
@@ -30,13 +35,16 @@ const RNNOISE_MODEL_PATH = path.join(ASSET_DIR, "rnnoise-voice.rnnn");
 const DEEPFILTER_PATH = process.env.GMF_DEEPFILTER_PATH
   ? path.resolve(process.env.GMF_DEEPFILTER_PATH)
   : path.join(APP_DIR, "tools", "deep-filter");
-const HOST = process.env.GMF_HOST || (IS_RENDER ? "0.0.0.0" : "127.0.0.1");
-const IS_LOCAL_HOST = ["127.0.0.1", "localhost", "::1"].includes(HOST);
-const IS_PUBLIC_DEPLOYMENT = IS_RENDER || !IS_LOCAL_HOST;
+const ffmpegPath = process.env.GMF_FFMPEG_PATH
+  ? path.resolve(process.env.GMF_FFMPEG_PATH)
+  : bundledFfmpegPath;
+const ffprobePath = process.env.GMF_FFPROBE_PATH
+  ? path.resolve(process.env.GMF_FFPROBE_PATH)
+  : bundledFfprobePath;
 const PORT = Number(process.env.PORT || process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = Math.max(
   25 * 1024 * 1024,
-  Number(process.env.GMF_MAX_UPLOAD_MB || (IS_RENDER ? 300 : 1024)) * 1024 * 1024
+  Number(process.env.GMF_MAX_UPLOAD_MB || (IS_PUBLIC_DEPLOYMENT ? 300 : 1024)) * 1024 * 1024
 );
 const ACCESS_USER = String(process.env.GMF_ACCESS_USER || "give-me-five");
 const ACCESS_KEY = String(process.env.GMF_ACCESS_KEY || "");
@@ -47,11 +55,11 @@ const TRANSCRIPT_TIMEOUT_MS = Math.max(
   Number(process.env.GMF_TRANSCRIPT_TIMEOUT_MS || 30 * 60 * 1000)
 );
 const TRANSCRIPT_MODEL_REVISION = String(
-  process.env.GMF_TRANSCRIPT_MODEL_REVISION || "a672c7951662ec5738338efab5588d2934018bf3"
+  process.env.GMF_TRANSCRIPT_MODEL_REVISION || "aa4e6e25b8e2fe5bd06048ad9e64d6e9f376205b"
 );
 const SESSION_CLOSE_GRACE_MS = 8000;
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-const MAX_VIDEO_DURATION = 60.25;
+const MAX_VIDEO_DURATION = 90.25;
 const MAX_MUSIC_DURATION = 30 * 60;
 const MAX_MEDIA_DIMENSION = 4320;
 const MAX_MEDIA_FPS = 120;
@@ -259,7 +267,7 @@ const upload = multer({
 });
 
 app.disable("x-powered-by");
-if (IS_RENDER) app.set("trust proxy", 1);
+if (TRUST_PROXY) app.set("trust proxy", 1);
 
 app.use((request, response, next) => {
   response.setHeader("Content-Security-Policy", contentSecurityPolicy);
@@ -269,7 +277,7 @@ app.use((request, response, next) => {
   response.setHeader("Referrer-Policy", "no-referrer");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Frame-Options", "DENY");
-  if (IS_RENDER) {
+  if (IS_HTTPS_DEPLOYMENT) {
     response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   if (request.path === "/" || request.path.startsWith("/api/")) {
@@ -311,7 +319,7 @@ app.use((request, response, next) => {
 app.use((request, response, next) => {
   const heavyRequest = (
     request.method === "POST"
-    && ["/api/media", "/api/transcript", "/api/export", "/api/preview-audio"].includes(request.path)
+    && ["/api/media", "/api/transcript", "/api/export", "/api/render-preview", "/api/preview-audio"].includes(request.path)
   ) || (
     request.method === "GET"
     && request.path.startsWith("/api/denoised-audio/")
@@ -424,7 +432,7 @@ function validateMediaMetadata(metadata, kind) {
   }
   if (!metadata.hasVideo) throw new Error("Vybraný súbor nemá video stopu.");
   if (metadata.duration > MAX_VIDEO_DURATION) {
-    throw new Error("Zdrojové video môže mať najviac 60 sekúnd.");
+    throw new Error("Zdrojové video môže mať najviac 90 sekúnd.");
   }
   if (metadata.width <= 0 || metadata.height <= 0 || metadata.width > MAX_MEDIA_DIMENSION || metadata.height > MAX_MEDIA_DIMENSION) {
     throw new Error("Rozlíšenie videa nie je podporované. Maximálna strana je 4320 px.");
@@ -537,6 +545,38 @@ async function extractMonoPcm(filePath, sampleRate = 8000) {
     "pipe:1"
   ]);
   return stdout;
+}
+
+async function measureIntegratedLoudness(filePath) {
+  try {
+    const { stderr } = await runProcess(ffmpegPath, [
+      "-hide_banner",
+      "-nostats",
+      "-i", filePath,
+      "-map", "0:a:0",
+      "-vn",
+      "-af", "loudnorm=I=-16:TP=-1:LRA=11:print_format=json",
+      "-f", "null",
+      "-"
+    ]);
+    const match = stderr.match(/\{[\s\S]*?"input_i"[\s\S]*?\}/g)?.at(-1);
+    if (!match) return null;
+    const data = JSON.parse(match);
+    const inputI = numeric(data.input_i, NaN);
+    const inputTp = numeric(data.input_tp, NaN);
+    const inputLra = numeric(data.input_lra, NaN);
+    const inputThresh = numeric(data.input_thresh, NaN);
+    if (!Number.isFinite(inputI)) return null;
+    return {
+      integratedLufs: Number(inputI.toFixed(2)),
+      truePeakDb: Number.isFinite(inputTp) ? Number(inputTp.toFixed(2)) : null,
+      loudnessRangeLu: Number.isFinite(inputLra) ? Number(inputLra.toFixed(2)) : null,
+      thresholdLufs: Number.isFinite(inputThresh) ? Number(inputThresh.toFixed(2)) : null
+    };
+  } catch (error) {
+    console.warn("Could not measure integrated loudness:", error.message);
+    return null;
+  }
 }
 
 function percentile(values, ratio) {
@@ -774,10 +814,14 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
 async function analyseMedia(filePath, id, kind) {
   const metadata = await probeFile(filePath);
   validateMediaMetadata(metadata, kind);
-  const pcm = await extractMonoPcm(filePath, 8000);
+  const [pcm, loudness] = await Promise.all([
+    extractMonoPcm(filePath, 8000),
+    measureIntegratedLoudness(filePath)
+  ]);
   return {
     metadata,
     ...analysePcm(pcm, 8000, metadata.duration),
+    loudness,
     spectrogramUrl: null,
     dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null
   };
@@ -831,6 +875,7 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
       peaks: record.peaks,
       activity: record.activity,
       noiseFloorDb: record.noiseFloorDb,
+      loudness: record.loudness,
       spectrogramUrl: record.spectrogramUrl,
       dropAnalysis: record.dropAnalysis
     });
@@ -902,6 +947,77 @@ function transcriptSuggestions(words, duration) {
   return suggestions;
 }
 
+function selectReliableSpeechPhrase(words, suggestions, duration) {
+  const timed = words.filter((word) =>
+    Number.isFinite(word.start)
+    && Number.isFinite(word.end)
+    && String(word.text || "").trim()
+  );
+  if (!timed.length) return null;
+  const candidates = [];
+  for (let startIndex = 0; startIndex < timed.length; startIndex++) {
+    for (let endIndex = startIndex; endIndex < timed.length; endIndex++) {
+      const start = timed[startIndex].start;
+      const end = timed[endIndex].end;
+      const span = end - start;
+      if (span > 6.2) break;
+      if (span < 3.2 || endIndex - startIndex < 3) continue;
+      const overlapsGive = Number.isFinite(suggestions.giveStart)
+        && Number.isFinite(suggestions.giveEnd)
+        && start < suggestions.giveEnd + 0.35
+        && end > suggestions.giveStart - 0.35;
+      const text = timed.slice(startIndex, endIndex + 1).map((word) => word.text).join(" ").trim();
+      const wordCount = endIndex - startIndex + 1;
+      const edgePenalty = start < 0.5 || end > duration - 0.5 ? 4 : 0;
+      const score = wordCount * 2.2 - Math.abs(span - 4.8) * 1.4 - (overlapsGive ? 8 : 0) - edgePenalty;
+      candidates.push({ start, end, text, score, wordCount, overlapsGive });
+    }
+  }
+  const nonGiveCandidates = candidates.filter((candidate) => !candidate.overlapsGive);
+  const best = (nonGiveCandidates.length ? nonGiveCandidates : candidates)
+    .sort((left, right) => right.score - left.score)[0];
+  if (!best) return null;
+  return {
+    start: Number(clamp(best.start, 0, duration).toFixed(3)),
+    end: Number(clamp(best.end, best.start + 0.1, duration).toFixed(3)),
+    text: best.text,
+    confidence: !best.overlapsGive && best.wordCount >= 7 ? "high" : best.wordCount >= 4 ? "medium" : "low"
+  };
+}
+
+function recommendDenoise(record, testPhrase) {
+  const activity = Array.isArray(record.activity) ? record.activity : [];
+  const active = activity.filter((item) => item?.[4] !== "quiet");
+  const speech = activity.filter((item) => item?.[4] === "speech");
+  const wind = activity.filter((item) => item?.[4] === "wind");
+  const averageWindScore = active.length
+    ? active.reduce((sum, item) => sum + numeric(item?.[3]), 0) / active.length
+    : 0;
+  const windShare = active.length ? wind.length / active.length : 0;
+  const noiseFloor = numeric(record.noiseFloorDb, -52);
+  const noisyRoom = clamp((noiseFloor + 55) / 22, 0, 1);
+  const strength = Math.round(clamp(52 + averageWindScore * 20 + windShare * 18 + noisyRoom * 12, 45, 88));
+  const lowCut = Math.round(clamp(78 + averageWindScore * 85 + windShare * 70, 70, 205));
+  const clarity = Math.round(clamp(14 + noisyRoom * 10 + averageWindScore * 7, 10, 32));
+  const speechSeconds = speech.length ? speech.length * 0.05 : 0;
+  const confidence = testPhrase?.confidence === "high" && speechSeconds >= 3
+    ? "high"
+    : testPhrase && speechSeconds >= 1.5
+      ? "medium"
+      : "low";
+  return {
+    strength,
+    lowCut,
+    clarity,
+    confidence,
+    notes: {
+      windDetected: windShare > 0.12 || averageWindScore > 0.28,
+      elevatedNoiseFloor: noiseFloor > -43,
+      noiseFloorDb: Number(noiseFloor.toFixed(1))
+    }
+  };
+}
+
 function refineSuggestionsWithAudio(suggestions, activity, duration) {
   const speech = (activity || []).filter((item) => item?.[4] === "speech" && Number.isFinite(item[0]));
   if (!speech.length) return suggestions;
@@ -916,7 +1032,16 @@ function refineSuggestionsWithAudio(suggestions, activity, duration) {
 }
 
 function alignTranscriptWordsToSpeech(words, activity, duration) {
-  if (!words.length || words.some((word) => Number.isFinite(word.start) && Number.isFinite(word.end))) return words;
+  if (!words.length) return words;
+  const usable = words.filter((word) =>
+    Number.isFinite(word.start)
+    && Number.isFinite(word.end)
+    && word.end - word.start >= 0.03
+  );
+  const usableSpan = usable.length
+    ? Math.max(...usable.map((word) => word.end)) - Math.min(...usable.map((word) => word.start))
+    : 0;
+  if (usable.length >= Math.max(2, Math.ceil(words.length * 0.4)) && usableSpan >= 1) return words;
   const speechPoints = (activity || [])
     .filter((item) => item?.[4] === "speech" && Number.isFinite(item[0]))
     .map((item) => clamp(item[0], 0, duration));
@@ -940,7 +1065,37 @@ function alignTranscriptWordsToSpeech(words, activity, duration) {
   });
 }
 
+function migrateLegacyTranscriptCache() {
+  const modelRoot = path.join(MODEL_DIR, "Xurify", "whisper-large-v3-turbo-sk-onnx");
+  const revisionRoot = path.join(modelRoot, TRANSCRIPT_MODEL_REVISION);
+  const requiredFiles = [
+    "config.json",
+    "generation_config.json",
+    "preprocessor_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    path.join("onnx", "encoder_model_q4.onnx"),
+    path.join("onnx", "decoder_model_merged_q4.onnx")
+  ];
+  for (const relativePath of requiredFiles) {
+    const sourcePath = path.join(modelRoot, relativePath);
+    const targetPath = path.join(revisionRoot, relativePath);
+    if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) continue;
+    fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+    try {
+      fs.linkSync(sourcePath, targetPath);
+    } catch (_hardLinkError) {
+      try {
+        fs.symlinkSync(sourcePath, targetPath);
+      } catch (symlinkError) {
+        console.warn(`Could not reuse cached transcript model file ${relativePath}:`, symlinkError.message);
+      }
+    }
+  }
+}
+
 async function transcribeMedia(record, job) {
+  migrateLegacyTranscriptCache();
   const workerResult = await new Promise((resolve, reject) => {
     const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
       workerData: {
@@ -995,10 +1150,13 @@ async function transcribeMedia(record, job) {
     record.activity,
     record.metadata.duration
   );
+  const testPhrase = selectReliableSpeechPhrase(words, suggestions, record.metadata.duration);
   return {
     text: String(workerResult.text || words.map((word) => word.text).join(" ")).trim(),
     words,
     suggestions,
+    testPhrase,
+    denoiseRecommendation: recommendDenoise(record, testPhrase),
     language: "sk",
     model: "Slovenský Whisper Large v3 Turbo · SloPalSpeech fine-tune"
   };
@@ -1390,7 +1548,7 @@ function musicVolumeExpression(settings, timing) {
   ].join("");
 }
 
-function buildExportPlan(payload, denoisedAudioPath = null) {
+function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const video = media.get(payload.videoId);
   if (!video) throw new Error("The source video is no longer loaded. Import it again.");
   const music = payload.musicId ? media.get(payload.musicId) : null;
@@ -1408,15 +1566,21 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
   const gapEdit = calculateGapEdit(markers, trimStart, trimEnd, payload.transitionDuration);
   const transitionDuration = gapEdit.transitionDuration;
   const additiveOverlap = calculateAdditiveOverlap(gapEdit, trimStart, trimEnd);
-  const visibleDuration = trimEnd - trimStart - gapEdit.cutDuration;
-  const blackTailDuration = 2;
+  const sourceVisibleDuration = trimEnd - trimStart - gapEdit.cutDuration;
+  const ending = payload.ending || {};
+  const holdDuration = clamp(numeric(ending.holdDuration, 4), 0, 10);
+  const finalFade = clamp(numeric(ending.blurDuration, 2), 0.5, 5);
+  const blackTailDuration = clamp(numeric(ending.blackDuration, 2), 0, 5);
+  const speechEndRel = speechEnd - trimStart - gapEdit.cutDuration;
+  const minimumVisibleDuration = speechEndRel + holdDuration + finalFade;
+  const visibleDuration = Math.max(sourceVisibleDuration, minimumVisibleDuration);
+  const freezeFrameDuration = Math.max(0, visibleDuration - sourceVisibleDuration);
   const outputDuration = visibleDuration + blackTailDuration;
   const transitionStartRel = giveEnd + 0.5 - trimStart;
   const transitionFadeIn = transitionDuration * 0.3;
   const transitionFadeOut = transitionDuration - transitionFadeIn;
   const transitionPeakRel = transitionStartRel + transitionFadeIn;
   const whooshStartRel = Math.max(0, transitionPeakRel - whooshPeakSeconds);
-  const finalFade = Math.min(2, Math.max(0.2, visibleDuration));
   const fadeStartRel = visibleDuration - finalFade;
 
   if (!(speechStart <= giveEnd && giveEnd <= continueStart && continueStart <= speechEnd)) {
@@ -1430,7 +1594,7 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     blackTailDuration,
     outputDuration,
     speechStartRel: speechStart - trimStart,
-    speechEndRel: speechEnd - trimStart - gapEdit.cutDuration,
+    speechEndRel,
     transitionStartRel,
     transitionPeakRel,
     whooshStartRel,
@@ -1474,20 +1638,28 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     const afterLabel = appendVideoSequence(filters, 0, afterSegments, "pictureAfter", video.metadata);
     const crossfadeOffset = Math.max(0, gapEdit.cutStart - trimStart - additiveOverlap / 2);
     filters.push(
-      `[${beforeLabel}][${afterLabel}]xfade=transition=fade:duration=${additiveOverlap.toFixed(4)}:offset=${crossfadeOffset.toFixed(4)},format=yuv420p[videoSequence]`
+      `[${beforeLabel}][${afterLabel}]xfade=transition=fade:duration=${additiveOverlap.toFixed(4)}:offset=${crossfadeOffset.toFixed(4)},format=yuv420p,fps=${video.metadata.fps},settb=AVTB,setpts=PTS-STARTPTS[videoSequence]`
     );
     videoSequenceLabel = "videoSequence";
   } else {
     videoSequenceLabel = appendVideoSequence(filters, 0, segments, "picture", video.metadata);
   }
-  filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}[videoBase]`);
+  const freezeFilter = freezeFrameDuration > 0.001
+    ? `,tpad=stop_mode=clone:stop_duration=${freezeFrameDuration.toFixed(4)}`
+    : "";
+  filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}${freezeFilter}[videoBase]`);
+  const finishedVideoLabel = options.preview ? "voutFull" : "vout";
   filters.push(
     `color=c=white@0.82:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
     `[videoBase][light]overlay=shortest=1:format=auto[litVideo]`,
     "[litVideo]split=2[sharpFinal][blurInput]",
     "[blurInput]gblur=sigma=24[blurredFinal]",
-    `[sharpFinal][blurredFinal]blend=all_expr='A*(1-clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1))+B*clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1)',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[vout]`
+    `[sharpFinal][blurredFinal]blend=all_expr='A*(1-clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1))+B*clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1)',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[${finishedVideoLabel}]`
   );
+  if (options.preview) {
+    const previewHeight = Math.round(clamp(numeric(options.previewHeight, 960), 360, 1280));
+    filters.push(`[voutFull]scale=-2:${previewHeight}:flags=lanczos,format=yuv420p[vout]`);
+  }
 
   const audioSegments = applyAudioRanges(segments, payload.muteRanges, trimStart, trimEnd);
   const segmentLabels = [];
@@ -1530,11 +1702,12 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     mixLabels.push("music");
   }
 
+  const targetLufs = clamp(numeric(payload.loudness?.targetLufs, -11), -24, -7);
   filters.push(
-    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,alimiter=limit=0.95,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
+    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,loudnorm=I=${targetLufs.toFixed(1)}:TP=-1.0:LRA=9,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,alimiter=limit=0.891251:attack=5:release=50:level=false,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
   );
 
-  const outputPath = path.join(EXPORT_DIR, `${crypto.randomUUID()}.mp4`);
+  const outputPath = path.join(EXPORT_DIR, `${options.preview ? "preview-" : ""}${crypto.randomUUID()}.mp4`);
   const args = [
     "-y",
     "-hide_banner",
@@ -1544,11 +1717,11 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     "-map", "[aout]",
     "-r", String(video.metadata.fps),
     "-c:v", "libx264",
-    "-preset", "veryfast",
-    "-crf", "20",
+    "-preset", options.preview ? "ultrafast" : "veryfast",
+    "-crf", options.preview ? "27" : "20",
     "-pix_fmt", "yuv420p",
     "-c:a", "aac",
-    "-b:a", "192k",
+    "-b:a", options.preview ? "128k" : "192k",
     "-ar", "48000",
     "-movflags", "+faststart",
     "-threads", "2",
@@ -1564,7 +1737,11 @@ function buildExportPlan(payload, denoisedAudioPath = null) {
     details: {
       trimStart,
       trimEnd,
+      sourceVisibleDuration,
       visibleDuration,
+      holdDuration,
+      finalFade,
+      freezeFrameDuration,
       blackTailDuration,
       outputDuration,
       musicStart,
@@ -1640,19 +1817,55 @@ function renderExportPlan(job, plan) {
   });
 }
 
-function startExportJob(payload, sessionId) {
+async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
+  const requestedTarget = clamp(numeric(targetLufs, -11), -24, -7);
+  const normalisationTarget = requestedTarget >= -12 ? requestedTarget + 0.7 : requestedTarget;
+  const compression = requestedTarget >= -12
+    ? "acompressor=threshold=-15dB:ratio=2.2:attack=8:release=120:makeup=2,"
+    : "";
+  const outputPath = path.join(
+    EXPORT_DIR,
+    `${preview ? "preview-" : ""}normalised-${crypto.randomUUID()}.mp4`
+  );
+  try {
+    await runProcess(ffmpegPath, [
+      "-y",
+      "-hide_banner",
+      "-loglevel", "error",
+      "-i", filePath,
+      "-map", "0:v:0",
+      "-map", "0:a:0",
+      "-c:v", "copy",
+      "-af", `${compression}loudnorm=I=${normalisationTarget.toFixed(1)}:TP=-1.0:LRA=9,alimiter=limit=0.891251:attack=5:release=50:level=false`,
+      "-c:a", "aac",
+      "-b:a", preview ? "128k" : "192k",
+      "-ar", "48000",
+      "-movflags", "+faststart",
+      outputPath
+    ], { timeoutMs: EXPORT_TIMEOUT_MS });
+    const measured = await measureIntegratedLoudness(outputPath);
+    fs.rmSync(filePath, { force: true });
+    return { outputPath, measured };
+  } catch (error) {
+    fs.rmSync(outputPath, { force: true });
+    throw error;
+  }
+}
+
+function startExportJob(payload, sessionId, options = {}) {
   const id = crypto.randomUUID();
   const job = {
     id,
     status: "running",
     progress: 0,
-    message: "Pripravujem lokálny export…",
+    message: options.preview ? "Pripravujem presný náhľad…" : "Pripravujem lokálny export…",
     outputPath: null,
     details: null,
     error: null,
     createdAt: Date.now(),
     sessionId,
-    mediaIds: [payload.videoId, payload.musicId].filter(Boolean)
+    mediaIds: [payload.videoId, payload.musicId].filter(Boolean),
+    kind: options.preview ? "preview" : "export"
   };
   jobs.set(id, job);
 
@@ -1669,13 +1882,22 @@ function startExportJob(payload, sessionId) {
         denoisedAudioPath = await prepareDenoisedTrack(video, payload.globalDenoise);
         job.progress = 0.08;
       }
-      const plan = buildExportPlan(payload, denoisedAudioPath);
+      const plan = buildExportPlan(payload, denoisedAudioPath, options);
       job.outputPath = plan.outputPath;
       job.details = plan.details;
       await renderExportPlan(job, plan);
+      job.progress = 0.99;
+      job.message = "Finalizujem výslednú LUFS hlasitosť…";
+      const loudnessResult = await finaliseRenderedLoudness(
+        plan.outputPath,
+        payload.loudness?.targetLufs,
+        Boolean(options.preview)
+      );
+      job.outputPath = loudnessResult.outputPath;
+      job.details.finalLoudness = loudnessResult.measured;
       job.status = "completed";
       job.progress = 1;
-      job.message = "MP4 export je pripravený.";
+      job.message = options.preview ? "Presný náhľad je pripravený." : "MP4 export je pripravený.";
     } catch (error) {
       job.status = "failed";
       job.error = error.message || "Export zlyhal.";
@@ -1706,6 +1928,22 @@ app.post("/api/export", (request, response) => {
   }
 });
 
+app.post("/api/render-preview", (request, response) => {
+  try {
+    if (!request.gmfSessionId) throw new Error("The browser session is missing. Refresh the editor.");
+    const runningExports = [...jobs.values()].filter((job) => job.status === "running").length;
+    if (runningExports >= MAX_RUNNING_EXPORTS) {
+      response.setHeader("Retry-After", "10");
+      response.status(429).json({ error: "Iné video spracovanie ešte prebieha. Počkajte na jeho dokončenie." });
+      return;
+    }
+    const job = startExportJob(request.body || {}, request.gmfSessionId, { preview: true, previewHeight: 960 });
+    response.status(202).json({ jobId: job.id, status: job.status });
+  } catch (error) {
+    response.status(422).json({ error: error.message || "Náhľad sa nepodarilo spustiť." });
+  }
+});
+
 app.get("/api/jobs/:id", (request, response) => {
   const job = jobs.get(request.params.id);
   if (!job || !request.gmfSessionId || job.sessionId !== request.gmfSessionId) {
@@ -1718,6 +1956,7 @@ app.get("/api/jobs/:id", (request, response) => {
     progress: job.progress,
     message: job.message,
     error: job.error,
+    details: job.status === "completed" ? job.details : null,
     downloadUrl: job.status === "completed" ? `/api/jobs/${job.id}/download` : null
   });
 });
@@ -1784,7 +2023,7 @@ app.post("/api/preview-audio", async (request, response) => {
   const sourceSegment = request.body.segment || { start: 0, end: record.metadata.duration, gainDb: 0, muted: false };
   const start = clamp(numeric(sourceSegment.start), 0, record.metadata.duration);
   const end = clamp(numeric(sourceSegment.end, record.metadata.duration), start + 0.1, record.metadata.duration);
-  const previewDuration = Math.min(3, end - start);
+  const previewDuration = Math.min(5, end - start);
   const previewStart = clamp(
     numeric(request.body.playhead, start) - previewDuration / 2,
     start,

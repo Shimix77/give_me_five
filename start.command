@@ -38,7 +38,7 @@ if [ -z "$PNPM_BIN" ] && [ -x "/Users/jakubsimonak/.cache/codex-runtimes/codex-p
 fi
 
 if [ -z "$NODE_BIN" ]; then
-  echo "CHYBA: Potrebný je Node.js 20 alebo novší."
+  echo "CHYBA: Potrebný je Node.js 24."
   echo "Nainštalujte ho z https://nodejs.org a spustite tento súbor znovu."
   pause_if_terminal
   exit 1
