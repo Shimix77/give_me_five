@@ -1,6 +1,6 @@
 # Give Me Five Video Editor
 
-Lokálna webová aplikácia pre Google Chrome. Video a audio ostávajú v počítači; natívny FFmpeg vytvára waveformy, denoise aj výsledný MP4.
+Webová aplikácia pre Google Chrome. V lokálnom režime video a audio ostávajú v počítači; natívny FFmpeg vytvára waveformy, denoise aj výsledný MP4. Pri budúcom nasadení na Render sa médiá budú cez HTTPS dočasne spracúvať na serveri Renderu.
 
 ## Spustenie
 
@@ -57,5 +57,19 @@ Predvolená hlasitosť hovoreného slova je **+8 dB**. Náhľady jednotlivých �
 - pôvodné rozlíšenie a FPS zdrojového videa
 - svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
 - 2-sekundový plynulo silnejúci blur/fade, ďalšie 2 sekundy čistého čierneho obrazu a hudba doznievajúca až do konca
+- počas exportu sa priebežne zobrazuje percento aj uplynutý čas
 
 AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. RNNoise zostáva pomocným predčistením pre lokálny prepis.
+
+## Render: aktuálny stav
+
+Server už podporuje `PORT`, bindovanie na `0.0.0.0`, bezpečnostné hlavičky, serverové overovanie uploadov, časové a súbežné limity, vyčistenie dočasných médií a korektné ukončenie pri reštarte. Na Renderi sa bez premennej `GMF_ACCESS_KEY` s minimálne 20 znakmi úmyselne nespustí. Prihlásenie používa meno `give-me-five` a hodnotu tejto premennej ako heslo.
+
+Plnú verziu zatiaľ nenasadzujte na bezplatný plán. Bezplatná inštancia má len 512 MB RAM a 0,1 CPU, zatiaľ čo slovenský Whisper model má v lokálnej cache približne 1,3 GB ešte pred započítaním Node.js a samotnej inferencie. Pribalený `tools/deep-filter` je navyše macOS ARM binárka, nie Linux binárka pre Render. Bezplatný filesystem je dočasný, takže model by sa po uspávaní alebo novom deployi sťahoval znova.
+
+Pred vytvorením `render.yaml` je preto potrebné zvoliť jednu z možností:
+
+1. bezplatný „light“ variant bez lokálneho Whisper prepisu a bez DeepFilterNet3,
+2. plný variant s Linux DeepFilterNet3 binárkou a platenou inštanciou s dostatočnou RAM, ideálne 4 GB.
+
+Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).

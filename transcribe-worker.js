@@ -10,11 +10,28 @@ function runProcess(executable, args) {
     const child = spawn(executable, args, { stdio: ["ignore", "pipe", "pipe"] });
     const stdout = [];
     const stderr = [];
+    let settled = false;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, 2 * 60 * 1000);
+    timer.unref();
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
-      if (code === 0) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(new Error("Príprava zvuku pre prepis prekročila časový limit."));
+      } else if (code === 0) {
         resolve(Buffer.concat(stdout));
       } else {
         reject(new Error(Buffer.concat(stderr).toString("utf8").trim() || `FFmpeg skončil s kódom ${code}.`));
@@ -63,6 +80,7 @@ async function main() {
   let lastModelPercent = -1;
   const transcriber = await pipeline("automatic-speech-recognition", "Xurify/whisper-large-v3-turbo-sk-onnx", {
     dtype: "q4",
+    revision: workerData.modelRevision,
     progress_callback: (progress) => {
       if (progress.status === "progress" && Number.isFinite(progress.progress)) {
         const fileName = String(progress.file || "").split("/").at(-1);

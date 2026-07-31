@@ -2,6 +2,7 @@
 
 const crypto = require("crypto");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const { Worker } = require("worker_threads");
@@ -13,25 +14,84 @@ const ffprobePath = require("ffprobe-static").path;
 const multer = require("multer");
 
 const APP_DIR = __dirname;
-const WORK_DIR = path.join(APP_DIR, ".gmf-work");
+const IS_RENDER = process.env.RENDER === "true";
+const WORK_DIR = process.env.GMF_WORK_DIR
+  ? path.resolve(process.env.GMF_WORK_DIR)
+  : IS_RENDER
+    ? path.join(os.tmpdir(), "give-me-five")
+    : path.join(APP_DIR, ".gmf-work");
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
-const ANALYSIS_DIR = path.join(WORK_DIR, "analysis");
 const EXPORT_DIR = path.join(WORK_DIR, "exports");
 const DENOISE_DIR = path.join(WORK_DIR, "denoise");
 const MODEL_DIR = path.join(WORK_DIR, "models");
 const ASSET_DIR = path.join(APP_DIR, "assets");
 const WHOOSH_PATH = path.join(ASSET_DIR, "fast-whoosh.mp3");
 const RNNOISE_MODEL_PATH = path.join(ASSET_DIR, "rnnoise-voice.rnnn");
-const DEEPFILTER_PATH = path.join(APP_DIR, "tools", "deep-filter");
-const HOST = "127.0.0.1";
-const PORT = Number(process.env.GMF_PORT || 4173);
-const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024;
+const DEEPFILTER_PATH = process.env.GMF_DEEPFILTER_PATH
+  ? path.resolve(process.env.GMF_DEEPFILTER_PATH)
+  : path.join(APP_DIR, "tools", "deep-filter");
+const HOST = process.env.GMF_HOST || (IS_RENDER ? "0.0.0.0" : "127.0.0.1");
+const IS_LOCAL_HOST = ["127.0.0.1", "localhost", "::1"].includes(HOST);
+const IS_PUBLIC_DEPLOYMENT = IS_RENDER || !IS_LOCAL_HOST;
+const PORT = Number(process.env.PORT || process.env.GMF_PORT || 4173);
+const MAX_UPLOAD_BYTES = Math.max(
+  25 * 1024 * 1024,
+  Number(process.env.GMF_MAX_UPLOAD_MB || (IS_RENDER ? 300 : 1024)) * 1024 * 1024
+);
+const ACCESS_USER = String(process.env.GMF_ACCESS_USER || "give-me-five");
+const ACCESS_KEY = String(process.env.GMF_ACCESS_KEY || "");
+const PROCESS_TIMEOUT_MS = Math.max(30_000, Number(process.env.GMF_PROCESS_TIMEOUT_MS || 15 * 60 * 1000));
+const EXPORT_TIMEOUT_MS = Math.max(60_000, Number(process.env.GMF_EXPORT_TIMEOUT_MS || 30 * 60 * 1000));
+const TRANSCRIPT_TIMEOUT_MS = Math.max(
+  60_000,
+  Number(process.env.GMF_TRANSCRIPT_TIMEOUT_MS || 30 * 60 * 1000)
+);
+const TRANSCRIPT_MODEL_REVISION = String(
+  process.env.GMF_TRANSCRIPT_MODEL_REVISION || "a672c7951662ec5738338efab5588d2934018bf3"
+);
 const SESSION_CLOSE_GRACE_MS = 8000;
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const MAX_VIDEO_DURATION = 60.25;
+const MAX_MUSIC_DURATION = 30 * 60;
+const MAX_MEDIA_DIMENSION = 4320;
+const MAX_MEDIA_FPS = 120;
+const MAX_RUNNING_ANALYSES = Math.max(1, Number(process.env.GMF_MAX_RUNNING_ANALYSES || 1));
+const MAX_RUNNING_EXPORTS = Math.max(1, Number(process.env.GMF_MAX_RUNNING_EXPORTS || 1));
+const MAX_RUNNING_TRANSCRIPTS = Math.max(1, Number(process.env.GMF_MAX_RUNNING_TRANSCRIPTS || 1));
+const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const MAX_AUTH_FAILURES = 30;
+const HEAVY_REQUEST_WINDOW_MS = 10 * 60 * 1000;
+const MAX_HEAVY_REQUESTS = 60;
 
-for (const directory of [WORK_DIR, UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, DENOISE_DIR, MODEL_DIR, ASSET_DIR]) {
+for (const directory of [WORK_DIR, UPLOAD_DIR, EXPORT_DIR, DENOISE_DIR, MODEL_DIR, ASSET_DIR]) {
   fs.mkdirSync(directory, { recursive: true });
 }
+
+if (IS_PUBLIC_DEPLOYMENT && ACCESS_KEY.length < 20) {
+  console.error(
+    "GMF_ACCESS_KEY musí byť pri verejnom bindovaní nastavený na náhodné heslo s minimálne 20 znakmi. Server sa nespustil, aby aplikácia nezostala verejne otvorená."
+  );
+  process.exit(1);
+}
+
+const htmlSource = fs.readFileSync(path.join(APP_DIR, "give_me_five.html"), "utf8");
+const inlineScriptMatch = htmlSource.match(/<script>([\s\S]*?)<\/script>/i);
+const inlineScriptHash = inlineScriptMatch
+  ? `'sha256-${crypto.createHash("sha256").update(inlineScriptMatch[1]).digest("base64")}'`
+  : "'none'";
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  `script-src 'self' ${inlineScriptHash}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "font-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join("; ");
 
 const app = express();
 const media = new Map();
@@ -39,6 +99,11 @@ const jobs = new Map();
 const transcriptJobs = new Map();
 const denoisePromises = new Map();
 const sessions = new Map();
+const authFailures = new Map();
+const heavyRequests = new Map();
+const activeChildren = new Set();
+const activeWorkers = new Set();
+let activeMediaAnalyses = 0;
 let whooshPeakSeconds = 0.44;
 
 function normaliseSessionId(value) {
@@ -119,7 +184,7 @@ function cleanupSession(sessionId, options = {}) {
 }
 
 function purgeTemporaryWorkspace() {
-  for (const directory of [UPLOAD_DIR, ANALYSIS_DIR, EXPORT_DIR, DENOISE_DIR]) {
+  for (const directory of [UPLOAD_DIR, EXPORT_DIR, DENOISE_DIR]) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       safeRemove(path.join(directory, entry.name));
     }
@@ -131,6 +196,52 @@ function mediaForRequest(request, mediaId) {
   const sessionId = requestSessionId(request);
   if (!record || !sessionId || record.sessionId !== sessionId) return null;
   return record;
+}
+
+function secureStringEquals(left, right) {
+  const leftBuffer = Buffer.from(String(left || ""), "utf8");
+  const rightBuffer = Buffer.from(String(right || ""), "utf8");
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function clientAddress(request) {
+  return String(request.ip || request.socket?.remoteAddress || "unknown").slice(0, 120);
+}
+
+function currentAuthFailure(address) {
+  const existing = authFailures.get(address);
+  if (!existing || Date.now() - existing.startedAt >= AUTH_FAILURE_WINDOW_MS) {
+    const fresh = { startedAt: Date.now(), count: 0 };
+    authFailures.set(address, fresh);
+    return fresh;
+  }
+  return existing;
+}
+
+function consumeHeavyRequest(address) {
+  const existing = heavyRequests.get(address);
+  const bucket = !existing || Date.now() - existing.startedAt >= HEAVY_REQUEST_WINDOW_MS
+    ? { startedAt: Date.now(), count: 0 }
+    : existing;
+  bucket.count += 1;
+  heavyRequests.set(address, bucket);
+  return bucket.count <= MAX_HEAVY_REQUESTS;
+}
+
+function requestHasValidAccess(request) {
+  if (!ACCESS_KEY) return true;
+  const header = String(request.headers.authorization || "");
+  if (!header.startsWith("Basic ")) return false;
+  try {
+    const decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+    const separator = decoded.indexOf(":");
+    if (separator < 0) return false;
+    return secureStringEquals(decoded.slice(0, separator), ACCESS_USER)
+      && secureStringEquals(decoded.slice(separator + 1), ACCESS_KEY);
+  } catch (_error) {
+    return false;
+  }
 }
 
 const storage = multer.diskStorage({
@@ -147,10 +258,30 @@ const upload = multer({
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 }
 });
 
+app.disable("x-powered-by");
+if (IS_RENDER) app.set("trust proxy", 1);
+
 app.use((request, response, next) => {
-  if (request.headers.origin === "null") {
+  response.setHeader("Content-Security-Policy", contentSecurityPolicy);
+  response.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  response.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()");
+  response.setHeader("Referrer-Policy", "no-referrer");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+  if (IS_RENDER) {
+    response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  if (request.path === "/" || request.path.startsWith("/api/")) {
+    response.setHeader("Cache-Control", "no-store");
+  }
+  next();
+});
+
+app.use((request, response, next) => {
+  if (!IS_PUBLIC_DEPLOYMENT && request.headers.origin === "null") {
     response.setHeader("Access-Control-Allow-Origin", "null");
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type, X-GMF-Session");
     response.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   }
   if (request.method === "OPTIONS") {
@@ -160,20 +291,56 @@ app.use((request, response, next) => {
   next();
 });
 
-app.use(express.json({ limit: "8mb" }));
+app.use((request, response, next) => {
+  if (request.path === "/api/health" || requestHasValidAccess(request)) {
+    if (ACCESS_KEY) authFailures.delete(clientAddress(request));
+    next();
+    return;
+  }
+  const failure = currentAuthFailure(clientAddress(request));
+  failure.count += 1;
+  if (failure.count > MAX_AUTH_FAILURES) {
+    response.setHeader("Retry-After", String(Math.ceil(AUTH_FAILURE_WINDOW_MS / 1000)));
+    response.status(429).type("text/plain").send("Príliš veľa neúspešných pokusov. Skúste to neskôr.");
+    return;
+  }
+  response.setHeader("WWW-Authenticate", 'Basic realm="Give Me Five Editor", charset="UTF-8"');
+  response.status(401).type("text/plain").send("Na otvorenie editora je potrebné prístupové meno a heslo.");
+});
+
+app.use((request, response, next) => {
+  const heavyRequest = (
+    request.method === "POST"
+    && ["/api/media", "/api/transcript", "/api/export", "/api/preview-audio"].includes(request.path)
+  ) || (
+    request.method === "GET"
+    && request.path.startsWith("/api/denoised-audio/")
+  );
+  if (!heavyRequest || consumeHeavyRequest(clientAddress(request))) {
+    next();
+    return;
+  }
+  response.setHeader("Retry-After", String(Math.ceil(HEAVY_REQUEST_WINDOW_MS / 1000)));
+  response.status(429).json({ error: "Príliš veľa náročných operácií. Počkajte niekoľko minút." });
+});
+
+app.use(express.json({ limit: "256kb", strict: true }));
 app.use("/api", (request, _response, next) => {
   request.gmfSessionId = requestSessionId(request);
   if (request.gmfSessionId) touchSession(request.gmfSessionId);
   next();
 });
 app.use("/assets", express.static(ASSET_DIR, { fallthrough: false }));
-app.use("/api/analysis", express.static(ANALYSIS_DIR, { fallthrough: false }));
 
 app.get("/", (_request, response) => {
   response.sendFile(path.join(APP_DIR, "give_me_five.html"));
 });
 
-app.get("/api/health", (_request, response) => {
+app.get("/api/health", (request, response) => {
+  if (IS_PUBLIC_DEPLOYMENT && !requestHasValidAccess(request)) {
+    response.json({ ok: true });
+    return;
+  }
   response.json({
     ok: true,
     engine: "native-ffmpeg",
@@ -219,26 +386,100 @@ function safeId(value) {
   return typeof value === "string" && /^[a-f0-9-]{20,50}$/i.test(value);
 }
 
+function validateUploadSignature(filePath, kind) {
+  const descriptor = fs.openSync(filePath, "r");
+  try {
+    const header = Buffer.alloc(16);
+    const bytesRead = fs.readSync(descriptor, header, 0, header.length, 0);
+    const bytes = header.subarray(0, bytesRead);
+    const isoMedia = bytes.length >= 12 && bytes.toString("ascii", 4, 8) === "ftyp";
+    const wave = bytes.length >= 12
+      && bytes.toString("ascii", 0, 4) === "RIFF"
+      && bytes.toString("ascii", 8, 12) === "WAVE";
+    const id3 = bytes.length >= 3 && bytes.toString("ascii", 0, 3) === "ID3";
+    const mp3Frame = bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0;
+    const valid = kind === "video" ? isoMedia : isoMedia || wave || id3 || mp3Frame;
+    if (!valid) {
+      throw new Error(
+        kind === "video"
+          ? "Video musí byť skutočný súbor MOV alebo MP4."
+          : "Hudba musí byť skutočný súbor MP3, WAV alebo M4A."
+      );
+    }
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function validateMediaMetadata(metadata, kind) {
+  if (!Number.isFinite(metadata.duration) || metadata.duration <= 0) {
+    throw new Error("Dĺžku média sa nepodarilo bezpečne overiť.");
+  }
+  if (!metadata.hasAudio) throw new Error("Vybraný súbor nemá zvukovú stopu.");
+  if (kind === "music") {
+    if (metadata.duration > MAX_MUSIC_DURATION) {
+      throw new Error("Hudobná stopa môže mať najviac 30 minút.");
+    }
+    return;
+  }
+  if (!metadata.hasVideo) throw new Error("Vybraný súbor nemá video stopu.");
+  if (metadata.duration > MAX_VIDEO_DURATION) {
+    throw new Error("Zdrojové video môže mať najviac 60 sekúnd.");
+  }
+  if (metadata.width <= 0 || metadata.height <= 0 || metadata.width > MAX_MEDIA_DIMENSION || metadata.height > MAX_MEDIA_DIMENSION) {
+    throw new Error("Rozlíšenie videa nie je podporované. Maximálna strana je 4320 px.");
+  }
+  if (metadata.width >= metadata.height) {
+    throw new Error("Zdrojové video musí byť na výšku.");
+  }
+  if (!Number.isFinite(metadata.fps) || metadata.fps <= 0 || metadata.fps > MAX_MEDIA_FPS) {
+    throw new Error("Snímková frekvencia videa musí byť najviac 120 FPS.");
+  }
+}
+
 function runProcess(executable, args, options = {}) {
   return new Promise((resolve, reject) => {
+    const { timeoutMs = PROCESS_TIMEOUT_MS, ...spawnOptions } = options;
     const child = spawn(executable, args, {
       cwd: APP_DIR,
       stdio: ["ignore", "pipe", "pipe"],
-      ...options
+      ...spawnOptions
     });
+    activeChildren.add(child);
     const stdout = [];
     const stderr = [];
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, Math.max(1000, numeric(timeoutMs, PROCESS_TIMEOUT_MS)));
+    timer.unref();
 
     child.stdout.on("data", (chunk) => stdout.push(chunk));
     child.stderr.on("data", (chunk) => stderr.push(chunk));
-    child.on("error", reject);
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      activeChildren.delete(child);
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      activeChildren.delete(child);
+      clearTimeout(timer);
       const result = {
         code,
         stdout: Buffer.concat(stdout),
         stderr: Buffer.concat(stderr).toString("utf8")
       };
-      if (code === 0) resolve(result);
+      if (timedOut) {
+        const error = new Error(`Proces prekročil bezpečnostný limit ${Math.round(timeoutMs / 1000)} sekúnd.`);
+        error.result = result;
+        reject(error);
+      } else if (code === 0) resolve(result);
       else {
         const error = new Error(result.stderr.trim().split("\n").slice(-8).join("\n") || `Process exited with ${code}`);
         error.result = result;
@@ -255,7 +496,7 @@ async function probeFile(filePath) {
     "-show_streams",
     "-of", "json",
     filePath
-  ]);
+  ], { timeoutMs: 30_000 });
   const data = JSON.parse(stdout.toString("utf8"));
   const video = data.streams.find((stream) => stream.codec_type === "video");
   const audio = data.streams.find((stream) => stream.codec_type === "audio");
@@ -387,20 +628,6 @@ function analysePcm(buffer, sampleRate, duration) {
     activity,
     noiseFloorDb: Number(noiseFloor.toFixed(1))
   };
-}
-
-async function createSpectrogram(filePath, id) {
-  const outputPath = path.join(ANALYSIS_DIR, `${id}.png`);
-  await runProcess(ffmpegPath, [
-    "-y",
-    "-hide_banner",
-    "-loglevel", "error",
-    "-i", filePath,
-    "-lavfi", "showspectrumpic=s=1800x420:legend=disabled:scale=log:color=viridis:win_func=hann",
-    "-frames:v", "1",
-    outputPath
-  ]);
-  return `/api/analysis/${id}.png`;
 }
 
 function analyseMusicDrops(buffer, sampleRate, duration) {
@@ -546,9 +773,7 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
 
 async function analyseMedia(filePath, id, kind) {
   const metadata = await probeFile(filePath);
-  if (!metadata.hasAudio) {
-    return { metadata, peaks: [], activity: [], noiseFloorDb: -72, spectrogramUrl: null, dropAnalysis: null };
-  }
+  validateMediaMetadata(metadata, kind);
   const pcm = await extractMonoPcm(filePath, 8000);
   return {
     metadata,
@@ -569,18 +794,23 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
     response.status(400).json({ error: "The browser session is missing. Refresh the editor and try again." });
     return;
   }
+  if (activeMediaAnalyses >= MAX_RUNNING_ANALYSES) {
+    fs.rmSync(request.file.path, { force: true });
+    response.setHeader("Retry-After", "5");
+    response.status(429).json({ error: "Server práve analyzuje iný súbor. Skúste to o pár sekúnd." });
+    return;
+  }
   const id = path.parse(request.file.filename).name;
   const kind = request.body.kind === "music" ? "music" : "video";
+  activeMediaAnalyses += 1;
   beginSessionWork(sessionId);
   try {
+    validateUploadSignature(request.file.path, kind);
     const analysis = await analyseMedia(request.file.path, id, kind);
-    if (kind === "video" && !analysis.metadata.hasVideo) throw new Error("The selected file has no video stream.");
-    if (!analysis.metadata.hasAudio) throw new Error("The selected file has no audio stream.");
     const record = {
       id,
       kind,
       path: request.file.path,
-      originalName: request.file.originalname,
       size: request.file.size,
       sessionId,
       generatedFiles: new Set(),
@@ -596,7 +826,6 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
     response.json({
       id,
       kind,
-      originalName: record.originalName,
       size: record.size,
       metadata: record.metadata,
       peaks: record.peaks,
@@ -609,6 +838,7 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
     fs.rmSync(request.file.path, { force: true });
     response.status(422).json({ error: error.message || "The file could not be analysed." });
   } finally {
+    activeMediaAnalyses = Math.max(0, activeMediaAnalyses - 1);
     endSessionWork(sessionId);
   }
 });
@@ -716,22 +946,43 @@ async function transcribeMedia(record, job) {
       workerData: {
         mediaPath: record.path,
         modelDir: MODEL_DIR,
-        rnnoiseModelPath: RNNOISE_MODEL_PATH
+        rnnoiseModelPath: RNNOISE_MODEL_PATH,
+        modelRevision: TRANSCRIPT_MODEL_REVISION
       }
     });
+    activeWorkers.add(worker);
+    let settled = false;
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      activeWorkers.delete(worker);
+      callback(value);
+    };
+    const timer = setTimeout(() => {
+      worker.terminate().catch(() => {});
+      finish(reject, new Error("Prepis prekročil bezpečnostný časový limit."));
+    }, TRANSCRIPT_TIMEOUT_MS);
+    timer.unref();
     worker.on("message", (message) => {
       if (message.type === "progress") {
         job.progress = Math.max(job.progress, numeric(message.progress));
         job.message = message.message || job.message;
       } else if (message.type === "result") {
-        resolve(message.result);
+        finish(resolve, message.result);
       } else if (message.type === "error") {
-        reject(new Error(message.error || "Lokálny prepis zlyhal."));
+        finish(reject, new Error(message.error || "Lokálny prepis zlyhal."));
       }
     });
-    worker.on("error", reject);
+    worker.on("error", (error) => finish(reject, error));
     worker.on("exit", (code) => {
-      if (code !== 0 && job.status === "running") reject(new Error(`Prepisový worker skončil s kódom ${code}.`));
+      activeWorkers.delete(worker);
+      if (!settled && job.status === "running") {
+        finish(
+          reject,
+          new Error(code === 0 ? "Prepisový worker skončil bez výsledku." : `Prepisový worker skončil s kódom ${code}.`)
+        );
+      }
     });
   });
   const words = alignTranscriptWordsToSpeech(
@@ -759,9 +1010,25 @@ app.post("/api/transcript", (request, response) => {
     response.status(404).json({ error: "Importujte video znova." });
     return;
   }
+  const existingJob = [...transcriptJobs.values()].find((job) =>
+    job.mediaId === record.id
+    && job.sessionId === record.sessionId
+    && job.status === "running"
+  );
+  if (existingJob) {
+    response.status(202).json({ jobId: existingJob.id, status: existingJob.status });
+    return;
+  }
+  const runningTranscripts = [...transcriptJobs.values()].filter((job) => job.status === "running").length;
+  if (!record.transcript && runningTranscripts >= MAX_RUNNING_TRANSCRIPTS) {
+    response.setHeader("Retry-After", "10");
+    response.status(429).json({ error: "Prepis iného videa ešte prebieha. Skúste to o chvíľu." });
+    return;
+  }
   const id = crypto.randomUUID();
   const job = {
     id,
+    mediaId: record.id,
     status: record.transcript ? "completed" : "running",
     progress: record.transcript ? 1 : 0,
     message: record.transcript ? "Prepis je pripravený." : "Čakám na lokálny prepis…",
@@ -844,6 +1111,13 @@ async function prepareDenoisedTrack(record, denoise) {
     return outputPath;
   }
   if (denoisePromises.has(cacheKey)) return denoisePromises.get(cacheKey);
+  while (denoisePromises.size >= 1) {
+    await Promise.race([...denoisePromises.values()]).catch(() => {});
+    if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 1024) {
+      record.generatedFiles?.add(outputPath);
+      return outputPath;
+    }
+  }
 
   const promise = (async () => {
     const sourcePath = path.join(DENOISE_DIR, `${cacheKey}-source.wav`);
@@ -958,7 +1232,7 @@ function colourFilters(colour) {
 }
 
 function normaliseSegments(segments, trimStart, trimEnd) {
-  const source = Array.isArray(segments) ? segments : [];
+  const source = Array.isArray(segments) ? segments.slice(0, 100) : [];
   const sorted = source
     .map((segment) => ({
       ...segment,
@@ -1066,7 +1340,7 @@ function calculateAdditiveOverlap(gapEdit, trimStart, trimEnd) {
 }
 
 function applyAudioRanges(segments, ranges, trimStart, trimEnd) {
-  const normalisedRanges = (Array.isArray(ranges) ? ranges : [])
+  const normalisedRanges = (Array.isArray(ranges) ? ranges.slice(0, 100) : [])
     .map((range) => ({
       start: clamp(numeric(range.start), trimStart, trimEnd),
       end: clamp(numeric(range.end), trimStart, trimEnd),
@@ -1312,8 +1586,16 @@ function renderExportPlan(job, plan) {
       cwd: APP_DIR,
       stdio: ["ignore", "pipe", "pipe"]
     });
+    activeChildren.add(child);
     let progressBuffer = "";
     let errorBuffer = "";
+    let timedOut = false;
+    let settled = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, EXPORT_TIMEOUT_MS);
+    timer.unref();
 
     child.stdout.on("data", (chunk) => {
       progressBuffer += chunk.toString("utf8");
@@ -1332,14 +1614,28 @@ function renderExportPlan(job, plan) {
       errorBuffer += chunk.toString("utf8");
       if (errorBuffer.length > 20000) errorBuffer = errorBuffer.slice(-20000);
     });
-    child.on("error", reject);
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      activeChildren.delete(child);
+      clearTimeout(timer);
+      reject(error);
+    });
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      activeChildren.delete(child);
+      clearTimeout(timer);
       if (code === 0 && fs.existsSync(plan.outputPath)) {
         resolve();
         return;
       }
       fs.rmSync(plan.outputPath, { force: true });
-      reject(new Error(errorBuffer.trim().split("\n").slice(-8).join("\n") || `FFmpeg exited with ${code}`));
+      if (timedOut) {
+        reject(new Error(`Export prekročil bezpečnostný limit ${Math.round(EXPORT_TIMEOUT_MS / 60000)} minút.`));
+      } else {
+        reject(new Error(errorBuffer.trim().split("\n").slice(-8).join("\n") || `FFmpeg exited with ${code}`));
+      }
     });
   });
 }
@@ -1393,6 +1689,12 @@ function startExportJob(payload, sessionId) {
 app.post("/api/export", (request, response) => {
   try {
     if (!request.gmfSessionId) throw new Error("The browser session is missing. Refresh the editor.");
+    const runningExports = [...jobs.values()].filter((job) => job.status === "running").length;
+    if (runningExports >= MAX_RUNNING_EXPORTS) {
+      response.setHeader("Retry-After", "10");
+      response.status(429).json({ error: "Iný export ešte prebieha. Počkajte na jeho dokončenie." });
+      return;
+    }
     const job = startExportJob(request.body || {}, request.gmfSessionId);
     response.status(202).json({
       jobId: job.id,
@@ -1462,7 +1764,7 @@ app.get("/api/denoised-audio/:videoId", async (request, response) => {
     });
     if (!denoisedAudioPath) throw new Error("AI denoise nie je zapnutý.");
     response.setHeader("Content-Type", "audio/wav");
-    response.setHeader("Cache-Control", "private, max-age=3600");
+    response.setHeader("Cache-Control", "no-store");
     response.sendFile(denoisedAudioPath, { dotfiles: "allow" }, (error) => {
       endSessionWork(record.sessionId);
       if (error && !response.headersSent) response.status(error.statusCode || 500).json({ error: "Vyčistený hlas sa nepodarilo načítať." });
@@ -1539,7 +1841,18 @@ app.post("/api/preview-audio", async (request, response) => {
 
 app.use((error, _request, response, _next) => {
   if (error instanceof multer.MulterError) {
-    response.status(413).json({ error: error.code === "LIMIT_FILE_SIZE" ? "The selected file is too large." : error.message });
+    const tooLarge = error.code === "LIMIT_FILE_SIZE";
+    response.status(tooLarge ? 413 : 400).json({
+      error: tooLarge ? "Vybraný súbor je príliš veľký." : "Upload obsahuje nepodporované polia."
+    });
+    return;
+  }
+  if (error?.type === "entity.too.large") {
+    response.status(413).json({ error: "Požiadavka je príliš veľká." });
+    return;
+  }
+  if (error instanceof SyntaxError && error.status === 400) {
+    response.status(400).json({ error: "Požiadavka neobsahuje platný JSON." });
     return;
   }
   console.error(error);
@@ -1553,6 +1866,12 @@ setInterval(() => {
       && now - session.closingAt >= SESSION_CLOSE_GRACE_MS;
     const idleExpired = now - session.lastSeenAt >= SESSION_IDLE_TIMEOUT_MS;
     if (closeExpired || idleExpired) cleanupSession(sessionId);
+  }
+  for (const [address, failure] of authFailures.entries()) {
+    if (now - failure.startedAt >= AUTH_FAILURE_WINDOW_MS) authFailures.delete(address);
+  }
+  for (const [address, bucket] of heavyRequests.entries()) {
+    if (now - bucket.startedAt >= HEAVY_REQUEST_WINDOW_MS) heavyRequests.delete(address);
   }
 }, 5000).unref();
 
@@ -1576,10 +1895,38 @@ async function detectWhooshPeak() {
   }
 }
 
-detectWhooshPeak().finally(() => {
-  app.listen(PORT, HOST, () => {
+let httpServer = null;
+let shuttingDown = false;
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal}: ukončujem rozpracované lokálne úlohy a čistím dočasné médiá…`);
+  for (const child of activeChildren) child.kill("SIGTERM");
+  for (const worker of activeWorkers) worker.terminate().catch(() => {});
+  const forceTimer = setTimeout(() => {
+    for (const child of activeChildren) child.kill("SIGKILL");
     purgeTemporaryWorkspace();
-    const url = `http://${HOST}:${PORT}`;
+    process.exit(0);
+  }, 25_000);
+  forceTimer.unref();
+  const finish = () => {
+    clearTimeout(forceTimer);
+    purgeTemporaryWorkspace();
+    process.exit(0);
+  };
+  if (httpServer) httpServer.close(finish);
+  else finish();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+detectWhooshPeak().finally(() => {
+  httpServer = app.listen(PORT, HOST, () => {
+    purgeTemporaryWorkspace();
+    const browserHost = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
+    const url = `http://${browserHost}:${PORT}`;
     console.log(`Give Me Five editor is ready at ${url}`);
     if (process.env.GMF_OPEN_BROWSER === "1") {
       const chromePath = "/Applications/Google Chrome.app";
