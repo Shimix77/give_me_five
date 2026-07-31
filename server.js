@@ -12,12 +12,15 @@ const FFT = require("fft.js");
 const bundledFfmpegPath = require("ffmpeg-static");
 const bundledFfprobePath = require("ffprobe-static").path;
 const multer = require("multer");
+const APP_VERSION = require("./package.json").version;
 const {
   createRenderTiming,
   observeRenderTimingProgress,
   renderTimingSnapshot,
   setRenderTimingStage
 } = require("./render-timing");
+const { detectVisualEntryFromRgb } = require("./visual-entry");
+const { refineSuggestionsWithAudio } = require("./marker-analysis");
 
 const APP_DIR = __dirname;
 const IS_RENDER = process.env.RENDER === "true";
@@ -357,6 +360,7 @@ app.get("/api/health", (request, response) => {
   }
   response.json({
     ok: true,
+    version: APP_VERSION,
     engine: "native-ffmpeg",
     ffmpeg: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
     ffprobe: Boolean(ffprobePath && fs.existsSync(ffprobePath)),
@@ -817,17 +821,35 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
   };
 }
 
+async function analyseVisualEntry(filePath, duration) {
+  const width = 90;
+  const height = 160;
+  const fps = 10;
+  const { stdout } = await runProcess(ffmpegPath, [
+    "-hide_banner",
+    "-loglevel", "error",
+    "-i", filePath,
+    "-t", String(Math.min(12, duration)),
+    "-vf", `fps=${fps},scale=${width}:${height}:flags=area,format=rgb24`,
+    "-f", "rawvideo",
+    "pipe:1"
+  ], { timeoutMs: 45_000 });
+  return detectVisualEntryFromRgb(stdout, { width, height, fps });
+}
+
 async function analyseMedia(filePath, id, kind) {
   const metadata = await probeFile(filePath);
   validateMediaMetadata(metadata, kind);
-  const [pcm, loudness] = await Promise.all([
+  const [pcm, loudness, visualEntry] = await Promise.all([
     extractMonoPcm(filePath, 8000),
-    measureIntegratedLoudness(filePath)
+    measureIntegratedLoudness(filePath),
+    kind === "video" ? analyseVisualEntry(filePath, metadata.duration).catch(() => null) : null
   ]);
   return {
     metadata,
     ...analysePcm(pcm, 8000, metadata.duration),
     loudness,
+    visualEntry,
     spectrogramUrl: null,
     dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null
   };
@@ -882,6 +904,8 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
       activity: record.activity,
       noiseFloorDb: record.noiseFloorDb,
       loudness: record.loudness,
+      denoiseRecommendation: kind === "video" ? recommendDenoise(record, null) : null,
+      visualEntry: record.visualEntry,
       spectrogramUrl: record.spectrogramUrl,
       dropAnalysis: record.dropAnalysis
     });
@@ -1024,19 +1048,6 @@ function recommendDenoise(record, testPhrase) {
   };
 }
 
-function refineSuggestionsWithAudio(suggestions, activity, duration) {
-  const speech = (activity || []).filter((item) => item?.[4] === "speech" && Number.isFinite(item[0]));
-  if (!speech.length) return suggestions;
-  const refined = { ...suggestions };
-  refined.speechStart = clamp(speech[0][0], 0, duration);
-  refined.speechEnd = clamp(speech.at(-1)[0] + 0.12, refined.speechStart, duration);
-  if (Number.isFinite(refined.giveEnd)) {
-    const resumed = speech.find((item) => item[0] >= refined.giveEnd + 0.18);
-    if (resumed) refined.continueStart = clamp(resumed[0], refined.giveEnd, refined.speechEnd);
-  }
-  return refined;
-}
-
 function alignTranscriptWordsToSpeech(words, activity, duration) {
   if (!words.length) return words;
   const usable = words.filter((word) =>
@@ -1100,12 +1111,30 @@ function migrateLegacyTranscriptCache() {
   }
 }
 
-async function transcribeMedia(record, job) {
+async function transcribeMedia(record, job, requestedDenoise = null) {
   migrateLegacyTranscriptCache();
+  const recommendedDenoise = recommendDenoise(record, null);
+  const preliminaryDenoise = {
+    ...recommendedDenoise,
+    ...(requestedDenoise || {}),
+    enabled: true,
+    strength: clamp(numeric(requestedDenoise?.strength, recommendedDenoise.strength), 1, 100)
+  };
+  job.progress = Math.max(job.progress, 0.03);
+  job.message = "Najskôr DeepFilterNet3 oddeľuje hlas od vetra a šumu…";
+  const denoisedAudioPath = await prepareDenoisedTrack(record, preliminaryDenoise);
+  if (!denoisedAudioPath) throw new Error("AI denoise sa nepodarilo pripraviť pred rozpoznaním reči.");
+  job.progress = Math.max(job.progress, 0.15);
+  job.message = "Analyzujem vyčistený hlas pre presnejšie časové značky…";
+  const cleanedPcm = await extractMonoPcm(denoisedAudioPath, 8000);
+  const cleanedAnalysis = analysePcm(cleanedPcm, 8000, record.metadata.duration);
   const workerResult = await new Promise((resolve, reject) => {
     const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
       workerData: {
-        mediaPath: record.path,
+        mediaPath: denoisedAudioPath,
+        precleaned: true,
+        lowCut: preliminaryDenoise.lowCut,
+        clarity: preliminaryDenoise.clarity,
         modelDir: MODEL_DIR,
         rnnoiseModelPath: RNNOISE_MODEL_PATH,
         modelRevision: TRANSCRIPT_MODEL_REVISION
@@ -1148,12 +1177,12 @@ async function transcribeMedia(record, job) {
   });
   const words = alignTranscriptWordsToSpeech(
     workerResult.words || [],
-    record.activity,
+    cleanedAnalysis.activity,
     record.metadata.duration
   );
   const suggestions = refineSuggestionsWithAudio(
     transcriptSuggestions(words, record.metadata.duration),
-    record.activity,
+    cleanedAnalysis.activity,
     record.metadata.duration
   );
   const testPhrase = selectReliableSpeechPhrase(words, suggestions, record.metadata.duration);
@@ -1163,6 +1192,7 @@ async function transcribeMedia(record, job) {
     suggestions,
     testPhrase,
     denoiseRecommendation: recommendDenoise(record, testPhrase),
+    markerAudioBasis: "deepfilter-net3",
     language: "sk",
     model: "Slovenský Whisper Large v3 Turbo · SloPalSpeech fine-tune"
   };
@@ -1202,7 +1232,7 @@ app.post("/api/transcript", (request, response) => {
   };
   transcriptJobs.set(id, job);
   if (!record.transcript) {
-    transcribeMedia(record, job).then((result) => {
+    transcribeMedia(record, job, request.body.denoise).then((result) => {
       record.transcript = result;
       job.result = result;
       job.status = "completed";

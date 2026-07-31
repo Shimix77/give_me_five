@@ -2029,10 +2029,10 @@
     body.wizard-mode #inspectorPanel { grid-column: 2; }
     body.wizard-mode #timelinePanel,
     body.wizard-mode #inspectorPanel { display: none; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel,
     body.wizard-mode[data-wizard-step="5"] #timelinePanel { display: block; }
-    body.wizard-mode[data-wizard-step="2"] #inspectorPanel,
+    body.wizard-mode[data-wizard-step="1"] #inspectorPanel,
     body.wizard-mode[data-wizard-step="4"] #inspectorPanel,
     body.wizard-mode[data-wizard-step="6"] #inspectorPanel,
     body.wizard-mode[data-wizard-step="7"] #inspectorPanel { display: block; }
@@ -2047,12 +2047,12 @@
     body.wizard-mode #timelinePanel .segment-heading,
     body.wizard-mode #timelinePanel #segmentLane,
     body.wizard-mode #timelinePanel #audioRangeEditor { display: none; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoVisualizer,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoTrackTitle,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel .video-legend,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel .marker-details,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #masterPlay,
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel .zoom-tool,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoVisualizer,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoTrackTitle,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel .video-legend,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel .marker-details,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #masterPlay,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel .zoom-tool,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoVisualizer,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoTrackTitle,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .video-legend,
@@ -2065,20 +2065,20 @@
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .zoom-tool,
     body.wizard-mode[data-wizard-step="4"] #previewTransition,
     body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock { display: flex; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoVisualizer,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoVisualizer,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoVisualizer { display: block; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel #videoTrackTitle,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoTrackTitle,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoTrackTitle { display: flex; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel .video-legend,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel .video-legend,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .video-legend { display: flex; }
-    body.wizard-mode[data-wizard-step="1"] #timelinePanel .marker-details { display: block; }
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel .marker-details { display: block; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .segment-heading { display: flex; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #segmentLane { display: block; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #audioRangeEditor { display: grid; }
     body.wizard-mode[data-wizard-step="5"] #timelinePanel #musicDock { display: grid; }
 
     body.wizard-mode #inspectorPanel .control-card { display: none; }
-    body.wizard-mode[data-wizard-step="2"] #denoiseCard,
+    body.wizard-mode[data-wizard-step="1"] #denoiseCard,
     body.wizard-mode[data-wizard-step="4"] #transitionCard,
     body.wizard-mode[data-wizard-step="6"] #transformCard,
     body.wizard-mode[data-wizard-step="6"] #colourCard,
@@ -2133,7 +2133,7 @@
     </header>
 
     <div class="notice" id="serverNotice">
-      <span><strong>Editor nie je spustený.</strong> Vo Finderi dvakrát kliknite na <code>Give Me Five Editor.app</code>. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.</span>
+      <span id="serverNoticeText"><strong>Editor nie je spustený.</strong> Vo Finderi dvakrát kliknite na <code>Give Me Five Editor.app</code>. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.</span>
       <button class="btn danger" id="retryServer" type="button">Skontrolovať znova</button>
     </div>
 
@@ -2378,11 +2378,11 @@
         </div>
         <div class="inspector-body">
           <div class="control-card collapsed" id="transformCard">
-            <h3>Transformácia segmentu <span class="value" id="transformZoomValue">100 %</span></h3>
+            <h3>Transformácia segmentu <span class="value" id="transformZoomValue">108 %</span></h3>
             <p>Zoom sa dá iba zväčšiť. Poloha X/Y využíva len bezpečný priestor, takže sa nikdy neobjaví čierny okraj.</p>
             <div class="field">
-              <div class="field-line"><label for="transformZoom">Zoom</label><span class="value">1,00× – 2,50×</span></div>
-              <input id="transformZoom" type="range" min="1" max="2.5" step=".01" value="1" disabled>
+              <div class="field-line"><label for="transformZoom">Zoom</label><span class="value">1,08× – 2,50×</span></div>
+              <input id="transformZoom" type="range" min="1.08" max="2.5" step=".01" value="1.08" disabled>
             </div>
             <div class="field">
               <div class="field-line"><label for="transformX">Poloha X</label><span class="value" id="transformXValue">0 %</span></div>
@@ -2653,8 +2653,8 @@
     </div>
     <div class="guide-body">
       <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video a voliteľnú hudbu. Aplikácia pripraví presný automatický náhľad; potom ho môžete rovno exportovať alebo ďalej upraviť.</span></div></div>
-      <div class="guide-step"><b>2</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich navrhne automaticky. Na spoločnom waveforme upravíte iba potrebné body a jedným kliknutím potvrdíte celý krok.</span></div></div>
-      <div class="guide-step"><b>3</b><div><strong>AI denoise</strong><span>Aplikácia sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
+      <div class="guide-step"><b>2</b><div><strong>AI denoise pred markermi</strong><span>Aplikácia najprv oddelí hlas od vetra, sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
+      <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne približne 0,1 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
       <div class="guide-step"><b>4</b><div><strong>Hlučné miesta</strong><span>Kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho bez strihu obrazu.</span></div></div>
       <div class="guide-step"><b>5</b><div><strong>Svetelný prechod</strong><span>Prehrajte Give Me Five, whoosh a pokračovanie reči. Dlhá prestávka medzi nimi sa skráti automaticky.</span></div></div>
       <div class="guide-step"><b>6</b><div><strong>Hudba, drop a hlasitosť</strong><span>V jednom kroku vyskúšate tri navrhnuté dropy, nastavíte hlasitosť úvodu, podmazu aj záveru a prehráte ich spolu s videom, hlasom, prechodom a whooshom.</span></div></div>
@@ -2689,9 +2689,11 @@
     const dbToLinear = (db) => Math.pow(10, Number(db) / 20);
     const css = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
     const MEDIA_SESSION_ID = uid();
+    const DEFAULT_VIDEO_ZOOM = 1.08;
 
     const state = {
       serverReady: false,
+      serverVersion: null,
       exporting: false,
       video: null,
       music: null,
@@ -2777,7 +2779,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.5.0";
+    const APP_VERSION = "3.6.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3176,7 +3178,7 @@
     }
 
     const markerInfo = {
-      trimStart: { label: "Začiatok videa", hint: "ľubovoľný trim IN", color: "#eef3fb" },
+      trimStart: { label: "Začiatok videa", hint: "AI navrhne približne 0,1 s pred vizuálnym vstupom človeka", color: "#eef3fb" },
       speechStart: { label: "Začína reč", hint: "hudba sa 1 s plynulo stíši", color: "#6fa8ff" },
       giveEnd: { label: "Koniec „Give Me Five“", hint: "svetlo začne o 0,5 s neskôr", color: "#f0c75e" },
       continueStart: { label: "Druhá časť reči", hint: "sem sa zarovná drop hudby", color: "#ec7db3" },
@@ -3232,6 +3234,46 @@
       etaNode.textContent = `${confidencePrefix}: zostáva približne ${formatElapsedTime(remainingMs)} · hotovo okolo ${formatExpectedClock(timing.estimatedCompletedAt)}`;
     }
 
+    function localRenderTimingEstimate(kind, progress, startedAtMs, message = "") {
+      if (!state.video) return null;
+      const metadata = state.video.analysis.metadata;
+      const elapsedMs = Math.max(0, performance.now() - Number(startedAtMs || performance.now()));
+      const outputDuration = Math.max(.1, editedOutputEnd() - state.trimStart);
+      const resolutionFactor = clamp((metadata.width * metadata.height) / (1080 * 1920), .3, 8);
+      const fpsFactor = clamp(metadata.fps / 30, .5, 4);
+      const isExport = kind === "export";
+      const renderBaselineMs = outputDuration * (isExport ? 4.6 : 3.7) * resolutionFactor * fpsFactor * 1000;
+      const finaliseBaselineMs = ((isExport ? 5 : 4) + outputDuration * (isExport ? .25 : .2)) * 1000;
+      const denoiseBaselineMs = state.globalDenoise.enabled && state.globalDenoise.strength > 0
+        ? (1 + metadata.duration * .04) * 1000
+        : 0;
+      const setupBaselineMs = (isExport ? 1.5 : 1) * 1000;
+      const initialEstimatedTotalMs = setupBaselineMs + denoiseBaselineMs + renderBaselineMs + finaliseBaselineMs;
+      const numericProgress = clamp(Number(progress) || 0, 0, 1);
+      const renderFraction = clamp((numericProgress - .08) / .91, 0, 1);
+      let estimatedTotalMs = initialEstimatedTotalMs;
+      let confidence = "initial";
+
+      if (renderFraction >= .15 && elapsedMs >= 3000) {
+        const observedRenderMs = elapsedMs / renderFraction;
+        const dynamicWeight = clamp(.06 + (renderFraction - .15) * .3, .06, .3);
+        const renderEstimateMs = renderBaselineMs * (1 - dynamicWeight) + observedRenderMs * dynamicWeight;
+        estimatedTotalMs = setupBaselineMs + denoiseBaselineMs + renderEstimateMs + finaliseBaselineMs;
+        confidence = renderFraction >= .65 ? "high" : "medium";
+      }
+      if (/finaliz/i.test(String(message))) confidence = "high";
+      const remainingMs = Math.max(numericProgress >= 1 ? 0 : 1500, estimatedTotalMs - elapsedMs);
+      return {
+        stage: numericProgress >= 1 ? "completed" : /finaliz/i.test(String(message)) ? "finalising" : "rendering",
+        elapsedMs: Math.round(elapsedMs),
+        estimatedTotalMs: Math.round(elapsedMs + remainingMs),
+        remainingMs: Math.round(remainingMs),
+        estimatedCompletedAt: Math.round(Date.now() + remainingMs),
+        initialEstimatedTotalMs: Math.round(initialEstimatedTotalMs),
+        confidence
+      };
+    }
+
     function formatDb(value) {
       const numeric = Number(value);
       return `${numeric > 0 ? "+" : numeric < 0 ? "−" : ""}${Math.abs(numeric)} dB`;
@@ -3278,9 +3320,17 @@
         const response = await api("/api/health");
         const data = await response.json();
         if (!data.ffmpeg || !data.ffprobe || !data.whoosh || !data.deepfilter) throw new Error("Chýba lokálny FFmpeg, whoosh alebo DeepFilterNet3.");
+        if (data.version !== APP_VERSION) {
+          const mismatch = new Error("Beží staršia verzia lokálneho enginu.");
+          mismatch.code = "version-mismatch";
+          mismatch.serverVersion = data.version || "neznáma";
+          throw mismatch;
+        }
         state.serverReady = true;
+        state.serverVersion = data.version || null;
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
+        $("#serverNoticeText").textContent = "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.";
         $("#serverNotice").classList.remove("visible");
         document.body.classList.remove("engine-off");
         if (lastEngineLogState !== true) {
@@ -3290,7 +3340,11 @@
       } catch (error) {
         state.serverReady = false;
         $("#engineStatus").classList.remove("ready");
-        $("#engineLabel").textContent = "Lokálny engine nie je dostupný";
+        const versionMismatch = error?.code === "version-mismatch";
+        $("#engineLabel").textContent = versionMismatch ? "Lokálny engine treba reštartovať" : "Lokálny engine nie je dostupný";
+        $("#serverNoticeText").textContent = versionMismatch
+          ? `Rozhranie má verziu ${APP_VERSION}, ale bežiaci engine ${error.serverVersion}. Zavrite staré okno servera a znovu spustite Give Me Five Editor.app; tým sa načíta aj nový ETA výpočet.`
+          : "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.";
         $("#serverNotice").classList.add("visible");
         document.body.classList.add("engine-off");
         if (lastEngineLogState !== false) {
@@ -3354,11 +3408,20 @@
       if (state.video?.url) URL.revokeObjectURL(state.video.url);
       state.video = record;
       const duration = record.analysis.metadata.duration;
-      state.trimStart = 0;
+      const visualStart = Number(record.analysis.visualEntry?.suggestedStart);
+      state.trimStart = Number.isFinite(visualStart) ? clamp(visualStart, 0, duration - .1) : 0;
       state.trimEnd = duration;
       state.voiceMasterDb = 0;
       state.loudnessTargetLufs = -11;
       state.denoiseManuallyEdited = false;
+      if (record.analysis.denoiseRecommendation) {
+        state.globalDenoise = {
+          enabled: true,
+          strength: record.analysis.denoiseRecommendation.strength,
+          lowCut: record.analysis.denoiseRecommendation.lowCut,
+          clarity: record.analysis.denoiseRecommendation.clarity
+        };
+      }
       state.ending = { holdDuration: 4, blurDuration: 2, blackDuration: 2 };
       state.muteRanges = [];
       state.selectedMuteRangeId = null;
@@ -3372,7 +3435,7 @@
       state.auditionDropTime = null;
       clearRenderedPreview({ force: true });
       state.markers = {
-        speechStart: clamp(2, 0, duration),
+        speechStart: clamp(Math.max(2, state.trimStart), 0, duration),
         giveEnd: clamp(6, 0, duration),
         continueStart: clamp(9, 0, duration),
         speechEnd: clamp(Math.max(11, duration - 7), 0, duration)
@@ -3384,7 +3447,7 @@
         end: duration,
         gainDb: 0,
         muted: false,
-        transform: { zoom: 1, x: 0, y: 0 }
+        transform: { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 }
       }];
       state.selectedSegmentId = state.segments[0].id;
 
@@ -3566,8 +3629,8 @@
         return;
       }
       const source = state.segments[index];
-      const left = { ...source, id: uid(), end: time, transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
-      const right = { ...source, id: uid(), start: time, transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 }) };
+      const left = { ...source, id: uid(), end: time, transform: structuredClone(source.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 }) };
+      const right = { ...source, id: uid(), start: time, transform: structuredClone(source.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 }) };
       state.segments.splice(index, 1, left, right);
       state.selectedSegmentId = right.id;
       rememberEdit("Rozdelenie audio segmentu");
@@ -3589,7 +3652,7 @@
         ...source,
         id: uid(),
         end: next.end,
-        transform: structuredClone(source.transform || { zoom: 1, x: 0, y: 0 })
+        transform: structuredClone(source.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 })
       });
       state.selectedSegmentId = state.segments[index].id;
       rememberEdit("Zlúčenie audio segmentov");
@@ -3935,12 +3998,12 @@
         hint: "Po analýze sa automaticky pripraví presný náhľad. Ak sa vám páči, môžete ho rovno exportovať; inak pokračujte v úpravách."
       },
       {
-        title: "Skontrolujte šesť časových bodov",
-        hint: "AI nastaví všetkých šesť bodov automaticky. Skontrolujte ich naraz na spoločnom waveforme, upravte iba potrebné a potvrďte jedným kliknutím."
+        title: "Najskôr vyčistite hovorený hlas",
+        hint: "AI denoise platí pre celé video a prebehne ešte pred hľadaním reči. A/B náhľad porovná rovnakú spoľahlivo hovorenú pasáž."
       },
       {
-        title: "Vyčistite hovorený hlas",
-        hint: "Odporúčaný AI denoise platí pre celé video. A/B náhľad porovná rovnakú pasáž."
+        title: "Skontrolujte šesť časových bodov",
+        hint: "AI ich nastaví z vyčisteného hlasu; začiatok obrazu navrhne podľa vstupu človeka do záberu. Upravte iba potrebné body."
       },
       {
         title: "Stíšte ľubovoľné hlučné miesta",
@@ -4007,12 +4070,12 @@
           ? "Pokračovať bez hudby →"
           : "Ďalej →";
       const timelineCopies = {
-        1: ["Časové body", "Všetkých šesť AI návrhov je na jednom waveforme. Kliknite na riadok alebo potiahnite značku, ak ju treba upraviť."],
+        2: ["Časové body", "Všetkých šesť AI návrhov je na jednom waveforme. Reč už bola analyzovaná z vyčisteného hlasu; kliknite na riadok alebo potiahnite značku, ak ju treba upraviť."],
         3: ["Lokálne stíšenie", "Označte ľubovoľnú hlučnú oblasť bez delenia obrazu."],
         5: ["Hudba, drop a hlasitosť", "Drop aj tri úrovne hudby nastavíte na jednej stope. Prehrať mix použije každú zmenu okamžite."]
       };
       const inspectorCopies = {
-        2: ["AI denoise", "Vyčistenie sa aplikuje na celé video."],
+        1: ["AI denoise", "Vyčistenie sa aplikuje na celé video ešte pred určením reči a markerov."],
         4: ["Give Me Five prechod", "Automatický strih dlhej prestávky a synchronizovaný whoosh."],
         6: ["Vzhľad videa", "Preset najprv, pokročilé nastavenia iba podľa potreby."],
         7: ["Finálny obraz", "Plynulý blur do čiernej, doznievajúca hudba a priamy export."]
@@ -4027,7 +4090,7 @@
 
     function wizardNext() {
       if (!state.video) return;
-      if (state.wizard.step === 1) recordUsage("all_markers_confirmed", { source: "wizard" });
+      if (state.wizard.step === 2) recordUsage("all_markers_confirmed", { source: "wizard" });
       setWizardStep(state.wizard.step + 1);
     }
 
@@ -4107,7 +4170,7 @@
       $("#segmentGainValue").textContent = formatDb(segment.gainDb);
       $("#segmentMuteBtn").textContent = segment.muted ? "Obnoviť zvuk" : "Stíšiť na nulu";
       $("#segmentMuteBtn").classList.toggle("danger", !segment.muted);
-      const transform = segment.transform || (segment.transform = { zoom: 1, x: 0, y: 0 });
+      const transform = segment.transform || (segment.transform = { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 });
       $("#transformZoom").value = String(transform.zoom);
       $("#transformX").value = String(transform.x);
       $("#transformY").value = String(transform.y);
@@ -4231,7 +4294,8 @@
       $("#denoiseClarity").value = denoise.clarity;
       $("#denoiseClarityNumber").value = denoise.clarity;
       $("#globalStrengthValue").textContent = denoise.enabled ? `${denoise.strength} %` : "Vypnuté";
-      const recommendation = state.transcript.result?.denoiseRecommendation;
+      const recommendation = state.transcript.result?.denoiseRecommendation
+        || state.video?.analysis?.denoiseRecommendation;
       const phrase = state.transcript.result?.testPhrase;
       const confidenceLabels = { high: "vysoká", medium: "stredná", low: "nízka" };
       $("#denoiseRecommendation").innerHTML = recommendation
@@ -4444,7 +4508,7 @@
     }
 
     function safePreviewTransform(transform = {}) {
-      const zoom = clamp(Number(transform.zoom) || 1, 1, 2.5);
+      const zoom = clamp(Number(transform.zoom) || DEFAULT_VIDEO_ZOOM, DEFAULT_VIDEO_ZOOM, 2.5);
       const availableTravel = zoom > 1 ? (zoom - 1) / zoom * 50 : 0;
       const x = clamp(Number(transform.x) || 0, -100, 100) / 100 * availableTravel;
       const y = clamp(Number(transform.y) || 0, -100, 100) / 100 * availableTravel;
@@ -4479,7 +4543,7 @@
       const previewFilter = `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
       $("#video").style.filter = previewFilter;
       const segment = segmentAt($("#video").currentTime);
-      const transform = segment?.transform || { zoom: 1, x: 0, y: 0 };
+      const transform = segment?.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
       $("#video").style.transform = safePreviewTransform(transform);
       $("#video").style.transformOrigin = "center";
 
@@ -5154,7 +5218,10 @@
       if (Number.isFinite(suggestions.continueStart)) state.markers.continueStart = clamp(suggestions.continueStart, state.markers.giveEnd, duration);
       if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd, state.markers.continueStart, duration);
       enforceMarkerOrder();
-      state.trimStart = Math.max(0, state.markers.speechStart - 2);
+      const visualStart = Number(state.video.analysis.visualEntry?.suggestedStart);
+      state.trimStart = Number.isFinite(visualStart)
+        ? clamp(visualStart, 0, state.markers.speechStart)
+        : Math.max(0, state.markers.speechStart - 2);
       state.trimEnd = Math.min(duration, state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration);
       enforceMarkerOrder();
       rememberEdit("AI návrh časových značiek");
@@ -5184,7 +5251,7 @@
         const response = await api("/api/transcript", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoId })
+          body: JSON.stringify({ videoId, denoise: state.globalDenoise })
         });
         const data = await response.json();
         state.transcript.jobId = data.jobId;
@@ -5300,7 +5367,7 @@
       state.renderedPreview = { url: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
       $("#quickPreviewStatus").textContent = "Pripravujem presný náhľad s aktuálnym denoise, hudbou a efektmi…";
       $("#quickRenderBtn").disabled = true;
-      renderTimingEstimate("preview", null, 0);
+      renderTimingEstimate("preview", localRenderTimingEstimate("preview", 0, state.renderedPreview.startedAtMs));
       recordUsage("exact_preview_started", { automatic: Boolean(options.automatic) });
       try {
         const response = await api("/api/render-preview", {
@@ -5337,7 +5404,13 @@
       const percent = Math.round((job.progress || 0) * 100);
       const ownsPreviewState = state.renderedPreview.token === token;
       if (ownsPreviewState) {
-        state.renderedPreview.timing = job.timing || null;
+        const timing = job.timing || localRenderTimingEstimate(
+          "preview",
+          job.progress,
+          state.renderedPreview.startedAtMs,
+          job.message
+        );
+        state.renderedPreview.timing = timing;
         $("#quickPreviewProgress").style.width = `${percent}%`;
         $("#quickPreviewStatus").textContent = state.renderedPreview.stale
           ? `Dokončujem rozpracovaný náhľad; potom pripravím aktuálnu verziu… ${percent} %`
@@ -5345,11 +5418,7 @@
         $("#progressLabel").textContent = job.message || "Pripravujem presný náhľad…";
         $("#progressPercent").textContent = `${percent} %`;
         $("#progressFill").style.width = `${percent}%`;
-        renderTimingEstimate(
-          "preview",
-          job.timing,
-          performance.now() - Number(state.renderedPreview.startedAtMs || performance.now())
-        );
+        renderTimingEstimate("preview", timing);
       }
       if (job.status === "failed") throw new Error(job.error || "Presný náhľad zlyhal.");
       if (job.status !== "completed") {
@@ -5369,7 +5438,13 @@
         return;
       }
       const url = URL.createObjectURL(blob);
-      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false, timing: job.timing || null };
+      const completedTiming = job.timing || localRenderTimingEstimate(
+        "preview",
+        1,
+        state.renderedPreview.startedAtMs,
+        job.message
+      );
+      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false, timing: completedTiming };
       ["quickPreviewVideo"].forEach((id) => {
         const video = $(`#${id}`);
         video.src = url;
@@ -5380,12 +5455,12 @@
       const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
       $("#quickPreviewStatus").textContent = `Presný automatický náhľad je pripravený${loudnessLabel}. Môžete ho exportovať alebo pokračovať v úpravách.`;
       $("#quickPreviewProgress").style.width = "100%";
-      renderTimingEstimate("preview", job.timing);
+      renderTimingEstimate("preview", completedTiming);
       $("#quickExportBtn").disabled = false;
       recordUsage("exact_preview_completed", {
         sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1),
-        processingSeconds: roundedLogNumber(Number(job.timing?.elapsedMs || 0) / 1000, 1),
-        initialEstimateSeconds: roundedLogNumber(Number(job.timing?.initialEstimatedTotalMs || 0) / 1000, 1)
+        processingSeconds: roundedLogNumber(Number(completedTiming?.elapsedMs || 0) / 1000, 1),
+        initialEstimateSeconds: roundedLogNumber(Number(completedTiming?.initialEstimatedTotalMs || 0) / 1000, 1)
       });
       renderValidation();
       $("#quickPreviewVideo").play().catch(() => {});
@@ -5443,7 +5518,7 @@
       $("#progressLabel").textContent = "Pripravujem lokálny export…";
       $("#progressPercent").textContent = "0 %";
       $("#progressFill").style.width = "0%";
-      renderTimingEstimate("export", null, 0);
+      renderTimingEstimate("export", localRenderTimingEstimate("export", 0, exportStartedAt));
       updateExportElapsed();
       const exportElapsedTimer = setInterval(updateExportElapsed, 1000);
       renderValidation();
@@ -5471,18 +5546,19 @@
       const response = await api(`/api/jobs/${jobId}`);
       const job = await response.json();
       const percent = Math.round((job.progress || 0) * 100);
+      const timing = job.timing || localRenderTimingEstimate("export", job.progress, exportStartedAt, job.message);
       $("#progressLabel").textContent = job.message || "Spracúvam…";
       $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
       $("#progressPercent").textContent = `${percent} %`;
       $("#progressFill").style.width = `${percent}%`;
-      renderTimingEstimate("export", job.timing, performance.now() - exportStartedAt);
+      renderTimingEstimate("export", timing, performance.now() - exportStartedAt);
       if (job.status === "completed") {
         state.exporting = false;
         renderValidation();
         recordUsage("export_completed", {
           processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1),
-          serverProcessingSeconds: roundedLogNumber(Number(job.timing?.elapsedMs || 0) / 1000, 1),
-          initialEstimateSeconds: roundedLogNumber(Number(job.timing?.initialEstimatedTotalMs || 0) / 1000, 1),
+          serverProcessingSeconds: roundedLogNumber(Number(timing?.elapsedMs || 0) / 1000, 1),
+          initialEstimateSeconds: roundedLogNumber(Number(timing?.initialEstimatedTotalMs || 0) / 1000, 1),
           integratedLufs: job.details?.finalLoudness?.integratedLufs ?? null,
           truePeakDb: job.details?.finalLoudness?.truePeakDb ?? null
         });
@@ -5904,10 +5980,10 @@
         $(`#${id}`).addEventListener("input", (event) => {
           const segment = getSelectedSegment();
           if (!segment) return;
-          segment.transform ||= { zoom: 1, x: 0, y: 0 };
+          segment.transform ||= { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
           segment.transform[key] = Number(event.target.value);
-          if (key === "zoom" && segment.transform.zoom <= 1.001) {
-            segment.transform.zoom = 1;
+          if (key === "zoom" && segment.transform.zoom <= DEFAULT_VIDEO_ZOOM) {
+            segment.transform.zoom = DEFAULT_VIDEO_ZOOM;
             segment.transform.x = 0;
             segment.transform.y = 0;
           }
@@ -5923,7 +5999,7 @@
       $("#resetTransform").addEventListener("click", () => {
         const segment = getSelectedSegment();
         if (!segment) return;
-        segment.transform = { zoom: 1, x: 0, y: 0 };
+        segment.transform = { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
         rememberEdit("Obnovenie transformácie");
         renderInspector();
         renderPreviewEffects();

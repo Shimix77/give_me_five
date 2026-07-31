@@ -56,14 +56,21 @@ function report(progress, message) {
 }
 
 async function main() {
-  report(0.03, "AI čistí zvuk pre presnejší slovenský prepis…");
+  report(0.18, workerData.precleaned
+    ? "DeepFilterNet3 hlas je pripravený; pripravujem ho pre slovenský prepis…"
+    : "AI čistí zvuk pre presnejší slovenský prepis…");
+  const lowCut = Math.max(50, Math.min(250, Math.round(Number(workerData.lowCut) || 110)));
+  const clarity = Math.max(0, Math.min(100, Number(workerData.clarity) || 0));
+  const audioFilter = workerData.precleaned
+    ? `highpass=f=${lowCut},equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 2.2).toFixed(2)}`
+    : `highpass=f=110,arnndn=m='${filterPath(workerData.rnnoiseModelPath)}':mix=0.798,equalizer=f=2700:t=q:w=1.25:g=0.81`;
   const pcm = await runProcess(ffmpegPath, [
     "-hide_banner",
     "-loglevel", "error",
     "-i", workerData.mediaPath,
     "-map", "0:a:0",
     "-vn",
-    "-af", `highpass=f=110,arnndn=m='${filterPath(workerData.rnnoiseModelPath)}':mix=0.798,equalizer=f=2700:t=q:w=1.25:g=0.81`,
+    "-af", audioFilter,
     "-ac", "1",
     "-ar", "16000",
     "-f", "s16le",

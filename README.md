@@ -24,8 +24,8 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 Editor sa otvorí iba ako krokový sprievodca. V každom kroku zobrazí náhľad a ovládače, ktoré práve potrebujete:
 
 1. vloženie portrétového MOV/MP4 do 90 sekúnd a voliteľnej licencovanej hudby; po analýze sa automaticky pripraví presný náhľad s východiskovými nastaveniami a možno ho hneď exportovať,
-2. spoločná kontrola všetkých markerov na jednom waveforme,
-3. AI denoise celého videa s automatickým návrhom parametrov a reálnym A/B náhľadom na spoľahlivo rozpoznanej hovorenej vete,
+2. AI denoise celého videa s automatickým návrhom parametrov a reálnym A/B náhľadom na spoľahlivo rozpoznanej hovorenej vete,
+3. spoločná kontrola všetkých markerov na jednom waveforme; reč sa hľadá až vo vyčistenej stope a začiatok obrazu sa navrhne približne 0,1 sekundy pred vizuálnym vstupom človeka,
 4. ľubovoľné oblasti na waveforme so stíšením 0 až −36 dB alebo úplným tichom,
 5. svetelný prechod s fast-whoosh efektom,
 6. hudba, tri automaticky navrhnuté dropy, hlasitosť úvodu/podmazu/záveru a spoločný náhľad finálneho mixu v jednom kroku,
@@ -42,7 +42,7 @@ Hudobný analyzátor prejde celú skladbu, odporučí tri dropy, zobrazí BPM/be
 
 Tlačidlá **Späť** a **Vpred** alebo skratky `⌘/Ctrl+Z` a `⇧⌘/Ctrl+Z` vracajú a obnovujú posledných 80 úprav. Tlačidlo **? Návod** kedykoľvek otvorí stručný postup.
 
-Zoom obrazu začína na 100 % a dá sa iba zvyšovať. Poloha X/Y sa počíta ako percento práve dostupného priestoru po zväčšení; krajné hodnoty preto skončia presne na hrane a v náhľade ani exporte nevytvoria čierny okraj.
+Zoom obrazu začína na 108 %, aby portrét pri väčšine videí zaplnil takmer celú plochu. Dá sa iba zvyšovať. Poloha X/Y sa počíta ako percento práve dostupného priestoru po zväčšení; krajné hodnoty preto skončia presne na hrane a v náhľade ani exporte nevytvoria čierny okraj. Výstupné rozlíšenie a FPS sa nemenia.
 
 Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
@@ -58,7 +58,7 @@ Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +
 - cieľová finálna hlasitosť −11 LUFS (voliteľne −14/−16 LUFS), nameraná hodnota sa zobrazí po renderi
 - počas exportu sa priebežne zobrazuje percento aj uplynutý čas
 
-AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. RNNoise zostáva pomocným predčistením pre lokálny prepis.
+AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. Rovnaký DeepFilter výstup sa použije aj pred lokálnym slovenským prepisom a určovaním markerov.
 
 ## Cloud: aktuálny stav
 
@@ -67,4 +67,4 @@ Server už podporuje `PORT`, bindovanie na `0.0.0.0`, bezpečnostné hlavičky, 
 Plnú verziu zatiaľ nenasadzujte z tohto checkoutu priamo na Linux. Slovenský Whisper model má v lokálnej cache približne 1,3 GB ešte pred započítaním Node.js a samotnej inferencie. Pribalený `tools/deep-filter` je navyše macOS ARM binárka, nie Linux binárka. Pre Oracle Cloud zostáva doplniť pripnutý Linux ARM64 DeepFilterNet a kontajnerový deployment; lokálna macOS verzia zostane zachovaná.
 
 Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).
-Pri príprave presného náhľadu a exporte sa zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Odhad sa priebežne spresňuje podľa reálnej rýchlosti FFmpeg; základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
+Pri príprave presného náhľadu a exporte sa od začiatku zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Klient má vlastný kalibrovaný záložný odhad a po prijatí FFmpeg progresu ho priebežne spresňuje; staršiu verziu bežiaceho servera rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
