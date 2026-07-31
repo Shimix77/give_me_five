@@ -1,0 +1,18 @@
+{
+  "description": "18_A.MOV + Friend of God instrumental, 1080x1920, 29.999 fps, 40.768 s output, local Apple Silicon run",
+  "sourceDuration": 39.268333,
+  "outputDuration": 40.768333,
+  "width": 1080,
+  "height": 1920,
+  "fps": 29.998726709392642,
+  "denoiseEnabled": true,
+  "measuredTotalMs": 166400,
+  "samples": [
+    { "elapsedMs": 3000, "progress": 0.2 },
+    { "elapsedMs": 49000, "progress": 0.5 },
+    { "elapsedMs": 134000, "progress": 0.9 },
+    { "elapsedMs": 155000, "progress": 0.99 }
+  ],
+  "finaliseStartedMs": 155000,
+  "completedMs": 166400
+}

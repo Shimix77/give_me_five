@@ -67,3 +67,4 @@ Server už podporuje `PORT`, bindovanie na `0.0.0.0`, bezpečnostné hlavičky, 
 Plnú verziu zatiaľ nenasadzujte z tohto checkoutu priamo na Linux. Slovenský Whisper model má v lokálnej cache približne 1,3 GB ešte pred započítaním Node.js a samotnej inferencie. Pribalený `tools/deep-filter` je navyše macOS ARM binárka, nie Linux binárka. Pre Oracle Cloud zostáva doplniť pripnutý Linux ARM64 DeepFilterNet a kontajnerový deployment; lokálna macOS verzia zostane zachovaná.
 
 Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).
+Pri príprave presného náhľadu a exporte sa zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Odhad sa priebežne spresňuje podľa reálnej rýchlosti FFmpeg; základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.

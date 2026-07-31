@@ -12,6 +12,12 @@ const FFT = require("fft.js");
 const bundledFfmpegPath = require("ffmpeg-static");
 const bundledFfprobePath = require("ffprobe-static").path;
 const multer = require("multer");
+const {
+  createRenderTiming,
+  observeRenderTimingProgress,
+  renderTimingSnapshot,
+  setRenderTimingStage
+} = require("./render-timing");
 
 const APP_DIR = __dirname;
 const IS_RENDER = process.env.RENDER === "true";
@@ -1784,6 +1790,7 @@ function renderExportPlan(job, plan) {
           const microseconds = numeric(rawValue);
           job.progress = 0.08 + clamp(microseconds / (plan.outputDuration * 1_000_000), 0, 0.91);
           job.message = "Renderujem video, vyčistený hlas a hudobný mix…";
+          observeRenderTimingProgress(job.timing, job.progress);
         }
       }
     });
@@ -1861,6 +1868,7 @@ function startExportJob(payload, sessionId, options = {}) {
     message: options.preview ? "Pripravujem presný náhľad…" : "Pripravujem lokálny export…",
     outputPath: null,
     details: null,
+    timing: null,
     error: null,
     createdAt: Date.now(),
     sessionId,
@@ -1875,8 +1883,20 @@ function startExportJob(payload, sessionId, options = {}) {
       const music = payload.musicId ? media.get(payload.musicId) : null;
       if (!video || video.sessionId !== sessionId) throw new Error("Zdrojové video už nie je načítané. Vložte ho znova.");
       if (payload.musicId && (!music || music.sessionId !== sessionId)) throw new Error("Hudba už nie je načítaná. Vložte ju znova.");
+      const preflightPlan = buildExportPlan(payload, null, options);
+      job.timing = createRenderTiming({
+        kind: options.preview ? "preview" : "export",
+        sourceDuration: video.metadata.duration,
+        outputDuration: preflightPlan.outputDuration,
+        width: video.metadata.width,
+        height: video.metadata.height,
+        fps: video.metadata.fps,
+        denoiseEnabled: denoiseEnabled(payload.globalDenoise),
+        startedAt: job.createdAt
+      });
       let denoisedAudioPath = null;
       if (denoiseEnabled(payload.globalDenoise)) {
+        setRenderTimingStage(job.timing, "denoising");
         job.message = "DeepFilterNet3 oddeľuje hlas od vetra a okolitého šumu…";
         job.progress = 0.02;
         denoisedAudioPath = await prepareDenoisedTrack(video, payload.globalDenoise);
@@ -1885,9 +1905,11 @@ function startExportJob(payload, sessionId, options = {}) {
       const plan = buildExportPlan(payload, denoisedAudioPath, options);
       job.outputPath = plan.outputPath;
       job.details = plan.details;
+      setRenderTimingStage(job.timing, "rendering");
       await renderExportPlan(job, plan);
       job.progress = 0.99;
       job.message = "Finalizujem výslednú LUFS hlasitosť…";
+      setRenderTimingStage(job.timing, "finalising");
       const loudnessResult = await finaliseRenderedLoudness(
         plan.outputPath,
         payload.loudness?.targetLufs,
@@ -1898,10 +1920,12 @@ function startExportJob(payload, sessionId, options = {}) {
       job.status = "completed";
       job.progress = 1;
       job.message = options.preview ? "Presný náhľad je pripravený." : "MP4 export je pripravený.";
+      setRenderTimingStage(job.timing, "completed");
     } catch (error) {
       job.status = "failed";
       job.error = error.message || "Export zlyhal.";
       job.message = "Export zlyhal.";
+      setRenderTimingStage(job.timing, "failed");
       if (job.outputPath) fs.rmSync(job.outputPath, { force: true });
     }
   })();
@@ -1957,6 +1981,7 @@ app.get("/api/jobs/:id", (request, response) => {
     message: job.message,
     error: job.error,
     details: job.status === "completed" ? job.details : null,
+    timing: renderTimingSnapshot(job.timing),
     downloadUrl: job.status === "completed" ? `/api/jobs/${job.id}/download` : null
   });
 });

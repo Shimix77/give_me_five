@@ -1612,6 +1612,22 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .render-timing {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 5px 14px;
+      margin-top: 7px;
+      color: #9fb0c7;
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .render-timing .eta {
+      color: var(--gold);
+      font-weight: 700;
+    }
+
     .muted-copy { color: var(--muted); }
     .hidden { display: none !important; }
 
@@ -2173,6 +2189,10 @@
           <h2>Pozrite si výsledok s odporúčanými nastaveniami</h2>
           <p id="quickPreviewStatus">Po vložení videa aplikácia nájde reč, navrhne denoise, prechod a hudobný drop a pripraví presný náhľad.</p>
           <div class="progress-track"><div class="progress-fill" id="quickPreviewProgress"></div></div>
+          <div class="render-timing hidden" id="quickPreviewTiming" aria-live="polite">
+            <span id="quickPreviewElapsed">Uplynulo 00:00</span>
+            <span class="eta" id="quickPreviewEta">Odhad sa vypočíta po spustení</span>
+          </div>
           <div class="button-pair" style="margin-top:10px">
             <button class="btn" id="quickEditBtn" type="button" disabled>Chcem video upraviť</button>
             <button class="btn primary" id="quickExportBtn" type="button" disabled>Exportovať tento návrh</button>
@@ -2613,6 +2633,9 @@
             <span class="progress-metrics"><span id="progressElapsed">Čas 00:00</span><span id="progressPercent">0 %</span></span>
           </div>
           <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="render-timing hidden" id="exportTiming" aria-live="polite">
+            <span id="progressEta">Odhad sa vypočíta po spustení</span>
+          </div>
         </div>
         <button class="btn primary export-btn" id="exportBtn" type="button" disabled>↓ Exportovať MP4</button>
       </div>
@@ -2742,7 +2765,7 @@
       musicPlayPending: false,
       musicPlaybackError: null,
       lastMusicPlayAttemptAt: 0,
-      renderedPreview: { url: null, rendering: false, ready: false, key: null, token: null, stale: false }
+      renderedPreview: { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null }
     };
 
     const editHistory = {
@@ -2754,7 +2777,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.4.0";
+    const APP_VERSION = "3.5.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3178,6 +3201,35 @@
       return hours > 0
         ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
         : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
+    function formatExpectedClock(timestamp) {
+      const value = Number(timestamp);
+      if (!Number.isFinite(value)) return "—";
+      return new Intl.DateTimeFormat("sk-SK", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+    }
+
+    function renderTimingEstimate(kind, timing, fallbackElapsedMs = 0) {
+      const isQuickPreview = kind === "preview";
+      const container = isQuickPreview ? $("#quickPreviewTiming") : $("#exportTiming");
+      const elapsedNode = isQuickPreview ? $("#quickPreviewElapsed") : $("#progressElapsed");
+      const etaNode = isQuickPreview ? $("#quickPreviewEta") : $("#progressEta");
+      if (!container || !elapsedNode || !etaNode) return;
+
+      const elapsedMs = Number(timing?.elapsedMs ?? fallbackElapsedMs) || 0;
+      container.classList.remove("hidden");
+      elapsedNode.textContent = `${isQuickPreview ? "Uplynulo" : "Čas"} ${formatElapsedTime(elapsedMs)}`;
+      const remainingMs = Number(timing?.remainingMs);
+      if (timing && remainingMs <= 0) {
+        etaNode.textContent = `Hotovo za ${formatElapsedTime(elapsedMs)}`;
+        return;
+      }
+      if (!timing || !Number.isFinite(remainingMs)) {
+        etaNode.textContent = "Počítam prvý odhad…";
+        return;
+      }
+      const confidencePrefix = timing.confidence === "initial" ? "Prvý odhad" : "Odhad";
+      etaNode.textContent = `${confidencePrefix}: zostáva približne ${formatElapsedTime(remainingMs)} · hotovo okolo ${formatExpectedClock(timing.estimatedCompletedAt)}`;
     }
 
     function formatDb(value) {
@@ -5202,7 +5254,7 @@
         return;
       }
       if (current?.url) URL.revokeObjectURL(current.url);
-      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false };
+      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       ["quickPreviewVideo"].forEach((id) => {
         const video = $(`#${id}`);
         if (!video) return;
@@ -5212,6 +5264,7 @@
       });
       $("#quickPreviewEmpty")?.classList.remove("hidden");
       if ($("#quickPreviewProgress")) $("#quickPreviewProgress").style.width = "0%";
+      $("#quickPreviewTiming")?.classList.add("hidden");
       if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
     }
 
@@ -5244,9 +5297,10 @@
       clearRenderedPreview();
       const key = previewProjectKey();
       const token = uid();
-      state.renderedPreview = { url: null, rendering: true, ready: false, key, token, stale: false };
+      state.renderedPreview = { url: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
       $("#quickPreviewStatus").textContent = "Pripravujem presný náhľad s aktuálnym denoise, hudbou a efektmi…";
       $("#quickRenderBtn").disabled = true;
+      renderTimingEstimate("preview", null, 0);
       recordUsage("exact_preview_started", { automatic: Boolean(options.automatic) });
       try {
         const response = await api("/api/render-preview", {
@@ -5268,8 +5322,9 @@
 
     function restartSupersededPreview(key, token) {
       if (state.renderedPreview.token !== token) return;
-      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false };
+      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       $("#quickPreviewProgress").style.width = "0%";
+      $("#quickPreviewTiming").classList.add("hidden");
       $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Pripravujem ich aktuálnu verziu…";
       recordUsage("exact_preview_superseded", { projectChanged: key !== previewProjectKey() });
       renderValidation();
@@ -5282,6 +5337,7 @@
       const percent = Math.round((job.progress || 0) * 100);
       const ownsPreviewState = state.renderedPreview.token === token;
       if (ownsPreviewState) {
+        state.renderedPreview.timing = job.timing || null;
         $("#quickPreviewProgress").style.width = `${percent}%`;
         $("#quickPreviewStatus").textContent = state.renderedPreview.stale
           ? `Dokončujem rozpracovaný náhľad; potom pripravím aktuálnu verziu… ${percent} %`
@@ -5289,6 +5345,11 @@
         $("#progressLabel").textContent = job.message || "Pripravujem presný náhľad…";
         $("#progressPercent").textContent = `${percent} %`;
         $("#progressFill").style.width = `${percent}%`;
+        renderTimingEstimate(
+          "preview",
+          job.timing,
+          performance.now() - Number(state.renderedPreview.startedAtMs || performance.now())
+        );
       }
       if (job.status === "failed") throw new Error(job.error || "Presný náhľad zlyhal.");
       if (job.status !== "completed") {
@@ -5308,7 +5369,7 @@
         return;
       }
       const url = URL.createObjectURL(blob);
-      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false };
+      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false, timing: job.timing || null };
       ["quickPreviewVideo"].forEach((id) => {
         const video = $(`#${id}`);
         video.src = url;
@@ -5319,8 +5380,13 @@
       const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
       $("#quickPreviewStatus").textContent = `Presný automatický náhľad je pripravený${loudnessLabel}. Môžete ho exportovať alebo pokračovať v úpravách.`;
       $("#quickPreviewProgress").style.width = "100%";
+      renderTimingEstimate("preview", job.timing);
       $("#quickExportBtn").disabled = false;
-      recordUsage("exact_preview_completed", { sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1) });
+      recordUsage("exact_preview_completed", {
+        sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1),
+        processingSeconds: roundedLogNumber(Number(job.timing?.elapsedMs || 0) / 1000, 1),
+        initialEstimateSeconds: roundedLogNumber(Number(job.timing?.initialEstimatedTotalMs || 0) / 1000, 1)
+      });
       renderValidation();
       $("#quickPreviewVideo").play().catch(() => {});
     }
@@ -5377,6 +5443,7 @@
       $("#progressLabel").textContent = "Pripravujem lokálny export…";
       $("#progressPercent").textContent = "0 %";
       $("#progressFill").style.width = "0%";
+      renderTimingEstimate("export", null, 0);
       updateExportElapsed();
       const exportElapsedTimer = setInterval(updateExportElapsed, 1000);
       renderValidation();
@@ -5408,11 +5475,14 @@
       $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
       $("#progressPercent").textContent = `${percent} %`;
       $("#progressFill").style.width = `${percent}%`;
+      renderTimingEstimate("export", job.timing, performance.now() - exportStartedAt);
       if (job.status === "completed") {
         state.exporting = false;
         renderValidation();
         recordUsage("export_completed", {
           processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1),
+          serverProcessingSeconds: roundedLogNumber(Number(job.timing?.elapsedMs || 0) / 1000, 1),
+          initialEstimateSeconds: roundedLogNumber(Number(job.timing?.initialEstimatedTotalMs || 0) / 1000, 1),
           integratedLufs: job.details?.finalLoudness?.integratedLufs ?? null,
           truePeakDb: job.details?.finalLoudness?.truePeakDb ?? null
         });
