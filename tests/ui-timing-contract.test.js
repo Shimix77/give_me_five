@@ -28,10 +28,26 @@ test("workflow cleans voice before showing marker controls", () => {
   assert.ok(denoiseTitle >= 0 && markerTitle > denoiseTitle);
 });
 
-test("portrait video starts with a safe 108 percent crop", () => {
-  assert.match(html, /const DEFAULT_VIDEO_ZOOM = 1\.08/);
-  assert.match(html, /id="transformZoom"[^>]+min="1\.08"[^>]+value="1\.08"/);
-  assert.match(html, /transform: \{ zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 \}/);
+test("portrait video uses reliable automatic framing and a safe 100 percent fallback", () => {
+  assert.match(html, /function initialVideoTransform/);
+  assert.match(html, /framing\?\.confidence === "high"/);
+  assert.match(html, /autoFraming: false/);
+  assert.match(html, /Postavu sa nepodarilo spoľahlivo určiť/);
+  assert.match(html, /id="transformZoom"[^>]+min="1"[^>]+value="1"/);
+});
+
+test("first step exposes immediate portrait playback and one combined ETA", () => {
+  assert.match(html, /function beginImmediateVideoPreview/);
+  assert.match(html, /function combinedQuickRenderTiming/);
+  assert.match(html, /class="import-stack"/);
+  assert.match(html, /aspect-ratio:\s*9 \/ 16/);
+  assert.match(html, /width:\s*min\(360px, 100%\)/);
+});
+
+test("vivid colour preset is the default for preview and quick export", () => {
+  assert.match(html, /colour:\s*structuredClone\(COLOUR_PRESETS\.vivid\)/);
+  assert.match(html, /preview\.style\.filter = colourPreviewFilter\(0\)/);
+  assert.match(html, /colour:\s*state\.colour/);
 });
 
 test("a stale local server is identified instead of silently losing ETA data", () => {

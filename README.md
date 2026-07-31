@@ -23,7 +23,7 @@ Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte p
 
 Editor sa otvorí iba ako krokový sprievodca. V každom kroku zobrazí náhľad a ovládače, ktoré práve potrebujete:
 
-1. vloženie portrétového MOV/MP4 do 90 sekúnd a voliteľnej licencovanej hudby; po analýze sa automaticky pripraví presný náhľad s východiskovými nastaveniami a možno ho hneď exportovať,
+1. vloženie portrétového MOV/MP4 do 90 sekúnd a voliteľnej licencovanej hudby; pôvodné video sa dá prehrať okamžite počas analýzy a od prvej sekundy sa zobrazuje spoločný odhad až do hotového presného náhľadu,
 2. AI denoise celého videa s automatickým návrhom parametrov a reálnym A/B náhľadom na spoľahlivo rozpoznanej hovorenej vete,
 3. spoločná kontrola všetkých markerov na jednom waveforme; reč sa hľadá až vo vyčistenej stope a začiatok obrazu sa navrhne približne 0,1 sekundy pred vizuálnym vstupom človeka,
 4. ľubovoľné oblasti na waveforme so stíšením 0 až −36 dB alebo úplným tichom,
@@ -42,7 +42,7 @@ Hudobný analyzátor prejde celú skladbu, odporučí tri dropy, zobrazí BPM/be
 
 Tlačidlá **Späť** a **Vpred** alebo skratky `⌘/Ctrl+Z` a `⇧⌘/Ctrl+Z` vracajú a obnovujú posledných 80 úprav. Tlačidlo **? Návod** kedykoľvek otvorí stručný postup.
 
-Zoom obrazu začína na 108 %, aby portrét pri väčšine videí zaplnil takmer celú plochu. Dá sa iba zvyšovať. Poloha X/Y sa počíta ako percento práve dostupného priestoru po zväčšení; krajné hodnoty preto skončia presne na hrane a v náhľade ani exporte nevytvoria čierny okraj. Výstupné rozlíšenie a FPS sa nemenia.
+Predvolený preset **Živé farby** sa použije už v okamžitom náhľade aj pri rýchlom exporte; v kroku farieb ho možno zmeniť na neutrálny alebo doladiť. Zoom a poloha sa pre každé video automaticky navrhnú podľa stabilne rozpoznanej tváre a postavy. Ak detekcia nie je dostatočne istá, aplikácia nepribližuje, ponechá 100 % a viditeľne na to upozorní. Automatický zoom možno iba zvyšovať. Poloha X/Y sa počíta ako percento práve dostupného priestoru po zväčšení; krajné hodnoty preto skončia presne na hrane a v náhľade ani exporte nevytvoria čierny okraj. Výstupné rozlíšenie a FPS sa nemenia.
 
 Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
@@ -67,4 +67,4 @@ Server už podporuje `PORT`, bindovanie na `0.0.0.0`, bezpečnostné hlavičky, 
 Plnú verziu zatiaľ nenasadzujte z tohto checkoutu priamo na Linux. Slovenský Whisper model má v lokálnej cache približne 1,3 GB ešte pred započítaním Node.js a samotnej inferencie. Pribalený `tools/deep-filter` je navyše macOS ARM binárka, nie Linux binárka. Pre Oracle Cloud zostáva doplniť pripnutý Linux ARM64 DeepFilterNet a kontajnerový deployment; lokálna macOS verzia zostane zachovaná.
 
 Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).
-Pri príprave presného náhľadu a exporte sa od začiatku zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Klient má vlastný kalibrovaný záložný odhad a po prijatí FFmpeg progresu ho priebežne spresňuje; staršiu verziu bežiaceho servera rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
+V prvom kroku sú importy videa a hudby kompaktne pod sebou vľavo a portrétový prehrávač 360 × 640 vpravo. Pôvodný súbor sa v ňom dá prehrať ihneď; upload, obrazová analýza, AI denoise/prepis, analýza hudby a presný render pokračujú na pozadí. Jeden spoločný ukazovateľ od začiatku zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Po prijatí FFmpeg progresu sa odhad priebežne spresňuje. Staršiu verziu bežiaceho servera editor rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.

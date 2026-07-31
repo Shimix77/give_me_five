@@ -25,6 +25,14 @@ function syntheticFrames({ count = 60, personStartsAt = null } = {}) {
     if (personStartsAt !== null && frame >= personStartsAt) {
       const enteredFrames = frame - personStartsAt + 1;
       const left = Math.max(52, width - enteredFrames * 7);
+      for (let y = 76; y < 91; y++) {
+        for (let x = Math.max(left + 8, 60); x < Math.min(width, Math.max(left + 8, 60) + 10); x++) {
+          const pixel = (y * width + x) * 3;
+          target[pixel] = 194;
+          target[pixel + 1] = 132;
+          target[pixel + 2] = 103;
+        }
+      }
       for (let y = 88; y < 153; y++) {
         for (let x = left; x < width; x++) {
           const pixel = (y * width + x) * 3;
@@ -47,4 +55,8 @@ test("places trim 0.1 s before the first visible person after detector latency",
   assert.ok(result);
   assert.ok(result.suggestedStart >= 2.8 && result.suggestedStart <= 3.1, JSON.stringify(result));
   assert.equal(result.method, "coherent-visual-entry");
+  assert.ok(result.framing, JSON.stringify(result));
+  assert.ok(result.framing.zoom >= 1.12 && result.framing.zoom <= 1.48, JSON.stringify(result.framing));
+  assert.ok(result.framing.x >= -100 && result.framing.x <= 100);
+  assert.ok(result.framing.y >= -100 && result.framing.y <= 100);
 });
