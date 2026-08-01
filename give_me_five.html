@@ -460,6 +460,11 @@
       align-items: center;
       gap: 18px;
     }
+    .import-row > div:nth-child(2) { min-width: 0; }
+    .import-row > label.btn {
+      flex: none;
+      white-space: nowrap;
+    }
 
     .import-icon {
       display: grid;
@@ -491,7 +496,7 @@
     .file-name {
       display: block;
       overflow: hidden;
-      max-width: 620px;
+      max-width: 100%;
       margin-top: 9px;
       color: #cbd5e5;
       font-size: 12px;
@@ -3064,7 +3069,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.10.0";
+    const APP_VERSION = "3.10.1";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;

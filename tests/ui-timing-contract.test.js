@@ -57,6 +57,12 @@ test("quick preview controls stay outside the transformed portrait image", () =>
   assert.doesNotMatch(html, /<video id="quickPreviewVideo"[^>]*\scontrols(?:\s|>)/);
 });
 
+test("long media names cannot push the audio chooser outside its import card", () => {
+  assert.match(html, /\.import-row > div:nth-child\(2\) \{ min-width: 0; \}/);
+  assert.match(html, /\.import-row > label\.btn[\s\S]*?white-space: nowrap/);
+  assert.match(html, /\.file-name[\s\S]*?max-width: 100%[\s\S]*?text-overflow: ellipsis/);
+});
+
 test("framing popup offers static detail and dynamic speech-timed zoom", () => {
   assert.match(html, /id="framingModeDialog"/);
   assert.match(html, /data-framing-choice="static"/);

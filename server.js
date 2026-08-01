@@ -1536,7 +1536,7 @@ function appendVideoSequence(filters, inputIndex, segments, prefix, metadata, op
   return sequenceLabel;
 }
 
-function dynamicFramingFilter(framing, targetTransform, timing, metadata) {
+function appendDynamicFraming(filters, inputLabel, framing, targetTransform, timing, metadata) {
   const fps = Math.max(1, numeric(metadata.fps, 30));
   const zoom = clamp(numeric(targetTransform?.zoom, 1), 1, 2.5);
   const positionX = clamp(numeric(targetTransform?.x), -100, 100);
@@ -1563,12 +1563,19 @@ function dynamicFramingFilter(framing, targetTransform, timing, metadata) {
     `between(t,${zoomInStart.toFixed(4)},${(zoomInStart + zoomInDuration).toFixed(4)})`,
     `between(t,${zoomOutStart.toFixed(4)},${(zoomOutStart + zoomOutDuration).toFixed(4)})`
   ].join("+");
-  return [
-    `zoompan=z='${zoomExpression}':x='${xExpression}':y='${yExpression}':d=1:s=${metadata.width}x${metadata.height}:fps=${fps}`,
-    `tmix=frames=3:weights='1 2 1':enable='${transitionWindows}'`,
-    `gblur=sigma=5:enable='${transitionWindows}'`,
-    "setsar=1"
-  ].join(",");
+  const motionAmount = [
+    `if(between(T,${zoomInStart.toFixed(4)},${(zoomInStart + zoomInDuration).toFixed(4)}),`,
+    `0.68*sin(PI*(T-${zoomInStart.toFixed(4)})/${zoomInDuration.toFixed(4)}),`,
+    `if(between(T,${zoomOutStart.toFixed(4)},${(zoomOutStart + zoomOutDuration).toFixed(4)}),`,
+    `0.68*sin(PI*(T-${zoomOutStart.toFixed(4)})/${zoomOutDuration.toFixed(4)}),0))`
+  ].join("");
+  filters.push(
+    `[${inputLabel}]zoompan=z='${zoomExpression}':x='${xExpression}':y='${yExpression}':d=1:s=${metadata.width}x${metadata.height}:fps=${fps},setsar=1[dynamicZoomSharp]`,
+    "[dynamicZoomSharp]split=2[dynamicSharp][dynamicMotionInput]",
+    `[dynamicMotionInput]tmix=frames=3:weights='1 2 1',gblur=sigma=2.2[dynamicMotion]`,
+    `[dynamicSharp][dynamicMotion]blend=all_expr='A*(1-(${motionAmount}))+B*(${motionAmount})',setsar=1[dynamicFraming]`
+  );
+  return { label: "dynamicFraming", transitionWindows };
 }
 
 function calculateAdditiveOverlap(gapEdit, trimStart, trimEnd) {
@@ -1732,10 +1739,15 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   if (dynamicFraming) {
     const targetSegment = sourceSegments.find((segment) => speechStart >= segment.start && speechStart <= segment.end)
       || sourceSegments[0];
-    filters.push(
-      `[${videoSequenceLabel}]${dynamicFramingFilter(payload.framing, targetSegment?.transform, timing, video.metadata)}[dynamicFraming]`
+    const dynamicResult = appendDynamicFraming(
+      filters,
+      videoSequenceLabel,
+      payload.framing,
+      targetSegment?.transform,
+      timing,
+      video.metadata
     );
-    videoSequenceLabel = "dynamicFraming";
+    videoSequenceLabel = dynamicResult.label;
   }
   const freezeFilter = freezeFrameDuration > 0.001
     ? `,tpad=stop_mode=clone:stop_duration=${freezeFrameDuration.toFixed(4)}`

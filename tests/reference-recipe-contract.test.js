@@ -51,9 +51,10 @@ test("AAC render keeps enough true-peak headroom for codec overshoot", () => {
 
 test("dynamic framing renders a speech-timed zoom blur while static framing keeps segment transforms", () => {
   assert.match(server, /payload\.framing\?\.mode === "dynamic"/);
-  assert.match(server, /function dynamicFramingFilter/);
+  assert.match(server, /function appendDynamicFraming/);
   assert.match(server, /zoompan=z=/);
   assert.match(server, /tmix=frames=3/);
-  assert.match(server, /gblur=sigma=5/);
+  assert.match(server, /gblur=sigma=2\.2/);
+  assert.match(server, /blend=all_expr='A\*\(1-\(\$\{motionAmount\}\)\)\+B\*\(\$\{motionAmount\}\)'/);
   assert.match(server, /applyTransform: !dynamicFraming/);
 });
