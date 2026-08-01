@@ -21,6 +21,7 @@ const {
 } = require("./render-timing");
 const { detectVisualEntryFromRgb } = require("./visual-entry");
 const { calculateGapEdit, refineSuggestionsWithAudio } = require("./marker-analysis");
+const { analyseMusicSuitability } = require("./music-suitability");
 
 const APP_DIR = __dirname;
 const IS_RENDER = process.env.RENDER === "true";
@@ -877,13 +878,17 @@ async function analyseMedia(filePath, id, kind) {
     measureIntegratedLoudness(filePath),
     kind === "video" ? analyseVisualEntry(filePath, metadata.duration).catch(() => null) : null
   ]);
+  const pcmAnalysis = analysePcm(pcm, 8000, metadata.duration);
   return {
     metadata,
-    ...analysePcm(pcm, 8000, metadata.duration),
+    ...pcmAnalysis,
     loudness,
     visualEntry,
     spectrogramUrl: null,
-    dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null
+    dropAnalysis: kind === "music" ? analyseMusicDrops(pcm, 8000, metadata.duration) : null,
+    musicSuitability: kind === "music"
+      ? analyseMusicSuitability(pcm, 8000, metadata.duration, loudness)
+      : null
   };
 }
 
@@ -939,7 +944,8 @@ app.post("/api/media", upload.single("file"), async (request, response) => {
       denoiseRecommendation: kind === "video" ? recommendDenoise(record, null) : null,
       visualEntry: record.visualEntry,
       spectrogramUrl: record.spectrogramUrl,
-      dropAnalysis: record.dropAnalysis
+      dropAnalysis: record.dropAnalysis,
+      musicSuitability: record.musicSuitability
     });
   } catch (error) {
     fs.rmSync(request.file.path, { force: true });
@@ -1631,6 +1637,22 @@ function musicVolumeExpression(settings, timing) {
   ].join("");
 }
 
+function musicPreparationFilters(settings) {
+  const normalizationDb = clamp(numeric(settings.normalizationDb), -18, 12);
+  const filters = [`volume=${dbToLinear(normalizationDb).toFixed(7)}`];
+  const compression = settings.compression || {};
+  if (compression.enabled) {
+    const thresholdDb = clamp(numeric(compression.thresholdDb, -18), -30, -8);
+    const ratio = clamp(numeric(compression.ratio, 1.4), 1, 2.5);
+    const attack = clamp(numeric(compression.attackMs, 25), 5, 100);
+    const release = clamp(numeric(compression.releaseMs, 250), 50, 1000);
+    filters.push(
+      `acompressor=threshold=${dbToLinear(thresholdDb).toFixed(7)}:ratio=${ratio.toFixed(2)}:attack=${attack.toFixed(0)}:release=${release.toFixed(0)}:makeup=1`
+    );
+  }
+  return filters;
+}
+
 function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const video = media.get(payload.videoId);
   if (!video) throw new Error("The source video is no longer loaded. Import it again.");
@@ -1797,8 +1819,9 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
       throw new Error("The selected music is too short for this video. Choose another track or an earlier drop.");
     }
     const musicFadeDuration = finalFade + blackTailDuration;
+    const preparation = musicPreparationFilters(musicSettings);
     filters.push(
-      `[${musicInputIndex}:a]atrim=start=${Math.max(0, musicStart).toFixed(4)}:end=${musicEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,volume='${musicVolumeExpression(musicSettings, timing)}':eval=frame,afade=t=out:st=${fadeStartRel.toFixed(4)}:d=${musicFadeDuration.toFixed(4)}[music]`
+      `[${musicInputIndex}:a]atrim=start=${Math.max(0, musicStart).toFixed(4)}:end=${musicEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${preparation.join(",")},volume='${musicVolumeExpression(musicSettings, timing)}':eval=frame,afade=t=out:st=${fadeStartRel.toFixed(4)}:d=${musicFadeDuration.toFixed(4)}[music]`
     );
     mixLabels.push("music");
   }

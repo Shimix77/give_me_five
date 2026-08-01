@@ -234,6 +234,44 @@
 
     .import-card.music::after { background: rgba(240, 199, 94, .075); }
 
+    .music-quality {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      margin-top: 9px;
+      padding: 9px 10px;
+      border: 1px solid rgba(110, 224, 176, .26);
+      border-radius: 10px;
+      background: rgba(110, 224, 176, .07);
+    }
+    .music-quality.warning {
+      border-color: rgba(255, 181, 106, .36);
+      background: rgba(255, 181, 106, .08);
+    }
+    .music-quality.replace {
+      border-color: rgba(255, 127, 137, .42);
+      background: rgba(255, 127, 137, .09);
+    }
+    .music-quality-badge {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: rgba(110, 224, 176, .15);
+      color: var(--green);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .music-quality.warning .music-quality-badge { background: rgba(255, 181, 106, .13); color: var(--wind); }
+    .music-quality.replace .music-quality-badge { background: rgba(255, 127, 137, .14); color: #ffc6cb; }
+    .music-quality-copy { min-width: 0; color: #dbe6f6; font-size: 10px; line-height: 1.35; }
+    .music-quality-copy strong { display: block; color: #f4f7fb; font-size: 11px; }
+    .music-quality-copy span { color: var(--muted); }
+    .music-quality .btn { min-height: 31px; padding: 6px 9px; white-space: nowrap; }
+
     .quick-preview-card {
       display: grid;
       min-height: 0;
@@ -2393,6 +2431,14 @@
           <label class="btn" for="musicFile">Vybrať audio</label>
           <input id="musicFile" type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/*">
         </div>
+        <div class="music-quality hidden" id="musicQuality" aria-live="polite">
+          <span class="music-quality-badge" id="musicQualityBadge">Kontrola</span>
+          <div class="music-quality-copy">
+            <strong id="musicQualityTitle">Kontrolujem hlasitosť hudby…</strong>
+            <span id="musicQualityDetails"></span>
+          </div>
+          <label class="btn danger hidden" id="replaceMusicBtn" for="musicFile">Vybrať inú hudbu</label>
+        </div>
         <button class="quiet-action" id="skipMusicBtn" type="button">Pokračovať bez hudby</button>
         <div class="loading-line"></div>
       </article>
@@ -3015,6 +3061,8 @@
         duringSpeechDb: -25,
         afterSpeechDb: -13,
         offsetDb: 0,
+        normalizationDb: 0,
+        compression: { enabled: false, thresholdDb: -18, ratio: 1, attackMs: 25, releaseMs: 250, kneeDb: 8 },
         manual: false,
         dropManual: false
       },
@@ -3069,7 +3117,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.10.4";
+    const APP_VERSION = "3.10.5";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
@@ -3435,6 +3483,8 @@
           duringSpeechDb: state.musicSettings.duringSpeechDb,
           afterSpeechDb: state.musicSettings.afterSpeechDb,
           offsetDb: state.musicSettings.offsetDb,
+          normalizationDb: state.musicSettings.normalizationDb,
+          compression: state.musicSettings.compression,
           manualLevels: state.musicSettings.manual,
           manualDrop: state.musicSettings.dropManual
         } : null
@@ -3814,6 +3864,11 @@
       workflow.musicStartedAtMs = performance.now();
       workflow.musicDuration = clamp(file.size / 16_000, 10, 900);
       workflow.complete = false;
+      $("#musicQuality").classList.remove("hidden", "warning", "replace");
+      $("#musicQualityBadge").textContent = "Kontrola";
+      $("#musicQualityTitle").textContent = "Normalizujem a kontrolujem hlasitosť hudby…";
+      $("#musicQualityDetails").textContent = "Najskôr dorovnám celú skladbu, potom preverím dynamiku použitej pasáže.";
+      $("#replaceMusicBtn").classList.add("hidden");
       ensureQuickWorkflowTimer();
       renderQuickWorkflowPreparation("Analyzujem hudbu a priebežne počítam čas do hotového náhľadu…");
     }
@@ -4011,6 +4066,12 @@
         } else {
           state.quickWorkflow.musicImporting = false;
           state.quickWorkflow.musicSelected = false;
+          $("#musicQuality").classList.remove("hidden", "warning");
+          $("#musicQuality").classList.add("replace");
+          $("#musicQualityBadge").textContent = "Chyba";
+          $("#musicQualityTitle").textContent = "Hudbu sa nepodarilo skontrolovať";
+          $("#musicQualityDetails").textContent = error.message;
+          $("#replaceMusicBtn").classList.remove("hidden");
         }
         recordUsage("media_import_failed", { kind, reason: "analysis_or_upload_error" });
         name.textContent = error.message;
@@ -4165,6 +4226,17 @@
       $("#setDropBtn").disabled = false;
       $("#musicFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       $("#skipMusicBtn").classList.add("hidden");
+      const suitability = record.analysis.musicSuitability || {};
+      state.musicSettings.normalizationDb = Number(suitability.normalizationDb) || 0;
+      state.musicSettings.compression = structuredClone(suitability.compression || {
+        enabled: false,
+        thresholdDb: -18,
+        ratio: 1,
+        attackMs: 25,
+        releaseMs: 250,
+        kneeDb: 8
+      });
+      state.musicSettings.offsetDb = 0;
       const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
       const recommendedDrop = record.analysis.dropAnalysis?.candidates?.[0]?.time;
       state.musicSettings.dropManual = false;
@@ -4177,6 +4249,13 @@
           candidateCount: record.analysis.dropAnalysis?.candidates?.length || 0
         });
       }
+      recordUsage("music_suitability_checked", {
+        status: suitability.status || "unknown",
+        score: suitability.score ?? null,
+        normalizationDb: suitability.normalizationDb ?? null,
+        dynamicSpreadDb: suitability.dynamicSpreadDb ?? null,
+        compressionEnabled: Boolean(suitability.compression?.enabled)
+      });
       state.musicZoom = 1;
       rememberEdit("Načítanie hudby a automatický drop");
       renderAll();
@@ -4871,6 +4950,74 @@
       return { start, end: start + outputDuration, duration: outputDuration };
     }
 
+    function musicWindowPercentile(values, ratio) {
+      if (!values.length) return -72;
+      const sorted = [...values].sort((left, right) => left - right);
+      const position = clamp((sorted.length - 1) * ratio, 0, sorted.length - 1);
+      const lower = Math.floor(position);
+      const upper = Math.ceil(position);
+      if (lower === upper) return sorted[lower];
+      return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+    }
+
+    function assessSelectedMusicPassage(passage) {
+      const suitability = state.music?.analysis?.musicSuitability;
+      if (!suitability || !passage || passage.start < 0) return null;
+      const levels = (suitability.windows || [])
+        .filter((window) => window[0] >= passage.start && window[0] <= passage.end)
+        .map((window) => Number(window[1]))
+        .filter(Number.isFinite);
+      if (levels.length < 3) return null;
+      const upper = musicWindowPercentile(levels, .95);
+      const active = levels.filter((value) => value >= Math.max(-58, upper - 30));
+      const spread = Math.max(0, musicWindowPercentile(active, .95) - musicWindowPercentile(active, .20));
+      const quietShare = levels.filter((value) => value < upper - 18).length / levels.length;
+      const status = spread > 20 || (quietShare > .58 && spread > 15)
+        ? "replace"
+        : spread > 13
+          ? "warning"
+          : "ok";
+      return {
+        status,
+        dynamicSpreadDb: Number(spread.toFixed(1)),
+        quietShare: Number(quietShare.toFixed(2))
+      };
+    }
+
+    function renderMusicSuitability(passage = calculateMusicPassage()) {
+      const box = $("#musicQuality");
+      const suitability = state.music?.analysis?.musicSuitability;
+      box.classList.toggle("hidden", !suitability);
+      if (!suitability) return;
+      const passageCheck = assessSelectedMusicPassage(passage);
+      const status = suitability.status === "replace" || passageCheck?.status === "replace"
+        ? "replace"
+        : suitability.status === "normalized" || passageCheck?.status === "warning"
+          ? "warning"
+          : "ok";
+      box.classList.toggle("warning", status === "warning");
+      box.classList.toggle("replace", status === "replace");
+      $("#replaceMusicBtn").classList.toggle("hidden", status !== "replace");
+      const sourceLufs = Number(state.music.analysis.loudness?.integratedLufs);
+      const targetLufs = Number(suitability.normalizedLufs);
+      const gain = Number(suitability.normalizationDb) || 0;
+      const compression = suitability.compression || {};
+      const passageText = passageCheck
+        ? ` Použitá pasáž: rozptyl ${passageCheck.dynamicSpreadDb.toFixed(1).replace(".", ",")} dB.`
+        : "";
+      $("#musicQualityBadge").textContent = status === "replace" ? "Riziková" : status === "warning" ? "Upravená" : "Vhodná";
+      $("#musicQualityTitle").textContent = status === "replace"
+        ? "Táto hudba môže prekrývať hovorené slovo"
+        : status === "warning"
+          ? "Hudbu som automaticky vyrovnal"
+          : "Hudba je vhodná ako prirodzený podmaz";
+      const loudnessText = Number.isFinite(sourceLufs) && Number.isFinite(targetLufs)
+        ? `${sourceLufs.toFixed(1).replace(".", ",")} → ${targetLufs.toFixed(1).replace(".", ",")} LUFS (${gain >= 0 ? "+" : ""}${gain.toFixed(1).replace(".", ",")} dB).`
+        : `Automatická úprava ${gain >= 0 ? "+" : ""}${gain.toFixed(1).replace(".", ",")} dB.`;
+      const compressionText = compression.enabled ? ` Jemná kompresia ${Number(compression.ratio).toFixed(2).replace(".", ",")}:1.` : "";
+      $("#musicQualityDetails").textContent = `${loudnessText}${compressionText}${passageText} ${suitability.reason || ""}`;
+    }
+
     function effectiveDropTime() {
       return Number.isFinite(state.auditionDropTime) ? state.auditionDropTime : state.musicSettings.dropTime;
     }
@@ -4884,6 +5031,7 @@
       $("#musicAfter").value = state.musicSettings.afterSpeechDb;
       $("#musicModePill").textContent = state.musicSettings.manual ? "Manuálne" : "Odporúčané";
       const passage = calculateMusicPassage();
+      renderMusicSuitability(passage);
       if (!passage) {
         $("#musicPassage").textContent = state.music ? "Najskôr vložte video a nastavte jeho značky." : "Po vložení hudby sa tu zobrazí začiatok, koniec a kontrola dĺžky.";
       } else {
@@ -5075,7 +5223,9 @@
       const passage = calculateMusicPassage();
       const musicTime = passage ? passage.start + (previewTime - state.trimStart) : $("#music").currentTime;
       const voicePeak = meterPeak(state.video, videoTime) * dbToLinear(state.voiceMasterDb + voiceLoudnessCompensationDb());
-      const musicPeak = meterPeak(state.music, musicTime) * dbToLinear(musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb);
+      const musicPeak = meterPeak(state.music, musicTime) * dbToLinear(
+        musicDbAtVideoTime(previewTime) + state.musicSettings.offsetDb + state.musicSettings.normalizationDb
+      );
       $("#voiceMeter").style.width = `${clamp(voicePeak * 100, 0, 100)}%`;
       $("#musicMeter").style.width = `${clamp(musicPeak * 100, 0, 100)}%`;
     }
@@ -5134,6 +5284,13 @@
         if (passage.start < 0) errors.push("Drop hudby je príliš skoro; pred dropom nie je dosť hudby na začiatok videa.");
         else if (passage.end > duration) errors.push("Hudba je kratšia než potrebná pasáž. Vyberte inú alebo posuňte drop.");
         else checks.push({ text: `Hudba ${formatTime(passage.duration)} presne po video` });
+        const wholeTrackStatus = state.music.analysis.musicSuitability?.status;
+        const passageStatus = assessSelectedMusicPassage(passage)?.status;
+        if (wholeTrackStatus === "replace" || passageStatus === "replace") {
+          warnings.push("Hudba má aj po normalizácii veľké rozdiely hlasitosti. Odporúčam vybrať inú skladbu.");
+        } else if (state.musicSettings.normalizationDb) {
+          checks.push({ text: `Hudba normalizovaná ${formatDb(state.musicSettings.normalizationDb)}` });
+        }
       } else {
         warnings.push("Hudba nie je vložená; export bude obsahovať iba pôvodný zvuk a whoosh.");
       }
@@ -5597,6 +5754,8 @@
       const videoGain = context.createGain();
       const cleanGain = context.createGain();
       const musicGain = context.createGain();
+      const musicNormalizationGain = context.createGain();
+      const musicCompressor = context.createDynamicsCompressor();
       const whooshGain = context.createGain();
       const quickPreviewMonoGain = context.createGain();
       const quickPreviewStereoGain = context.createGain();
@@ -5636,7 +5795,11 @@
       masterLimiter.connect(context.destination);
       const videoDualMono = connectDualMono(videoSource, videoGain);
       videoGain.connect(masterLimiter);
-      musicSource.connect(musicGain).connect(masterLimiter);
+      musicSource
+        .connect(musicNormalizationGain)
+        .connect(musicCompressor)
+        .connect(musicGain)
+        .connect(masterLimiter);
       const cleanVoiceDualMono = connectDualMono(cleanVoiceSource, cleanHighpass);
       cleanHighpass
         .connect(cleanPresence)
@@ -5653,6 +5816,8 @@
         videoGain,
         cleanGain,
         musicGain,
+        musicNormalizationGain,
+        musicCompressor,
         whooshGain,
         cleanHighpass,
         cleanPresence,
@@ -5721,7 +5886,9 @@
         return;
       }
       const labels = { intro: "Úvod", speech: "Počas reči", after: "Po reči" };
-      $("#musicLiveStatus").textContent = `Hudba teraz: ${labels[phase]} · ${formatDb(musicDbAtVideoTime(time) + state.musicSettings.offsetDb)}`;
+      $("#musicLiveStatus").textContent = `Hudba teraz: ${labels[phase]} · ${formatDb(
+        musicDbAtVideoTime(time) + state.musicSettings.offsetDb + state.musicSettings.normalizationDb
+      )} po normalizácii`;
     }
 
     function channelAudible(channel) {
@@ -5802,10 +5969,17 @@
         : 0;
       if (state.audioGraph) {
         const now = state.audioGraph.context.currentTime;
+        const compression = state.musicSettings.compression || {};
         [
           [state.audioGraph.videoGain.gain, videoLevel, .015],
           [state.audioGraph.cleanGain.gain, cleanLevel, .015],
           [state.audioGraph.musicGain.gain, musicLevel, .02],
+          [state.audioGraph.musicNormalizationGain.gain, dbToLinear(state.musicSettings.normalizationDb || 0), .02],
+          [state.audioGraph.musicCompressor.threshold, Number(compression.thresholdDb ?? -18), .02],
+          [state.audioGraph.musicCompressor.knee, Number(compression.kneeDb ?? 8), .02],
+          [state.audioGraph.musicCompressor.ratio, compression.enabled ? Number(compression.ratio || 1.4) : 1, .02],
+          [state.audioGraph.musicCompressor.attack, Number(compression.attackMs || 25) / 1000, .02],
+          [state.audioGraph.musicCompressor.release, Number(compression.releaseMs || 250) / 1000, .02],
           [state.audioGraph.whooshGain.gain, dbToLinear(5), .01],
           [state.audioGraph.cleanHighpass.frequency, state.globalDenoise.lowCut, .02],
           [state.audioGraph.cleanPresence.gain, state.globalDenoise.clarity / 100 * 2.2, .02]
@@ -5816,7 +5990,7 @@
       } else {
         video.volume = clamp(videoLevel, 0, 1);
         clean.volume = clamp(cleanLevel, 0, 1);
-        music.volume = clamp(musicLevel, 0, 1);
+        music.volume = clamp(musicLevel * dbToLinear(state.musicSettings.normalizationDb || 0), 0, 1);
         whoosh.volume = 1;
       }
 
@@ -6305,6 +6479,8 @@
           duringSpeechDb: state.musicSettings.duringSpeechDb,
           afterSpeechDb: state.musicSettings.afterSpeechDb,
           offsetDb: state.musicSettings.offsetDb,
+          normalizationDb: state.musicSettings.normalizationDb,
+          compression: state.musicSettings.compression,
           manual: state.musicSettings.manual
         }
       };
