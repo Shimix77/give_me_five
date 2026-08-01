@@ -350,7 +350,10 @@ app.use("/api", (request, _response, next) => {
 app.use("/assets", express.static(ASSET_DIR, { fallthrough: false }));
 
 app.get("/", (_request, response) => {
-  response.sendFile(path.join(APP_DIR, "give_me_five.html"));
+  // Serve the exact HTML snapshot whose inline script was hashed above. If the
+  // file changes while an older server is still running, mixing a fresh file
+  // with the old CSP hash would make Chrome block the entire application.
+  response.type("html").send(htmlSource);
 });
 
 app.get("/api/health", (request, response) => {

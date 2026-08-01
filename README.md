@@ -11,6 +11,8 @@ Webová aplikácia pre Google Chrome. V lokálnom režime video a audio ostávaj
 
 Launcher nepotrebuje povolenie na ovládanie Terminálu cez AppleScript. Súbor `start.command` otvorí štandardným macOS spôsobom; ten spustí server, počká na jeho pripravenosť a až potom otvorí Chrome.
 
+Pri každom spustení sa porovná verzia projektu s verziou už bežiaceho lokálneho enginu. Ak po aktualizácii zostal otvorený starší server, launcher ho bezpečne ukončí a spustí aktuálny. Server zároveň posiela presne tú istú HTML verziu, ku ktorej vytvoril bezpečnostný CSP podpis, takže Chrome po aktualizácii nezablokuje uploadové tlačidlá.
+
 ## Súkromie a dočasné súbory
 
 Každé načítanie editora vytvorí novú pracovnú session. Nahrané video, hudba, vyčistené audio, analýzy a nedownloadované exporty sa po zatvorení karty automaticky odstránia. Aj obyčajný reload začne odznova a pôvodné nastavenia neobnoví. Ak Chrome spadne bez odoslania informácie o zatvorení, záložné čistenie prebehne po 30 minútach bez heartbeat-u.

@@ -5,6 +5,7 @@ set -u
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$APP_DIR"
 APP_URL="http://127.0.0.1:4173"
+EXPECTED_VERSION="$(/usr/bin/sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$APP_DIR/package.json")"
 
 pause_if_terminal() {
   if [ -t 0 ]; then
@@ -20,10 +21,32 @@ open_editor() {
   open "$APP_URL"
 }
 
-if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
-  echo "Give Me Five Editor už beží. Otváram Google Chrome…"
+RUNNING_HEALTH="$(curl -fsS "$APP_URL/api/health" 2>/dev/null || true)"
+RUNNING_VERSION="$(/usr/bin/printf '%s' "$RUNNING_HEALTH" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+
+if [ -n "$RUNNING_HEALTH" ] && [ "$RUNNING_VERSION" = "$EXPECTED_VERSION" ]; then
+  echo "Give Me Five Editor $RUNNING_VERSION už beží. Otváram Google Chrome…"
   open_editor
   exit 0
+fi
+
+if [ -n "$RUNNING_HEALTH" ]; then
+  echo "Beží starší Give Me Five Editor ${RUNNING_VERSION:-bez verzie}; potrebná je verzia $EXPECTED_VERSION. Reštartujem ho…"
+  LISTENER_PIDS="$(/usr/sbin/lsof -tiTCP:4173 -sTCP:LISTEN 2>/dev/null || true)"
+  for LISTENER_PID in $LISTENER_PIDS; do
+    /bin/kill "$LISTENER_PID" >/dev/null 2>&1 || true
+  done
+  for _stop_attempt in $(seq 1 40); do
+    if ! curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.25
+  done
+  if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+    echo "CHYBA: Staršiu verziu editora sa nepodarilo ukončiť. Zatvorte jej okno Terminálu a skúste to znova."
+    pause_if_terminal
+    exit 1
+  fi
 fi
 
 NODE_BIN="$(command -v node || true)"
@@ -76,7 +99,9 @@ SERVER_PID=$!
 SERVER_READY=0
 
 for _attempt in $(seq 1 80); do
-  if curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+  STARTED_HEALTH="$(curl -fsS "$APP_URL/api/health" 2>/dev/null || true)"
+  STARTED_VERSION="$(/usr/bin/printf '%s' "$STARTED_HEALTH" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+  if [ "$STARTED_VERSION" = "$EXPECTED_VERSION" ]; then
     SERVER_READY=1
     break
   fi

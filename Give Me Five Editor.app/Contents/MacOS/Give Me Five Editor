@@ -3,8 +3,11 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 APP_URL="http://127.0.0.1:4173"
+EXPECTED_VERSION="$(/usr/bin/sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$PROJECT_DIR/package.json")"
+RUNNING_HEALTH="$(/usr/bin/curl -fsS "$APP_URL/api/health" 2>/dev/null || true)"
+RUNNING_VERSION="$(/usr/bin/printf '%s' "$RUNNING_HEALTH" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
 
-if /usr/bin/curl -fsS "$APP_URL/api/health" >/dev/null 2>&1; then
+if [ -n "$RUNNING_HEALTH" ] && [ "$RUNNING_VERSION" = "$EXPECTED_VERSION" ]; then
   /usr/bin/open -b com.google.Chrome "$APP_URL" >/dev/null 2>&1 || /usr/bin/open "$APP_URL"
   exit 0
 fi
