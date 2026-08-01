@@ -3069,7 +3069,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.10.2";
+    const APP_VERSION = "3.10.3";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
@@ -6280,6 +6280,7 @@
     function exportPayload() {
       return {
         videoId: state.video.analysis.id,
+        sourceFileName: state.video.file.name,
         musicId: state.music?.analysis.id || null,
         trimStart: state.trimStart,
         trimEnd: state.trimEnd,
@@ -6309,6 +6310,26 @@
       };
     }
 
+    function editedExportFilename() {
+      const original = String(state.video?.file?.name || "give_me_five");
+      const base = original.replace(/\.[^./\\]+$/, "").trim();
+      const safeBase = base
+        .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_")
+        .replace(/[. ]+$/g, "")
+        .slice(0, 120)
+        || "give_me_five";
+      return `${safeBase}_edited.mp4`;
+    }
+
+    function showQuickExportProgress(percent, message) {
+      const value = clamp(Math.round(Number(percent) || 0), 0, 100);
+      const button = $("#quickExportBtn");
+      button.textContent = `Exportujem… ${value} %`;
+      button.setAttribute("aria-busy", "true");
+      $("#quickPreviewStatus").textContent = `${message || "Pripravujem finálne MP4…"} · export ${value} %`;
+      $("#quickPreviewProgress").style.width = `${value}%`;
+    }
+
     async function exportProject() {
       const validation = renderValidation();
       if (validation.errors.length) {
@@ -6328,6 +6349,7 @@
         warningCount: validation.warnings.length
       });
       state.exporting = true;
+      showQuickExportProgress(0, `Spúšťam export ${editedExportFilename()}`);
       const updateExportElapsed = () => {
         $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
       };
@@ -6349,6 +6371,9 @@
       } catch (error) {
         state.exporting = false;
         $("#progressLabel").textContent = error.message;
+        $("#quickExportBtn").textContent = "Skúsiť export znova";
+        $("#quickExportBtn").removeAttribute("aria-busy");
+        $("#quickPreviewStatus").textContent = `Export zlyhal: ${error.message}`;
         recordUsage("export_failed", { reason: "request_or_render_error" });
         toast(error.message);
         renderValidation();
@@ -6367,9 +6392,15 @@
       $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
       $("#progressPercent").textContent = `${percent} %`;
       $("#progressFill").style.width = `${percent}%`;
+      showQuickExportProgress(percent, job.message || "Spracúvam finálne MP4…");
       renderTimingEstimate("export", timing, performance.now() - exportStartedAt);
       if (job.status === "completed") {
         state.exporting = false;
+        const downloadName = job.downloadName || editedExportFilename();
+        $("#quickExportBtn").textContent = "Exportovať znova";
+        $("#quickExportBtn").removeAttribute("aria-busy");
+        $("#quickPreviewStatus").textContent = `${downloadName} je pripravené a sťahuje sa.`;
+        $("#quickPreviewProgress").style.width = "100%";
         renderValidation();
         recordUsage("export_completed", {
           processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1),
@@ -6384,7 +6415,7 @@
           : "MP4 je pripravené a sťahuje sa.");
         const link = document.createElement("a");
         link.href = `${API_ORIGIN}${job.downloadUrl}?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
-        link.download = "give_me_five_edited.mp4";
+        link.download = downloadName;
         document.body.appendChild(link);
         link.click();
         link.remove();

@@ -175,6 +175,29 @@ function safeRemove(targetPath) {
   }
 }
 
+function editedExportFilename(sourceName) {
+  const original = path.basename(String(sourceName || "give_me_five"));
+  const base = original.slice(0, Math.max(0, original.length - path.extname(original).length)).trim();
+  const safeBase = base
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, "_")
+    .replace(/[. ]+$/g, "")
+    .slice(0, 120)
+    || "give_me_five";
+  return `${safeBase}_edited.mp4`;
+}
+
+function attachmentContentDisposition(fileName) {
+  const asciiFallback = String(fileName)
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7e]/g, "")
+    .replace(/["\\]/g, "_")
+    || "give_me_five_edited.mp4";
+  const encoded = encodeURIComponent(fileName).replace(/[!'()*]/g, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
+}
+
 function removeMediaRecord(record) {
   if (!record) return;
   safeRemove(record.path);
@@ -1973,7 +1996,8 @@ function startExportJob(payload, sessionId, options = {}) {
     createdAt: Date.now(),
     sessionId,
     mediaIds: [payload.videoId, payload.musicId].filter(Boolean),
-    kind: options.preview ? "preview" : "export"
+    kind: options.preview ? "preview" : "export",
+    downloadName: options.preview ? "give_me_five_preview.mp4" : editedExportFilename(payload.sourceFileName)
   };
   jobs.set(id, job);
 
@@ -2082,7 +2106,8 @@ app.get("/api/jobs/:id", (request, response) => {
     error: job.error,
     details: job.status === "completed" ? job.details : null,
     timing: renderTimingSnapshot(job.timing),
-    downloadUrl: job.status === "completed" ? `/api/jobs/${job.id}/download` : null
+    downloadUrl: job.status === "completed" ? `/api/jobs/${job.id}/download` : null,
+    downloadName: job.status === "completed" ? job.downloadName : null
   });
 });
 
@@ -2095,7 +2120,7 @@ app.get("/api/jobs/:id/download", (request, response) => {
   const stats = fs.statSync(job.outputPath);
   response.setHeader("Content-Type", "video/mp4");
   response.setHeader("Content-Length", String(stats.size));
-  response.setHeader("Content-Disposition", 'attachment; filename="give_me_five_edited.mp4"');
+  response.setHeader("Content-Disposition", attachmentContentDisposition(job.downloadName));
   const stream = fs.createReadStream(job.outputPath);
   stream.on("error", (error) => {
     console.error(error);
