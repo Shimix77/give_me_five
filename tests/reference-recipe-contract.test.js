@@ -48,3 +48,12 @@ test("AAC render keeps enough true-peak headroom for codec overshoot", () => {
   assert.match(server, /const TRUE_PEAK_LIMIT_LINEAR = 0\.776247/);
   assert.match(server, /TP=\$\{TRUE_PEAK_TARGET_DB\.toFixed\(1\)\}/);
 });
+
+test("dynamic framing renders a speech-timed zoom blur while static framing keeps segment transforms", () => {
+  assert.match(server, /payload\.framing\?\.mode === "dynamic"/);
+  assert.match(server, /function dynamicFramingFilter/);
+  assert.match(server, /zoompan=z=/);
+  assert.match(server, /tmix=frames=3/);
+  assert.match(server, /gblur=sigma=5/);
+  assert.match(server, /applyTransform: !dynamicFraming/);
+});

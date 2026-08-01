@@ -36,12 +36,16 @@ test("portrait video uses reliable automatic framing and a safe 100 percent fall
   assert.match(html, /id="transformZoom"[^>]+min="1"[^>]+value="1"/);
 });
 
-test("first step exposes immediate portrait playback and one combined ETA", () => {
+test("first step keeps portrait playback locked until the combined exact preview is ready", () => {
   assert.match(html, /function beginImmediateVideoPreview/);
   assert.match(html, /function combinedQuickRenderTiming/);
   assert.match(html, /class="import-stack"/);
   assert.match(html, /aspect-ratio:\s*9 \/ 16/);
-  assert.match(html, /width:\s*min\(390px, 100%\)/);
+  assert.match(html, /\.quick-preview-frame\s*\{[\s\S]*?width:\s*min\(420px, 100%\)/);
+  assert.match(html, /\.quick-preview-media\s*\{[\s\S]*?width:\s*min\(190px, 100%\)/);
+  assert.match(html, /id="quickPreviewLoading"/);
+  assert.match(html, /const canPlay = hasVideo && state\.renderedPreview\.ready/);
+  assert.match(html, /id="skipMusicBtn"[^>]*>Pokračovať bez hudby/);
 });
 
 test("quick preview controls stay outside the transformed portrait image", () => {
@@ -49,8 +53,16 @@ test("quick preview controls stay outside the transformed portrait image", () =>
   assert.match(html, /id="quickPreviewScrubber"/);
   assert.match(html, /id="quickPreviewFullscreen"/);
   assert.match(html, /function toggleQuickPreviewFullscreen/);
-  assert.match(html, /class="quick-preview-media">[\s\S]*id="quickPreviewEmpty"[\s\S]*<\/div>\s*<div class="quick-framing-status"/);
+  assert.match(html, /id="quickFramingStatus"[\s\S]*class="quick-preview-media">[\s\S]*id="quickPreviewControls"/);
   assert.doesNotMatch(html, /<video id="quickPreviewVideo"[^>]*\scontrols(?:\s|>)/);
+});
+
+test("framing popup offers static detail and dynamic speech-timed zoom", () => {
+  assert.match(html, /id="framingModeDialog"/);
+  assert.match(html, /data-framing-choice="static"/);
+  assert.match(html, /data-framing-choice="dynamic"/);
+  assert.match(html, /dynamicFraming:\s*\{ zoomInDuration: \.4, zoomOutDuration: \.3 \}/);
+  assert.match(html, /framing:\s*\{\s*mode: state\.framingMode/);
 });
 
 test("music stays at minus 25 dB and voice gets another two dB by default", () => {

@@ -1385,10 +1385,10 @@ function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
   return `[${inputIndex}:a]${filters.join(",")}[${label}]`;
 }
 
-function videoSegmentFilter(inputIndex, segment, label, metadata) {
+function videoSegmentFilter(inputIndex, segment, label, metadata, applyTransform = true) {
   const start = numeric(segment.start);
   const end = numeric(segment.end);
-  const transform = segment.transform || {};
+  const transform = applyTransform ? segment.transform || {} : {};
   const zoom = clamp(numeric(transform.zoom, 1), 1, 2.5);
   const positionX = clamp(numeric(transform.x), -100, 100);
   const positionY = clamp(numeric(transform.y), -100, 100);
@@ -1515,11 +1515,11 @@ function clipSegments(segments, clipStart, clipEnd, suffix) {
   })).filter((segment) => segment.end - segment.start > 0.01);
 }
 
-function appendVideoSequence(filters, inputIndex, segments, prefix, metadata) {
+function appendVideoSequence(filters, inputIndex, segments, prefix, metadata, options = {}) {
   if (!segments.length) throw new Error("The selected video range is too short for the transition.");
   const labels = segments.map((segment, index) => {
     const label = `${prefix}Segment${index}`;
-    filters.push(videoSegmentFilter(inputIndex, segment, label, metadata));
+    filters.push(videoSegmentFilter(inputIndex, segment, label, metadata, options.applyTransform !== false));
     return label;
   });
   const sequenceLabel = `${prefix}Sequence`;
@@ -1534,6 +1534,41 @@ function appendVideoSequence(filters, inputIndex, segments, prefix, metadata) {
     );
   }
   return sequenceLabel;
+}
+
+function dynamicFramingFilter(framing, targetTransform, timing, metadata) {
+  const fps = Math.max(1, numeric(metadata.fps, 30));
+  const zoom = clamp(numeric(targetTransform?.zoom, 1), 1, 2.5);
+  const positionX = clamp(numeric(targetTransform?.x), -100, 100);
+  const positionY = clamp(numeric(targetTransform?.y), -100, 100);
+  const zoomInDuration = clamp(numeric(framing?.zoomInDuration, 0.4), 0.2, 1);
+  const zoomOutDuration = clamp(numeric(framing?.zoomOutDuration, 0.3), 0.2, 1);
+  const zoomInStart = Math.max(0, numeric(timing.speechStartRel));
+  const zoomOutStart = Math.max(zoomInStart + zoomInDuration, numeric(timing.speechEndRel));
+  const inStartFrame = zoomInStart * fps;
+  const inFrames = Math.max(1, zoomInDuration * fps);
+  const inEndFrame = inStartFrame + inFrames;
+  const outStartFrame = zoomOutStart * fps;
+  const outFrames = Math.max(1, zoomOutDuration * fps);
+  const outEndFrame = outStartFrame + outFrames;
+  const zoomExpression = [
+    `if(lt(on,${inStartFrame.toFixed(3)}),1,`,
+    `if(lt(on,${inEndFrame.toFixed(3)}),1+(${(zoom - 1).toFixed(6)})*(1-cos(PI*(on-${inStartFrame.toFixed(3)})/${inFrames.toFixed(3)}))/2,`,
+    `if(lt(on,${outStartFrame.toFixed(3)}),${zoom.toFixed(6)},`,
+    `if(lt(on,${outEndFrame.toFixed(3)}),1+(${(zoom - 1).toFixed(6)})*(1+cos(PI*(on-${outStartFrame.toFixed(3)})/${outFrames.toFixed(3)}))/2,1))))`
+  ].join("");
+  const xExpression = `(iw-iw/zoom)/2*(1-${(positionX / 100).toFixed(6)})`;
+  const yExpression = `(ih-ih/zoom)/2*(1-${(positionY / 100).toFixed(6)})`;
+  const transitionWindows = [
+    `between(t,${zoomInStart.toFixed(4)},${(zoomInStart + zoomInDuration).toFixed(4)})`,
+    `between(t,${zoomOutStart.toFixed(4)},${(zoomOutStart + zoomOutDuration).toFixed(4)})`
+  ].join("+");
+  return [
+    `zoompan=z='${zoomExpression}':x='${xExpression}':y='${yExpression}':d=1:s=${metadata.width}x${metadata.height}:fps=${fps}`,
+    `tmix=frames=3:weights='1 2 1':enable='${transitionWindows}'`,
+    `gblur=sigma=5:enable='${transitionWindows}'`,
+    "setsar=1"
+  ].join(",");
 }
 
 function calculateAdditiveOverlap(gapEdit, trimStart, trimEnd) {
@@ -1666,6 +1701,8 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const filters = [];
   const sourceSegments = normaliseSegments(payload.segments, trimStart, trimEnd);
   const segments = removeGapFromSegments(sourceSegments, gapEdit);
+  const dynamicFraming = payload.framing?.mode === "dynamic";
+  const videoSequenceOptions = { applyTransform: !dynamicFraming };
   let videoSequenceLabel;
   if (additiveOverlap > 0) {
     const beforeSegments = clipSegments(
@@ -1680,8 +1717,8 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
       trimEnd,
       "additive-after"
     );
-    const beforeLabel = appendVideoSequence(filters, 0, beforeSegments, "pictureBefore", video.metadata);
-    const afterLabel = appendVideoSequence(filters, 0, afterSegments, "pictureAfter", video.metadata);
+    const beforeLabel = appendVideoSequence(filters, 0, beforeSegments, "pictureBefore", video.metadata, videoSequenceOptions);
+    const afterLabel = appendVideoSequence(filters, 0, afterSegments, "pictureAfter", video.metadata, videoSequenceOptions);
     const crossfadeOffset = Math.max(0, gapEdit.cutStart - trimStart - additiveOverlap / 2);
     filters.push(
       `[${beforeLabel}]format=gbrp[pictureBeforeRgb]`,
@@ -1690,7 +1727,15 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
     );
     videoSequenceLabel = "videoSequence";
   } else {
-    videoSequenceLabel = appendVideoSequence(filters, 0, segments, "picture", video.metadata);
+    videoSequenceLabel = appendVideoSequence(filters, 0, segments, "picture", video.metadata, videoSequenceOptions);
+  }
+  if (dynamicFraming) {
+    const targetSegment = sourceSegments.find((segment) => speechStart >= segment.start && speechStart <= segment.end)
+      || sourceSegments[0];
+    filters.push(
+      `[${videoSequenceLabel}]${dynamicFramingFilter(payload.framing, targetSegment?.transform, timing, video.metadata)}[dynamicFraming]`
+    );
+    videoSequenceLabel = "dynamicFraming";
   }
   const freezeFilter = freezeFrameDuration > 0.001
     ? `,tpad=stop_mode=clone:stop_duration=${freezeFrameDuration.toFixed(4)}`
@@ -1794,6 +1839,9 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
       musicEnd,
       transitionDuration,
       additiveOverlap,
+      framingMode: dynamicFraming ? "dynamic" : "static",
+      zoomInDuration: dynamicFraming ? clamp(numeric(payload.framing?.zoomInDuration, .4), .2, 1) : null,
+      zoomOutDuration: dynamicFraming ? clamp(numeric(payload.framing?.zoomOutDuration, .3), .2, 1) : null,
       whooshPeakSeconds,
       gapCutDuration: gapEdit.cutDuration,
       gapCutStart: gapEdit.cutStart,

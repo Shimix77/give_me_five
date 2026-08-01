@@ -193,12 +193,13 @@
       display: grid;
       grid-template-columns: minmax(300px, 420px) minmax(380px, 1fr);
       gap: 14px;
-      align-items: start;
+      align-items: stretch;
       margin-bottom: 14px;
     }
 
     .import-stack {
       display: grid;
+      grid-template-rows: auto auto 1fr;
       gap: 14px;
     }
 
@@ -235,19 +236,20 @@
 
     .quick-preview-card {
       display: grid;
-      min-height: 742px;
+      min-height: 0;
       place-items: center;
     }
     .quick-preview-copy-card { min-height: 0; }
     .quick-preview-copy { position: relative; z-index: 1; }
     .quick-preview-frame {
       display: grid;
-      width: min(390px, 100%);
+      width: min(420px, 100%);
       gap: 8px;
     }
     .quick-preview-media {
       position: relative;
-      width: 100%;
+      justify-self: center;
+      width: min(190px, 100%);
       aspect-ratio: 9 / 16;
       overflow: hidden;
       border: 1px solid var(--line);
@@ -263,6 +265,50 @@
       transform-origin: center;
     }
     .quick-preview-media video:not([src]) { visibility: hidden; }
+    .quick-preview-loading {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: grid;
+      place-content: center;
+      gap: 12px;
+      padding: 24px;
+      background: rgba(2, 8, 17, .68);
+      text-align: center;
+      backdrop-filter: brightness(.58);
+    }
+    .quick-preview-loading.hidden { display: none; }
+    .quick-preview-loading strong {
+      max-width: 250px;
+      color: #e7eef8;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .circular-progress {
+      --progress: 0%;
+      display: grid;
+      width: 94px;
+      height: 94px;
+      margin: auto;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) var(--progress), rgba(255, 255, 255, .13) 0);
+      box-shadow: 0 12px 45px rgba(0, 0, 0, .38);
+    }
+    .circular-progress::before {
+      grid-area: 1 / 1;
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #081322;
+      content: "";
+    }
+    .circular-progress span {
+      z-index: 1;
+      grid-area: 1 / 1;
+      font-size: 17px;
+      font-weight: 850;
+    }
     .quick-framing-status {
       padding: 8px 10px;
       border: 1px solid rgba(115, 221, 177, .28);
@@ -293,6 +339,101 @@
       text-align: center;
     }
     .quick-preview-controls .btn { min-height: 34px; padding: 7px 9px; }
+    .quick-preview-controls.locked { opacity: .54; }
+    .quiet-action {
+      position: relative;
+      z-index: 2;
+      display: inline-flex;
+      margin: 7px 0 0 46px;
+      padding: 2px 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: 9px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      cursor: pointer;
+    }
+    .quiet-action:hover { color: var(--text); }
+
+    dialog.framing-dialog { width: min(780px, calc(100vw - 28px)); }
+    .framing-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .framing-option {
+      display: grid;
+      gap: 10px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: rgba(4, 12, 23, .72);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+    .framing-option:hover,
+    .framing-option.active {
+      border-color: rgba(var(--accent-rgb), .8);
+      box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), .25);
+    }
+    .framing-option strong { font-size: 13px; }
+    .framing-option small { color: var(--muted); font-size: 10px; line-height: 1.45; }
+    .framing-option .recommended { color: #bff5dd; font-size: 9px; font-weight: 800; }
+    .framing-demo {
+      position: relative;
+      height: 155px;
+      overflow: hidden;
+      border: 1px solid var(--line-soft);
+      border-radius: 10px;
+      background: linear-gradient(#7fb0d5 0 48%, #7da263 48% 100%);
+    }
+    .demo-person {
+      position: absolute;
+      left: 50%;
+      bottom: 10%;
+      width: 44px;
+      height: 82px;
+      border-radius: 22px 22px 12px 12px;
+      background: #e7edf5;
+      box-shadow: 0 -25px 0 -9px #d4b09b;
+      transform: translateX(-50%) scale(1);
+      transform-origin: 50% 70%;
+    }
+    .framing-option[data-framing-choice="static"] .demo-person { animation: demo-static-detail 4s ease-in-out infinite; }
+    .framing-option[data-framing-choice="dynamic"] .demo-person { animation: demo-dynamic-detail 4s cubic-bezier(.2,.75,.22,1) infinite; }
+    .framing-option[data-framing-choice="dynamic"] .framing-demo::after {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, .18);
+      content: "";
+      opacity: 0;
+      animation: demo-zoom-flash 4s ease-in-out infinite;
+    }
+    @keyframes demo-static-detail {
+      0%, 100% { transform: translateX(-50%) scale(1.55); }
+      50% { transform: translateX(-50%) scale(1.58); }
+    }
+    @keyframes demo-dynamic-detail {
+      0%, 22%, 92%, 100% { filter: blur(0); transform: translateX(-50%) scale(1); }
+      30% { filter: blur(5px); transform: translateX(-50%) scale(1.32); }
+      36%, 78% { filter: blur(0); transform: translateX(-50%) scale(1.55); }
+      86% { filter: blur(5px); transform: translateX(-50%) scale(1.28); }
+    }
+    @keyframes demo-zoom-flash {
+      0%, 25%, 38%, 81%, 90%, 100% { opacity: 0; }
+      30%, 86% { opacity: .48; }
+    }
+    .framing-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 2px;
+    }
+    .dynamic-framing-settings { display: none; }
+    .dynamic-framing-settings.visible { display: grid; }
     .quick-preview-frame:fullscreen {
       width: 100%;
       height: 100%;
@@ -1832,13 +1973,15 @@
       border-radius: 12px;
     }
 
-    .quick-preview-card { min-height: 742px; padding: 12px; }
+    .quick-preview-card { min-height: 0; padding: 12px; }
+    .quick-preview-copy-card { min-height: 230px; }
     .quick-preview-copy-card .eyebrow { display: block; }
     .quick-preview-copy-card h2 { font-size: 17px; }
 
     @media (max-width: 850px) {
       .imports { grid-template-columns: 1fr; }
       .quick-preview-card { min-height: 0; }
+      .framing-options { grid-template-columns: 1fr; }
     }
 
     .import-row {
@@ -2245,6 +2388,7 @@
           <label class="btn" for="musicFile">Vybrať audio</label>
           <input id="musicFile" type="file" accept="audio/mpeg,audio/wav,audio/mp4,audio/*">
         </div>
+        <button class="quiet-action" id="skipMusicBtn" type="button">Pokračovať bez hudby</button>
         <div class="loading-line"></div>
       </article>
 
@@ -2268,17 +2412,21 @@
       </div>
       <article class="import-card quick-preview-card" id="quickPreviewCard">
         <div class="quick-preview-frame" id="quickPreviewFrame">
-          <div class="quick-preview-controls" aria-label="Ovládanie prvého náhľadu">
+          <div class="quick-framing-status" id="quickFramingStatus">Po vložení videa automaticky nastavím tvár a postavu.</div>
+          <div class="quick-preview-media">
+            <video id="quickPreviewVideo" playsinline preload="metadata" aria-label="Náhľad videa"></video>
+            <div class="empty-video" id="quickPreviewEmpty"><div><strong>Náhľad sa pripraví automaticky</strong>Vložte video a hudbu alebo pokračujte bez hudby.</div></div>
+            <div class="quick-preview-loading hidden" id="quickPreviewLoading" aria-live="polite">
+              <div class="circular-progress" id="quickPreviewCircle"><span id="quickPreviewPercent">0 %</span></div>
+              <strong id="quickPreviewStage">Čakám na oba súbory…</strong>
+            </div>
+          </div>
+          <div class="quick-preview-controls locked" id="quickPreviewControls" aria-label="Ovládanie prvého náhľadu">
             <button class="btn" id="quickPreviewPlay" type="button" disabled>▶ Prehrať</button>
             <input id="quickPreviewScrubber" type="range" min="0" max="1" step=".001" value="0" disabled aria-label="Pozícia prvého náhľadu">
             <span class="timecode" id="quickPreviewTime">00:00 / 00:00</span>
             <button class="btn ghost" id="quickPreviewFullscreen" type="button" disabled>⛶ Celá obrazovka</button>
           </div>
-          <div class="quick-preview-media">
-            <video id="quickPreviewVideo" playsinline preload="metadata" aria-label="Náhľad videa"></video>
-            <div class="empty-video" id="quickPreviewEmpty"><div><strong>Náhľad sa pripraví automaticky</strong>Prvé spracovanie môže chvíľu trvať.</div></div>
-          </div>
-          <div class="quick-framing-status" id="quickFramingStatus">Po vložení videa automaticky nastavím tvár a postavu.</div>
         </div>
       </article>
     </section>
@@ -2457,6 +2605,20 @@
           <div class="control-card collapsed" id="transformCard">
             <h3>Transformácia segmentu <span class="value" id="transformZoomValue">100 %</span></h3>
             <p>Zoom sa dá iba zväčšiť. Poloha X/Y využíva len bezpečný priestor, takže sa nikdy neobjaví čierny okraj.</p>
+            <div class="mode-switch" style="margin-bottom:9px">
+              <button type="button" id="framingStatic">Stály detail</button>
+              <button type="button" id="framingDynamic">Dynamický záber</button>
+            </div>
+            <div class="dynamic-framing-settings" id="dynamicFramingSettings">
+              <div class="field">
+                <div class="field-line"><label for="zoomInDuration">Zoom-in pri začiatku reči</label><span class="value" id="zoomInDurationValue">0,4 s</span></div>
+                <input id="zoomInDuration" type="range" min=".2" max="1" step=".05" value=".4">
+              </div>
+              <div class="field">
+                <div class="field-line"><label for="zoomOutDuration">Zoom-out po posledných slovách</label><span class="value" id="zoomOutDurationValue">0,3 s</span></div>
+                <input id="zoomOutDuration" type="range" min=".2" max="1" step=".05" value=".3">
+              </div>
+            </div>
             <div class="field">
               <div class="field-line"><label for="transformZoom">Zoom</label><span class="value" id="transformZoomRange">automaticky – 2,50×</span></div>
               <input id="transformZoom" type="range" min="1" max="2.5" step=".01" value="1" disabled>
@@ -2729,7 +2891,7 @@
       <button class="btn ghost" id="closeGuide" type="button">Zavrieť</button>
     </div>
     <div class="guide-body">
-      <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video a voliteľnú hudbu. Pôvodné video prehráte okamžite so Živými farbami a automatickým zarámovaním; spoločný čas ukazuje cestu až po presný náhľad.</span></div></div>
+      <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video, vyberte stály alebo dynamický detail a pridajte hudbu. Kým sa renderuje odporúčaný výsledok, vidíte prvý záber s kruhovým progresom; prehrávanie sa odomkne až po dokončení.</span></div></div>
       <div class="guide-step"><b>2</b><div><strong>AI denoise pred markermi</strong><span>Aplikácia najprv oddelí hlas od vetra, sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
       <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne približne 0,3 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
       <div class="guide-step"><b>4</b><div><strong>Hlučné miesta</strong><span>Kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho bez strihu obrazu.</span></div></div>
@@ -2751,6 +2913,34 @@
       <button class="btn ghost" id="closeInfoDialog" type="button">Zavrieť</button>
     </div>
     <div class="guide-body" id="infoDialogText"></div>
+  </dialog>
+
+  <dialog class="guide-dialog framing-dialog" id="framingModeDialog">
+    <div class="guide-head">
+      <div>
+        <h2>Ako sa má video približovať?</h2>
+        <p>Tvár a postavu nastavím automaticky. Režim môžete neskôr zmeniť v kroku Vzhľad videa.</p>
+      </div>
+    </div>
+    <div class="guide-body">
+      <div class="framing-options" id="framingOptions">
+        <button class="framing-option active" type="button" data-framing-choice="static">
+          <span class="framing-demo"><i class="demo-person"></i></span>
+          <strong>Stály detail</strong>
+          <small>Video bude od začiatku do konca rovnako priblížené na tvár a postavu.</small>
+          <span class="recommended">Odporúčané · súčasné správanie</span>
+        </button>
+        <button class="framing-option" type="button" data-framing-choice="dynamic">
+          <span class="framing-demo"><i class="demo-person"></i></span>
+          <strong>Dynamický záber</strong>
+          <small>Začne na 100 %, pri prvej reči sa rýchlo priblíži a po posledných slovách sa znovu oddiali.</small>
+          <span class="recommended">Zoom-blur 0,4 s · zoom-out 0,3 s</span>
+        </button>
+      </div>
+      <div class="framing-dialog-actions">
+        <button class="btn primary" id="confirmFramingMode" type="button">Použiť stály detail</button>
+      </div>
+    </div>
   </dialog>
 
   <div class="toast" id="toast"></div>
@@ -2803,6 +2993,9 @@
       loudnessTargetLufs: -11,
       ending: { holdDuration: 4, blurDuration: 2, blackDuration: 2 },
       colour: structuredClone(COLOUR_PRESETS.vivid),
+      framingMode: "static",
+      framingChoiceConfirmed: false,
+      dynamicFraming: { zoomInDuration: .4, zoomOutDuration: .3 },
       transcript: {
         status: "idle",
         progress: 0,
@@ -2852,6 +3045,7 @@
         videoImporting: false,
         musicImporting: false,
         musicSelected: false,
+        continueWithoutMusic: false,
         musicDuration: 0,
         musicStartedAtMs: null,
         renderStartFraction: 0,
@@ -2870,7 +3064,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.9.0";
+    const APP_VERSION = "3.10.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -2895,6 +3089,8 @@
         loudnessTargetLufs: state.loudnessTargetLufs,
         ending: state.ending,
         colour: state.colour,
+        framingMode: state.framingMode,
+        dynamicFraming: state.dynamicFraming,
         musicSettings: state.musicSettings,
         channel: state.channel
       });
@@ -2988,6 +3184,8 @@
       state.loudnessTargetLufs = Number(snapshot.loudnessTargetLufs ?? -11);
       state.ending = structuredClone(snapshot.ending || { holdDuration: 4, blurDuration: 2, blackDuration: 2 });
       state.colour = structuredClone(snapshot.colour);
+      state.framingMode = snapshot.framingMode === "dynamic" ? "dynamic" : "static";
+      state.dynamicFraming = structuredClone(snapshot.dynamicFraming || { zoomInDuration: .4, zoomOutDuration: .3 });
       state.musicSettings = structuredClone(snapshot.musicSettings);
       state.channel = structuredClone(snapshot.channel);
       editHistory.restoring = false;
@@ -3387,11 +3585,25 @@
 
     function quickPreparationMessage() {
       const workflow = state.quickWorkflow;
-      if (workflow.videoImporting) return "Video môžete hneď prehrávať · analyzujem obraz, zvuk a postavu…";
-      if (workflow.musicImporting) return "Video môžete prehrávať · analyzujem hudbu a hľadám najlepšie dropy…";
-      if (state.transcript.status === "running") return `${state.transcript.message} · pôvodné video je už prehrateľné.`;
-      if (state.transcript.status === "failed") return "Pôvodné video je prehrateľné, ale presná analýza reči potrebuje kontrolu.";
-      return "Pôvodné video je prehrateľné · spúšťam presný farebný náhľad…";
+      if (workflow.videoImporting) return "Analyzujem obraz, zvuk a postavu…";
+      if (!state.framingChoiceConfirmed) return "Vyberte spôsob priblíženia videa.";
+      if (!workflow.musicSelected && !workflow.continueWithoutMusic) return "Čakám na hudbu · alebo zvoľte nenápadné „Pokračovať bez hudby“.";
+      if (workflow.musicImporting) return "Analyzujem hudbu a hľadám najlepšie dropy…";
+      if (state.transcript.status === "running") return state.transcript.message;
+      if (state.transcript.status === "failed") return "Analýza reči potrebuje kontrolu; prehrávač odomknem až po presnom náhľade.";
+      return "Spúšťam presný farebný náhľad…";
+    }
+
+    function setQuickPreviewProgress(progress, message = null) {
+      const value = clamp(Number(progress) || 0, 0, 1);
+      const percent = Math.round(value * 100);
+      $("#quickPreviewProgress").style.width = `${(value * 100).toFixed(1)}%`;
+      $("#quickPreviewCircle").style.setProperty("--progress", `${percent}%`);
+      $("#quickPreviewPercent").textContent = `${percent} %`;
+      if (message) $("#quickPreviewStage").textContent = message;
+      const showLoading = Boolean(state.instantPreview.url || state.video) && !state.renderedPreview.ready;
+      $("#quickPreviewLoading").classList.toggle("hidden", !showLoading);
+      $("#quickPreviewControls").classList.toggle("locked", !state.renderedPreview.ready);
     }
 
     function renderQuickWorkflowPreparation(message = null) {
@@ -3421,8 +3633,9 @@
       const completedWork = videoAnalysisProgress * baseline.videoAnalysisMs + concurrentCompleted;
       const overallProgress = clamp(completedWork / baseline.totalMs, 0, baseline.preparationMs / baseline.totalMs);
       const remainingMs = Math.max(1500, baseline.totalMs - elapsedMs);
-      $("#quickPreviewProgress").style.width = `${(overallProgress * 100).toFixed(1)}%`;
-      $("#quickPreviewStatus").textContent = message || quickPreparationMessage();
+      const stageMessage = message || quickPreparationMessage();
+      setQuickPreviewProgress(overallProgress, stageMessage);
+      $("#quickPreviewStatus").textContent = stageMessage;
       renderTimingEstimate("preview", {
         stage: "preparing",
         elapsedMs: Math.round(elapsedMs),
@@ -3442,8 +3655,7 @@
     function updateQuickSourcePresentation() {
       const preview = $("#quickPreviewVideo");
       if (!preview || preview.dataset.previewKind !== "source") return;
-      const transform = state.segments[0]?.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
-      preview.style.transform = safePreviewTransform(transform);
+      preview.style.transform = safePreviewTransform({ zoom: 1, x: 0, y: 0 });
       preview.style.filter = colourPreviewFilter(0);
     }
 
@@ -3457,12 +3669,13 @@
     function renderQuickPreviewControls() {
       const preview = $("#quickPreviewVideo");
       const hasVideo = Boolean(preview?.getAttribute("src"));
+      const canPlay = hasVideo && state.renderedPreview.ready && preview.dataset.previewKind === "rendered";
       const duration = Number.isFinite(preview?.duration) ? preview.duration : 0;
-      $("#quickPreviewPlay").disabled = !hasVideo;
+      $("#quickPreviewPlay").disabled = !canPlay;
       $("#quickPreviewPlay").textContent = preview && !preview.paused ? "❚❚ Pauza" : "▶ Prehrať";
-      $("#quickPreviewFullscreen").disabled = !hasVideo;
+      $("#quickPreviewFullscreen").disabled = !canPlay;
       $("#quickPreviewFullscreen").textContent = document.fullscreenElement ? "⛶ Ukončiť" : "⛶ Celá obrazovka";
-      $("#quickPreviewScrubber").disabled = !hasVideo || duration <= 0;
+      $("#quickPreviewScrubber").disabled = !canPlay || duration <= 0;
       $("#quickPreviewScrubber").max = String(Math.max(1, duration));
       if (document.activeElement !== $("#quickPreviewScrubber")) {
         $("#quickPreviewScrubber").value = String(preview?.currentTime || 0);
@@ -3472,7 +3685,7 @@
 
     async function toggleQuickPreviewPlayback() {
       const preview = $("#quickPreviewVideo");
-      if (!preview.getAttribute("src")) return;
+      if (!state.renderedPreview.ready || preview.dataset.previewKind !== "rendered") return;
       if (preview.paused) {
         await ensureAudioGraph();
         updateQuickPreviewAudioRouting();
@@ -3484,7 +3697,7 @@
 
     async function toggleQuickPreviewFullscreen() {
       const frame = $("#quickPreviewFrame");
-      if (!$("#quickPreviewVideo").getAttribute("src")) return;
+      if (!state.renderedPreview.ready || $("#quickPreviewVideo").dataset.previewKind !== "rendered") return;
       if (document.fullscreenElement) await document.exitFullscreen();
       else await frame.requestFullscreen();
       renderQuickPreviewControls();
@@ -3505,6 +3718,7 @@
       preview.src = url;
       preview.load();
       $("#quickPreviewEmpty").classList.add("hidden");
+      setQuickPreviewProgress(0, quickPreparationMessage());
       updateQuickSourcePresentation();
       renderQuickPreviewControls();
     }
@@ -3527,12 +3741,17 @@
         videoImporting: true,
         musicImporting: false,
         musicSelected: Boolean(state.music),
+        continueWithoutMusic: false,
         musicDuration: Number(state.music?.analysis?.metadata?.duration) || 0,
         musicStartedAtMs: null,
         renderStartFraction: 0,
         timer: null,
         complete: false
       };
+      state.framingMode = "static";
+      state.framingChoiceConfirmed = false;
+      state.dynamicFraming = { zoomInDuration: .4, zoomOutDuration: .3 };
+      $("#skipMusicBtn").classList.toggle("hidden", Boolean(state.music));
       showSourceQuickPreview(sourceUrl);
       const preview = $("#quickPreviewVideo");
       preview.addEventListener("loadedmetadata", () => {
@@ -3547,21 +3766,55 @@
       }, { once: true });
       if (previousUrl && previousUrl !== sourceUrl) URL.revokeObjectURL(previousUrl);
       $("#quickFramingStatus").classList.remove("warning");
-      $("#quickFramingStatus").textContent = "Analyzujem tvár a postavu · dovtedy zobrazujem bezpečných 100 %.";
+      $("#quickFramingStatus").textContent = "Najskôr vyberte stály detail alebo dynamický záber · zatiaľ zobrazujem bezpečných 100 %.";
       ensureQuickWorkflowTimer();
-      renderQuickWorkflowPreparation("Video môžete hneď prehrávať · začínam analýzu a počítam celý čas do presného náhľadu…");
+      renderQuickWorkflowPreparation("Načítavam prvý záber · prehrávač odomknem po dokončení presného náhľadu…");
+      openFramingModeDialog();
     }
 
     function beginMusicPreparation(file) {
       const workflow = state.quickWorkflow;
       if (!workflow.startedAtMs && state.video) workflow.startedAtMs = performance.now();
       workflow.musicSelected = true;
+      workflow.continueWithoutMusic = false;
       workflow.musicImporting = true;
       workflow.musicStartedAtMs = performance.now();
       workflow.musicDuration = clamp(file.size / 16_000, 10, 900);
       workflow.complete = false;
       ensureQuickWorkflowTimer();
-      renderQuickWorkflowPreparation("Video zostáva prehrateľné · analyzujem hudbu a priebežne počítam čas do hotového náhľadu…");
+      renderQuickWorkflowPreparation("Analyzujem hudbu a priebežne počítam čas do hotového náhľadu…");
+    }
+
+    function renderFramingModeControls() {
+      $$("#framingOptions [data-framing-choice]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.framingChoice === state.framingMode);
+      });
+      $("#confirmFramingMode").textContent = state.framingMode === "dynamic"
+        ? "Použiť dynamický záber"
+        : "Použiť stály detail";
+      $("#framingStatic").classList.toggle("active", state.framingMode === "static");
+      $("#framingDynamic").classList.toggle("active", state.framingMode === "dynamic");
+      $("#dynamicFramingSettings").classList.toggle("visible", state.framingMode === "dynamic");
+      $("#zoomInDuration").value = String(state.dynamicFraming.zoomInDuration);
+      $("#zoomOutDuration").value = String(state.dynamicFraming.zoomOutDuration);
+      $("#zoomInDurationValue").textContent = `${state.dynamicFraming.zoomInDuration.toFixed(2).replace(/0$/, "").replace(".", ",")} s`;
+      $("#zoomOutDurationValue").textContent = `${state.dynamicFraming.zoomOutDuration.toFixed(2).replace(/0$/, "").replace(".", ",")} s`;
+    }
+
+    function openFramingModeDialog() {
+      renderFramingModeControls();
+      const dialog = $("#framingModeDialog");
+      if (!dialog.open) dialog.showModal();
+    }
+
+    function confirmFramingMode() {
+      state.framingChoiceConfirmed = true;
+      $("#framingModeDialog").close();
+      const label = state.framingMode === "dynamic" ? "Dynamický záber" : "Stály detail";
+      $("#quickFramingStatus").textContent = `${label} · automatické zarámovanie doplním po analýze tváre a postavy.`;
+      recordUsage("framing_mode_selected", { mode: state.framingMode, source: "upload_popup" });
+      renderQuickWorkflowPreparation();
+      maybePrepareQuickPreview();
     }
 
     function combinedQuickRenderTiming(renderTiming) {
@@ -3729,9 +3982,8 @@
         recordUsage("media_import_failed", { kind, reason: "analysis_or_upload_error" });
         name.textContent = error.message;
         if (kind === "video") $("#quickPreviewStatus").textContent = `Import zlyhal: ${error.message}`;
-        else renderQuickWorkflowPreparation(`Import hudby zlyhal: ${error.message} · pokračujem bez hudby.`);
+        else renderQuickWorkflowPreparation(`Import hudby zlyhal: ${error.message} · skúste inú skladbu alebo zvoľte „Pokračovať bez hudby“.`);
         toast(error.message);
-        if (kind === "music") maybePrepareQuickPreview();
       } finally {
         card.classList.remove("loading");
       }
@@ -3838,16 +4090,17 @@
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
       const framingStatus = $("#quickFramingStatus");
       framingStatus.classList.toggle("warning", !automaticTransform.autoFraming);
+      const modeLabel = state.framingMode === "dynamic" ? "Dynamický záber" : "Stály detail";
       framingStatus.textContent = automaticTransform.autoFraming
-        ? `Automatické zarámovanie ${Math.round(automaticTransform.zoom * 100)} % · tvár a postava zostávajú v obraze.`
+        ? `${modeLabel} · automatické zarámovanie ${Math.round(automaticTransform.zoom * 100)} % · tvár a postava zostávajú v obraze.`
         : "Postavu sa nepodarilo spoľahlivo určiť · ponechávam 100 %. Zoom môžete nastaviť pri úpravách.";
       showSourceQuickPreview(record.url);
       const quickPreview = $("#quickPreviewVideo");
-      const seekQuickPreviewToStart = () => {
-        if (quickPreview.dataset.previewKind === "source") quickPreview.currentTime = state.trimStart;
+      const seekQuickPreviewToFirstFrame = () => {
+        if (quickPreview.dataset.previewKind === "source") quickPreview.currentTime = .001;
       };
-      if (quickPreview.readyState >= 1) seekQuickPreviewToStart();
-      else quickPreview.addEventListener("loadedmetadata", seekQuickPreviewToStart, { once: true });
+      if (quickPreview.readyState >= 1) seekQuickPreviewToFirstFrame();
+      else quickPreview.addEventListener("loadedmetadata", seekQuickPreviewToFirstFrame, { once: true });
       ["#masterPlay", "#finalMixPlay", "#razorBtn", "#setTrimIn", "#setTrimOut", "#autoTrimSpeech", "#autoTail", "#previewTransition", "#showTranscript", "#markerReviewNext"].forEach((selector) => $(selector).disabled = false);
       $$("#loopRegions button").forEach((button) => button.disabled = false);
       resetEditHistory();
@@ -3864,6 +4117,7 @@
       state.music = record;
       state.quickWorkflow.musicImporting = false;
       state.quickWorkflow.musicSelected = true;
+      state.quickWorkflow.continueWithoutMusic = false;
       state.quickWorkflow.musicDuration = record.analysis.metadata.duration;
       state.musicPlaybackError = null;
       state.musicPlayPending = false;
@@ -3877,6 +4131,7 @@
       $("#playMusic").disabled = false;
       $("#setDropBtn").disabled = false;
       $("#musicFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
+      $("#skipMusicBtn").classList.add("hidden");
       const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
       const recommendedDrop = record.analysis.dropAnalysis?.candidates?.[0]?.time;
       state.musicSettings.dropManual = false;
@@ -4381,7 +4636,7 @@
     const wizardSteps = [
       {
         title: "Vložte video, hudbu a pozrite si prvý návrh",
-        hint: "Video prehráte hneď. Analýza, Živé farby, zarámovanie a presný náhľad sa pripravia na pozadí so spoločným časovým odhadom."
+        hint: "Vyberte stály alebo dynamický detail. Prvý záber, percentá a činnosť zostanú viditeľné; prehrávanie sa odomkne až po presnom náhľade."
       },
       {
         title: "Najskôr vyčistite hovorený hlas",
@@ -4449,7 +4704,7 @@
       ).join("");
       $("#wizardBack").disabled = step === 0;
       $("#wizardNext").style.display = step === wizardSteps.length - 1 ? "none" : "";
-      $("#wizardNext").disabled = !state.video;
+      $("#wizardNext").disabled = step === 0 ? !state.renderedPreview.ready : !state.video;
       $("#wizardNext").textContent = step === 0
         ? "Chcem video upraviť →"
         : step === 5 && !state.music
@@ -4542,6 +4797,7 @@
 
     function renderInspector() {
       const segment = getSelectedSegment();
+      renderFramingModeControls();
       const controls = ["#segmentGain", "#segmentMuteBtn", "#transformZoom", "#transformX", "#transformY", "#resetTransform"];
       controls.forEach((selector) => $(selector).disabled = !segment);
       if (!segment) {
@@ -4868,9 +5124,11 @@
       $("#quickRenderBtn").disabled = state.renderedPreview.rendering
         || state.quickWorkflow.videoImporting
         || state.quickWorkflow.musicImporting
+        || !state.framingChoiceConfirmed
+        || (!state.music && !state.quickWorkflow.continueWithoutMusic)
         || result.errors.length > 0
         || state.transcript.status === "running";
-      $("#quickEditBtn").disabled = !state.video;
+      $("#quickEditBtn").disabled = !state.renderedPreview.ready;
       $("#quickExportBtn").disabled = !state.renderedPreview.ready || state.renderedPreview.rendering || result.errors.length > 0 || state.exporting;
       return result;
     }
@@ -4919,6 +5177,37 @@
       return `saturate(${saturation}) brightness(${brightness}) contrast(${contrast}) sepia(${warm}) hue-rotate(${hue}deg) blur(${blur}px)`;
     }
 
+    function dynamicFramingEnvelope(editedTime) {
+      if (state.framingMode !== "dynamic") return { amount: 1, transition: 0 };
+      const zoomInStart = sourceToEditedTime(state.markers.speechStart);
+      const zoomOutStart = sourceToEditedTime(state.markers.speechEnd);
+      const zoomInDuration = clamp(Number(state.dynamicFraming.zoomInDuration) || .4, .2, 1);
+      const zoomOutDuration = clamp(Number(state.dynamicFraming.zoomOutDuration) || .3, .2, 1);
+      if (editedTime < zoomInStart) return { amount: 0, transition: 0 };
+      if (editedTime < zoomInStart + zoomInDuration) {
+        const linear = clamp((editedTime - zoomInStart) / zoomInDuration, 0, 1);
+        const amount = linear * linear * (3 - 2 * linear);
+        return { amount, transition: Math.sin(Math.PI * linear) };
+      }
+      if (editedTime < zoomOutStart) return { amount: 1, transition: 0 };
+      if (editedTime < zoomOutStart + zoomOutDuration) {
+        const linear = clamp((editedTime - zoomOutStart) / zoomOutDuration, 0, 1);
+        const amount = 1 - linear * linear * (3 - 2 * linear);
+        return { amount, transition: Math.sin(Math.PI * linear) };
+      }
+      return { amount: 0, transition: 0 };
+    }
+
+    function framingTransformAtTime(transform, editedTime) {
+      const envelope = dynamicFramingEnvelope(editedTime);
+      if (state.framingMode !== "dynamic") return transform;
+      return {
+        zoom: 1 + (clamp(Number(transform?.zoom) || 1, 1, 2.5) - 1) * envelope.amount,
+        x: (Number(transform?.x) || 0) * envelope.amount,
+        y: (Number(transform?.y) || 0) * envelope.amount
+      };
+    }
+
     function renderPreviewEffects() {
       if (!state.video) return;
       const time = currentPreviewTime();
@@ -4940,11 +5229,13 @@
       const finalProgress = time >= fadeStart ? clamp((time - fadeStart) / Math.max(.01, state.ending.blurDuration), 0, 1) : 0;
       $("#finishShade").style.opacity = String(time >= visibleEnd ? 1 : finalProgress);
       const colour = state.colour;
-      const blur = finalProgress * 24;
+      const segment = segmentAt($("#video").currentTime);
+      const targetTransform = segment?.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
+      const framingEnvelope = dynamicFramingEnvelope(time);
+      const blur = finalProgress * 24 + framingEnvelope.transition * 7;
       const previewFilter = colourPreviewFilter(blur);
       $("#video").style.filter = previewFilter;
-      const segment = segmentAt($("#video").currentTime);
-      const transform = segment?.transform || { zoom: DEFAULT_VIDEO_ZOOM, x: 0, y: 0 };
+      const transform = framingTransformAtTime(targetTransform, time);
       $("#video").style.transform = safePreviewTransform(transform);
       $("#video").style.transformOrigin = "center";
 
@@ -4963,7 +5254,7 @@
         }
         const ghostSegment = segmentAt(ghostTime);
         transitionGhost.style.filter = previewFilter;
-        transitionGhost.style.transform = safePreviewTransform(ghostSegment?.transform || transform);
+        transitionGhost.style.transform = safePreviewTransform(framingTransformAtTime(ghostSegment?.transform || targetTransform, time));
         transitionGhost.style.transformOrigin = "center";
         transitionGhost.style.opacity = String(Math.sin(Math.PI * overlapProgress));
       } else {
@@ -5709,7 +6000,7 @@
         state.transcript.status = "failed";
         state.transcript.message = error.message;
         renderTranscript();
-        renderQuickWorkflowPreparation("Pôvodné video zostáva prehrateľné · prepis zlyhal, markery bude možné nastaviť ručne.");
+        renderQuickWorkflowPreparation("Prepis zlyhal · markery bude možné nastaviť ručne po otvorení úprav.");
         recordUsage("transcript_failed", { reason: "request_or_processing_error" });
       }
     }
@@ -5751,7 +6042,7 @@
       if (job.status === "failed") {
         state.transcript.message = job.error || job.message || "Prepis zlyhal.";
         renderTranscript();
-        renderQuickWorkflowPreparation("Pôvodné video zostáva prehrateľné · prepis zlyhal, markery bude možné skontrolovať ručne.");
+        renderQuickWorkflowPreparation("Prepis zlyhal · markery bude možné skontrolovať ručne po otvorení úprav.");
         recordUsage("transcript_failed", { reason: "worker_error" });
         return;
       }
@@ -5769,7 +6060,7 @@
         $("#quickPreviewEmpty")?.classList.remove("hidden");
         if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
         if ($("#quickPreviewStatus")) {
-          $("#quickPreviewStatus").textContent = "Nastavenia sa zmenili. Dokončujem rozpracovaný náhľad a potom automaticky pripravím aktuálnu verziu…";
+          $("#quickPreviewStatus").textContent = "Nastavenia sa zmenili. Po dokončení rozpracovaného renderu kliknite na Obnoviť presný náhľad.";
         }
         return;
       }
@@ -5788,7 +6079,7 @@
         $("#quickPreviewEmpty")?.classList.remove("hidden");
         renderQuickPreviewControls();
       }
-      if ($("#quickPreviewProgress")) $("#quickPreviewProgress").style.width = "0%";
+      if ($("#quickPreviewProgress")) setQuickPreviewProgress(0, quickPreparationMessage());
       if (state.quickWorkflow.startedAtMs && !options.suppressSource) renderQuickWorkflowPreparation();
       else $("#quickPreviewTiming")?.classList.add("hidden");
       if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
@@ -5803,6 +6094,8 @@
       if (!state.video
         || state.quickWorkflow.videoImporting
         || state.quickWorkflow.musicImporting
+        || !state.framingChoiceConfirmed
+        || (!state.music && !state.quickWorkflow.continueWithoutMusic)
         || state.transcript.status !== "completed"
         || state.renderedPreview.rendering) return;
       const validation = validate();
@@ -5862,12 +6155,11 @@
     function restartSupersededPreview(key, token) {
       if (state.renderedPreview.token !== token) return;
       state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
-      $("#quickPreviewProgress").style.width = "0%";
+      setQuickPreviewProgress(0, "Nastavenia sa zmenili · kliknite na Obnoviť presný náhľad.");
       $("#quickPreviewTiming").classList.add("hidden");
-      $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Pripravujem ich aktuálnu verziu…";
+      $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Kliknite na Obnoviť presný náhľad.";
       recordUsage("exact_preview_superseded", { projectChanged: key !== previewProjectKey() });
       renderValidation();
-      setTimeout(() => renderProjectPreview({ automatic: true }), 50);
     }
 
     async function pollRenderedPreview(jobId, key, token) {
@@ -5885,9 +6177,12 @@
         const timing = combinedQuickRenderTiming(renderTiming);
         const overallProgress = combinedQuickProgress(job.progress);
         state.renderedPreview.timing = timing;
-        $("#quickPreviewProgress").style.width = `${(overallProgress * 100).toFixed(1)}%`;
+        const stageMessage = state.renderedPreview.stale
+          ? `Dokončujem rozpracovaný náhľad · render ${percent} %`
+          : `${job.message || "Pripravujem náhľad…"} · render ${percent} %`;
+        setQuickPreviewProgress(overallProgress, stageMessage);
         $("#quickPreviewStatus").textContent = state.renderedPreview.stale
-          ? `Dokončujem rozpracovaný náhľad; potom pripravím aktuálnu verziu… render ${percent} %`
+          ? `Dokončujem rozpracovaný náhľad; potom kliknite na Obnoviť presný náhľad… render ${percent} %`
           : `${job.message || "Pripravujem náhľad…"} celkom ${Math.round(overallProgress * 100)} % · render ${percent} %`;
         $("#progressLabel").textContent = job.message || "Pripravujem presný náhľad…";
         $("#progressPercent").textContent = `${percent} %`;
@@ -5936,7 +6231,7 @@
       const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
       const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
       $("#quickPreviewStatus").textContent = `Presný automatický náhľad je pripravený${loudnessLabel}. Môžete ho exportovať alebo pokračovať v úpravách.`;
-      $("#quickPreviewProgress").style.width = "100%";
+      setQuickPreviewProgress(1, "Presný náhľad je pripravený");
       renderTimingEstimate("preview", completedTiming);
       $("#quickExportBtn").disabled = false;
       recordUsage("exact_preview_completed", {
@@ -5945,7 +6240,7 @@
         initialEstimateSeconds: roundedLogNumber(Number(completedTiming?.initialEstimatedTotalMs || 0) / 1000, 1)
       });
       renderValidation();
-      $("#quickPreviewVideo").play().catch(() => {});
+      $("#quickPreviewVideo").pause();
     }
 
     function exportPayload() {
@@ -5963,6 +6258,11 @@
         loudness: { targetLufs: state.loudnessTargetLufs },
         ending: state.ending,
         colour: state.colour,
+        framing: {
+          mode: state.framingMode,
+          zoomInDuration: state.dynamicFraming.zoomInDuration,
+          zoomOutDuration: state.dynamicFraming.zoomOutDuration
+        },
         music: {
           enabled: Boolean(state.music),
           dropTime: state.musicSettings.dropTime,
@@ -6090,6 +6390,49 @@
         const file = event.target.files[0];
         if (file) uploadMedia(file, "music");
         event.target.value = "";
+      });
+
+      $("#skipMusicBtn").addEventListener("click", () => {
+        if (state.music) return;
+        state.quickWorkflow.continueWithoutMusic = true;
+        state.quickWorkflow.musicSelected = false;
+        $("#musicFileName").textContent = "Pokračujete bez hudby · skladbu môžete stále doplniť";
+        $("#skipMusicBtn").classList.add("hidden");
+        recordUsage("music_skipped_for_first_preview");
+        renderQuickWorkflowPreparation("Pokračujem bez hudby · čakám na dokončenie analýzy reči…");
+        maybePrepareQuickPreview();
+        renderValidation();
+      });
+
+      $("#framingOptions").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-framing-choice]");
+        if (!button) return;
+        state.framingMode = button.dataset.framingChoice === "dynamic" ? "dynamic" : "static";
+        renderFramingModeControls();
+      });
+      $("#confirmFramingMode").addEventListener("click", confirmFramingMode);
+      $("#framingModeDialog").addEventListener("cancel", (event) => {
+        event.preventDefault();
+        confirmFramingMode();
+      });
+      [["framingStatic", "static"], ["framingDynamic", "dynamic"]].forEach(([id, mode]) => {
+        $(`#${id}`).addEventListener("click", () => {
+          if (state.framingMode === mode) return;
+          state.framingMode = mode;
+          state.framingChoiceConfirmed = true;
+          rememberEdit(mode === "dynamic" ? "Dynamický zoom" : "Stály detail");
+          renderFramingModeControls();
+          renderPreviewEffects();
+          recordUsage("framing_mode_selected", { mode, source: "appearance_step" });
+        });
+      });
+      [["zoomInDuration", "zoomInDuration"], ["zoomOutDuration", "zoomOutDuration"]].forEach(([id, key]) => {
+        $(`#${id}`).addEventListener("input", (event) => {
+          state.dynamicFraming[key] = clamp(Number(event.target.value), .2, 1);
+          rememberEdit("Dĺžka dynamického zoomu", "dynamic-framing-duration");
+          renderFramingModeControls();
+          renderPreviewEffects();
+        });
       });
 
       $("#quickPreviewPlay").addEventListener("click", () => {
