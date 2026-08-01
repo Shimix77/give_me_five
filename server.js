@@ -1369,6 +1369,8 @@ function segmentFilter(inputIndex, segment, label, voiceMasterDb = 0) {
     `atrim=start=${start.toFixed(4)}:end=${end.toFixed(4)}`,
     "asetpts=PTS-STARTPTS",
     "aresample=48000",
+    "aformat=channel_layouts=mono",
+    "pan=stereo|c0=c0|c1=c0",
     `volume=${gain.toFixed(6)}`,
     "afade=t=in:st=0:d=0.012",
     `afade=t=out:st=${Math.max(0, duration - 0.012).toFixed(4)}:d=0.012`
@@ -2097,10 +2099,11 @@ app.post("/api/preview-audio", async (request, response) => {
     const denoisedAudioPath = await prepareDenoisedTrack(record, denoise);
     if (!denoisedAudioPath) throw new Error("Zapnite AI čistenie a nastavte jeho silu nad 0 %.");
     const finishing = denoisePostFilters(denoise);
+    const dualMono = "aformat=channel_layouts=mono,pan=stereo|c0=c0|c1=c0";
     const filters = [
-      `[0:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,aformat=channel_layouts=mono,volume=${gain.toFixed(6)},alimiter=limit=0.95[before]`,
-      `[1:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${finishing.join(",") || "anull"},aformat=channel_layouts=mono,volume=${gain.toFixed(6)},alimiter=limit=0.95[after]`,
-      "anullsrc=r=48000:cl=mono:d=0.35[pause]",
+      `[0:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${dualMono},volume=${gain.toFixed(6)},alimiter=limit=0.95[before]`,
+      `[1:a]atrim=start=${previewStart.toFixed(4)}:end=${previewEnd.toFixed(4)},asetpts=PTS-STARTPTS,aresample=48000,${finishing.join(",") || "anull"},${dualMono},volume=${gain.toFixed(6)},alimiter=limit=0.95[after]`,
+      "anullsrc=r=48000:cl=stereo:d=0.35[pause]",
       "[before][pause][after]concat=n=3:v=0:a=1[preview]"
     ];
     await runProcess(ffmpegPath, [

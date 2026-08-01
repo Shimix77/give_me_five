@@ -70,3 +70,5 @@ Plnú verziu zatiaľ nenasadzujte z tohto checkoutu priamo na Linux. Slovenský 
 
 Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).
 V prvom kroku sú importy videa a hudby kompaktne pod sebou vľavo a responzívny portrétový prehrávač vpravo. Play, časová os a fullscreen sú vždy nad obrazom, takže automatický zoom ich nemôže odrezať; informácia o zarámovaní je samostatne pod videom. Pôvodný súbor sa dá prehrať ihneď, zatiaľ čo upload, obrazová analýza, AI denoise/prepis, analýza hudby a presný render pokračujú na pozadí. Jeden spoločný ukazovateľ od začiatku zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Po prijatí FFmpeg progresu sa odhad priebežne spresňuje. Staršiu verziu bežiaceho servera editor rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
+
+Hovorený zvuk z nahratého videa sa v živom náhľade, AI denoise porovnaní aj exporte prevádza na dual-mono stereo: rovnaký hlas ide do ľavého aj pravého kanála. Hudba a whoosh zostávajú v pôvodnom stereo obraze.

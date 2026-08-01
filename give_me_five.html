@@ -2865,7 +2865,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.8.0";
+    const APP_VERSION = "3.8.1";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3468,7 +3468,11 @@
     async function toggleQuickPreviewPlayback() {
       const preview = $("#quickPreviewVideo");
       if (!preview.getAttribute("src")) return;
-      if (preview.paused) await preview.play();
+      if (preview.paused) {
+        await ensureAudioGraph();
+        updateQuickPreviewAudioRouting();
+        await preview.play();
+      }
       else preview.pause();
       renderQuickPreviewControls();
     }
@@ -3492,6 +3496,7 @@
       }
       preview.pause();
       preview.dataset.previewKind = "source";
+      updateQuickPreviewAudioRouting();
       preview.src = url;
       preview.load();
       $("#quickPreviewEmpty").classList.add("hidden");
@@ -5241,7 +5246,8 @@
       const musicElement = $("#music");
       const cleanElement = $("#cleanVoice");
       const whooshElement = $("#whooshPreview");
-      [videoElement, musicElement, cleanElement, whooshElement].forEach((element) => {
+      const quickPreviewElement = $("#quickPreviewVideo");
+      [videoElement, musicElement, cleanElement, whooshElement, quickPreviewElement].forEach((element) => {
         element.volume = 1;
         element.muted = false;
       });
@@ -5249,14 +5255,29 @@
       const musicSource = context.createMediaElementSource(musicElement);
       const cleanVoiceSource = context.createMediaElementSource(cleanElement);
       const whooshSource = context.createMediaElementSource(whooshElement);
+      const quickPreviewSource = context.createMediaElementSource(quickPreviewElement);
       const videoGain = context.createGain();
       const cleanGain = context.createGain();
       const musicGain = context.createGain();
       const whooshGain = context.createGain();
+      const quickPreviewMonoGain = context.createGain();
+      const quickPreviewStereoGain = context.createGain();
       const cleanHighpass = context.createBiquadFilter();
       const cleanPresence = context.createBiquadFilter();
       const cleanCompensation = context.createGain();
       const masterLimiter = context.createDynamicsCompressor();
+      const connectDualMono = (source, destination) => {
+        const mono = context.createGain();
+        const stereo = context.createChannelMerger(2);
+        mono.channelCount = 1;
+        mono.channelCountMode = "explicit";
+        mono.channelInterpretation = "speakers";
+        source.connect(mono);
+        mono.connect(stereo, 0, 0);
+        mono.connect(stereo, 0, 1);
+        stereo.connect(destination);
+        return { mono, stereo };
+      };
       cleanHighpass.type = "highpass";
       cleanHighpass.Q.value = .7;
       cleanPresence.type = "peaking";
@@ -5269,15 +5290,19 @@
       masterLimiter.attack.value = .002;
       masterLimiter.release.value = .08;
       masterLimiter.connect(context.destination);
-      videoSource.connect(videoGain).connect(masterLimiter);
+      const videoDualMono = connectDualMono(videoSource, videoGain);
+      videoGain.connect(masterLimiter);
       musicSource.connect(musicGain).connect(masterLimiter);
-      cleanVoiceSource
-        .connect(cleanHighpass)
+      const cleanVoiceDualMono = connectDualMono(cleanVoiceSource, cleanHighpass);
+      cleanHighpass
         .connect(cleanPresence)
         .connect(cleanCompensation)
         .connect(cleanGain)
         .connect(masterLimiter);
       whooshSource.connect(whooshGain).connect(masterLimiter);
+      const quickPreviewDualMono = connectDualMono(quickPreviewSource, quickPreviewMonoGain);
+      quickPreviewMonoGain.connect(context.destination);
+      quickPreviewSource.connect(quickPreviewStereoGain).connect(context.destination);
       state.audioGraph = {
         context,
         videoGain,
@@ -5286,10 +5311,26 @@
         whooshGain,
         cleanHighpass,
         cleanPresence,
-        masterLimiter
+        masterLimiter,
+        videoDualMono,
+        cleanVoiceDualMono,
+        quickPreviewDualMono,
+        quickPreviewMonoGain,
+        quickPreviewStereoGain
       };
+      updateQuickPreviewAudioRouting();
       await context.resume();
       return state.audioGraph;
+    }
+
+    function updateQuickPreviewAudioRouting() {
+      if (!state.audioGraph?.quickPreviewMonoGain || !state.audioGraph?.quickPreviewStereoGain) return;
+      const quickPreview = $("#quickPreviewVideo");
+      const sourcePreview = quickPreview.dataset.previewKind === "source";
+      const now = state.audioGraph.context.currentTime;
+      state.audioGraph.quickPreviewMonoGain.gain.setValueAtTime(sourcePreview ? 1 : 0, now);
+      state.audioGraph.quickPreviewStereoGain.gain.setValueAtTime(sourcePreview ? 0 : 1, now);
+      quickPreview.dataset.audioRouting = sourcePreview ? "dual-mono-voice" : "stereo-mix";
     }
 
     function musicDbAtVideoTime(time) {
@@ -5858,6 +5899,7 @@
       ["quickPreviewVideo"].forEach((id) => {
         const video = $(`#${id}`);
         video.dataset.previewKind = "rendered";
+        updateQuickPreviewAudioRouting();
         video.style.filter = "";
         video.style.transform = "";
         video.src = url;
