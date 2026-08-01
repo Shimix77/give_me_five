@@ -50,10 +50,10 @@ test("ignores small moving background texture", () => {
   assert.equal(detectVisualEntryFromRgb(syntheticFrames(), { width, height, fps }), null);
 });
 
-test("places trim 0.1 s before the first visible person after detector latency", () => {
+test("places trim 0.3 s before the first visible person after detector latency", () => {
   const result = detectVisualEntryFromRgb(syntheticFrames({ personStartsAt: 30 }), { width, height, fps });
   assert.ok(result);
-  assert.ok(result.suggestedStart >= 2.8 && result.suggestedStart <= 3.1, JSON.stringify(result));
+  assert.ok(result.suggestedStart >= 2.7 && result.suggestedStart <= 3.0, JSON.stringify(result));
   assert.equal(result.method, "coherent-visual-entry");
   assert.ok(result.framing, JSON.stringify(result));
   assert.ok(result.framing.zoom >= 1.12 && result.framing.zoom <= 1.48, JSON.stringify(result.framing));

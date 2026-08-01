@@ -348,7 +348,7 @@ function detectVisualEntryFromRgb(buffer, options = {}) {
     if (candidate.area > largestTracked.area) largestTracked = candidate;
   }
   const detectedAt = first.index / fps;
-  const suggestedStart = Math.max(0, detectedAt - 0.2);
+  const suggestedStart = Math.max(0, detectedAt - 0.3);
   const area = first.component.area;
   const confidence = area >= 12 && largestTracked.area >= 24 ? "high" : "medium";
   const faceResult = faceFraming(frames, baseline, first.index, width, height, fps);

@@ -53,9 +53,11 @@ test("quick preview controls stay outside the transformed portrait image", () =>
   assert.doesNotMatch(html, /<video id="quickPreviewVideo"[^>]*\scontrols(?:\s|>)/);
 });
 
-test("music is three decibels quieter during speech by default", () => {
+test("music stays at minus 25 dB and voice gets another two dB by default", () => {
   assert.match(html, /duringSpeechDb:\s*-25/);
   assert.match(html, /id="musicDuring"[^>]+value="-25"/);
+  assert.match(html, /voiceMasterDb:\s*2/);
+  assert.match(html, /id="voiceMaster"[^>]+value="2"/);
   assert.match(html, /Predvolený rozdiel 17 dB/);
 });
 

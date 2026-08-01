@@ -79,6 +79,11 @@ const AUTH_FAILURE_WINDOW_MS = 15 * 60 * 1000;
 const MAX_AUTH_FAILURES = 30;
 const HEAVY_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 const MAX_HEAVY_REQUESTS = 60;
+const TRANSITION_DELAY_SECONDS = 0.5;
+const TRANSITION_PEAK_RATIO = 0.5;
+const CONTINUATION_GAP_SECONDS = 0.1;
+const TRUE_PEAK_TARGET_DB = -2.2;
+const TRUE_PEAK_LIMIT_LINEAR = 0.776247;
 
 for (const directory of [WORK_DIR, UPLOAD_DIR, EXPORT_DIR, DENOISE_DIR, MODEL_DIR, ASSET_DIR]) {
   fs.mkdirSync(directory, { recursive: true });
@@ -121,7 +126,7 @@ const heavyRequests = new Map();
 const activeChildren = new Set();
 const activeWorkers = new Set();
 let activeMediaAnalyses = 0;
-let whooshPeakSeconds = 0.44;
+let whooshPeakSeconds = 0.558;
 
 function normaliseSessionId(value) {
   const id = String(value || "").trim();
@@ -368,6 +373,7 @@ app.get("/api/health", (request, response) => {
     ffmpeg: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
     ffprobe: Boolean(ffprobePath && fs.existsSync(ffprobePath)),
     whoosh: fs.existsSync(WHOOSH_PATH),
+    whooshPeakSeconds,
     rnnoise: fs.existsSync(RNNOISE_MODEL_PATH),
     deepfilter: fs.existsSync(DEEPFILTER_PATH)
   });
@@ -1280,13 +1286,14 @@ function denoisePostFilters(denoise) {
   if (!enabled || strength <= 0) return [];
   const lowCut = Math.round(clamp(numeric(denoise?.lowCut, 110), 50, 250));
   const clarity = clamp(numeric(denoise?.clarity, 18), 0, 100);
-  const filters = [
-    `highpass=f=${lowCut}:poles=2`,
-    "volume=1.333521"
-  ];
+  const filters = [`highpass=f=${lowCut}:poles=2`];
   if (clarity > 0) {
     filters.push(`equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 2.2).toFixed(2)}`);
   }
+  filters.push(
+    "acompressor=threshold=0.0794328:ratio=1.8:attack=12:release=160:knee=2.82843:detection=rms",
+    "volume=1.333521"
+  );
   return filters;
 }
 
@@ -1458,15 +1465,15 @@ function calculateGapEdit(markers, trimStart, trimEnd, requestedTransitionDurati
   const giveEnd = clamp(numeric(markers?.giveEnd, trimStart), trimStart, trimEnd);
   const continueStart = clamp(numeric(markers?.continueStart, giveEnd), giveEnd, trimEnd);
   const pauseDuration = Math.max(0, continueStart - giveEnd);
-  const requested = clamp(numeric(requestedTransitionDuration, 2), 0.5, 4);
-  const maximumFittingDuration = pauseDuration - 0.5;
+  const requested = clamp(numeric(requestedTransitionDuration, 1), 0.5, 4);
+  const maximumFittingDuration = pauseDuration - TRANSITION_DELAY_SECONDS - CONTINUATION_GAP_SECONDS;
   const transitionDuration = maximumFittingDuration >= 0.5
     ? Math.min(requested, maximumFittingDuration)
     : 0.5;
-  const targetPauseDuration = 0.5 + transitionDuration;
+  const targetPauseDuration = TRANSITION_DELAY_SECONDS + transitionDuration + CONTINUATION_GAP_SECONDS;
   const cutDuration = Math.max(0, pauseDuration - targetPauseDuration);
   const cutStart = clamp(
-    giveEnd + 0.5 + transitionDuration * 0.3,
+    giveEnd + TRANSITION_DELAY_SECONDS + transitionDuration * TRANSITION_PEAK_RATIO,
     giveEnd,
     continueStart
   );
@@ -1530,8 +1537,7 @@ function appendVideoSequence(filters, inputIndex, segments, prefix, metadata) {
 }
 
 function calculateAdditiveOverlap(gapEdit, trimStart, trimEnd) {
-  if (!gapEdit.active) return 0;
-  const desired = clamp(gapEdit.transitionDuration * 0.3, 0.3, 0.55);
+  const desired = clamp(gapEdit.transitionDuration, 0.5, 4);
   const availableBefore = Math.max(0, (gapEdit.cutStart - trimStart) * 2);
   const availableAfter = Math.max(0, (trimEnd - gapEdit.cutEnd) * 2);
   const overlap = Math.min(desired, availableBefore, availableAfter);
@@ -1617,9 +1623,8 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const visibleDuration = Math.max(sourceVisibleDuration, minimumVisibleDuration);
   const freezeFrameDuration = Math.max(0, visibleDuration - sourceVisibleDuration);
   const outputDuration = visibleDuration + blackTailDuration;
-  const transitionStartRel = giveEnd + 0.5 - trimStart;
-  const transitionFadeIn = transitionDuration * 0.3;
-  const transitionFadeOut = transitionDuration - transitionFadeIn;
+  const transitionStartRel = giveEnd + TRANSITION_DELAY_SECONDS - trimStart;
+  const transitionFadeIn = transitionDuration * TRANSITION_PEAK_RATIO;
   const transitionPeakRel = transitionStartRel + transitionFadeIn;
   const whooshStartRel = Math.max(0, transitionPeakRel - whooshPeakSeconds);
   const fadeStartRel = visibleDuration - finalFade;
@@ -1679,7 +1684,9 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
     const afterLabel = appendVideoSequence(filters, 0, afterSegments, "pictureAfter", video.metadata);
     const crossfadeOffset = Math.max(0, gapEdit.cutStart - trimStart - additiveOverlap / 2);
     filters.push(
-      `[${beforeLabel}][${afterLabel}]xfade=transition=fade:duration=${additiveOverlap.toFixed(4)}:offset=${crossfadeOffset.toFixed(4)},format=yuv420p,fps=${video.metadata.fps},settb=AVTB,setpts=PTS-STARTPTS[videoSequence]`
+      `[${beforeLabel}]format=gbrp[pictureBeforeRgb]`,
+      `[${afterLabel}]format=gbrp[pictureAfterRgb]`,
+      `[pictureBeforeRgb][pictureAfterRgb]xfade=transition=custom:expr='clip(A*min(1,2*P)+B*min(1,2*(1-P)),0,255)':duration=${additiveOverlap.toFixed(4)}:offset=${crossfadeOffset.toFixed(4)},format=yuv420p,fps=${video.metadata.fps},settb=AVTB,setpts=PTS-STARTPTS[videoSequence]`
     );
     videoSequenceLabel = "videoSequence";
   } else {
@@ -1691,9 +1698,7 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}${freezeFilter}[videoBase]`);
   const finishedVideoLabel = options.preview ? "voutFull" : "vout";
   filters.push(
-    `color=c=white@0.82:s=${video.metadata.width}x${video.metadata.height}:r=${video.metadata.fps}:d=${visibleDuration.toFixed(4)},format=yuva420p,fade=t=in:st=${transitionStartRel.toFixed(4)}:d=${transitionFadeIn.toFixed(4)}:alpha=1,fade=t=out:st=${transitionPeakRel.toFixed(4)}:d=${transitionFadeOut.toFixed(4)}:alpha=1[light]`,
-    `[videoBase][light]overlay=shortest=1:format=auto[litVideo]`,
-    "[litVideo]split=2[sharpFinal][blurInput]",
+    "[videoBase]split=2[sharpFinal][blurInput]",
     "[blurInput]gblur=sigma=24[blurredFinal]",
     `[sharpFinal][blurredFinal]blend=all_expr='A*(1-clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1))+B*clip((T-${fadeStartRel.toFixed(4)})/${finalFade.toFixed(4)},0,1)',fade=t=out:st=${fadeStartRel.toFixed(4)}:d=${finalFade.toFixed(4)},tpad=stop_mode=add:stop_duration=${blackTailDuration.toFixed(4)}:color=black,format=yuv420p[${finishedVideoLabel}]`
   );
@@ -1728,7 +1733,7 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   if (musicInputIndex !== null) {
     const musicSettings = payload.music || {};
     const dropTime = clamp(numeric(musicSettings.dropTime), 0, music.metadata.duration);
-    musicStart = dropTime - (continueStart - trimStart - gapEdit.cutDuration);
+    musicStart = dropTime - transitionPeakRel;
     musicEnd = musicStart + outputDuration;
     if (musicStart < -0.01) {
       throw new Error("The chosen music drop is too early to let the music start with the video.");
@@ -1745,7 +1750,7 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
 
   const targetLufs = clamp(numeric(payload.loudness?.targetLufs, -11), -24, -7);
   filters.push(
-    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,loudnorm=I=${targetLufs.toFixed(1)}:TP=-1.0:LRA=9,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,alimiter=limit=0.891251:attack=5:release=50:level=false,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
+    `${mixLabels.map((label) => `[${label}]`).join("")}amix=inputs=${mixLabels.length}:duration=longest:normalize=0,loudnorm=I=${targetLufs.toFixed(1)}:TP=${TRUE_PEAK_TARGET_DB.toFixed(1)}:LRA=9,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,alimiter=limit=${TRUE_PEAK_LIMIT_LINEAR}:attack=5:release=50:level=false,apad=whole_dur=${outputDuration.toFixed(4)},atrim=duration=${outputDuration.toFixed(4)}[aout]`
   );
 
   const outputPath = path.join(EXPORT_DIR, `${options.preview ? "preview-" : ""}${crypto.randomUUID()}.mp4`);
@@ -1878,7 +1883,7 @@ async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
       "-map", "0:v:0",
       "-map", "0:a:0",
       "-c:v", "copy",
-      "-af", `${compression}loudnorm=I=${normalisationTarget.toFixed(1)}:TP=-1.0:LRA=9,alimiter=limit=0.891251:attack=5:release=50:level=false`,
+      "-af", `${compression}loudnorm=I=${normalisationTarget.toFixed(1)}:TP=${TRUE_PEAK_TARGET_DB.toFixed(1)}:LRA=9,alimiter=limit=${TRUE_PEAK_LIMIT_LINEAR}:attack=5:release=50:level=false`,
       "-c:a", "aac",
       "-b:a", preview ? "128k" : "192k",
       "-ar", "48000",

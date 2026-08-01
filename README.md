@@ -27,18 +27,18 @@ Editor sa otvorí iba ako krokový sprievodca. V každom kroku zobrazí náhľad
 
 1. vloženie portrétového MOV/MP4 do 90 sekúnd a voliteľnej licencovanej hudby; pôvodné video sa dá prehrať okamžite počas analýzy a od prvej sekundy sa zobrazuje spoločný odhad až do hotového presného náhľadu,
 2. AI denoise celého videa s automatickým návrhom parametrov a reálnym A/B náhľadom na spoľahlivo rozpoznanej hovorenej vete,
-3. spoločná kontrola všetkých markerov na jednom waveforme; reč sa hľadá až vo vyčistenej stope a začiatok obrazu sa navrhne približne 0,1 sekundy pred vizuálnym vstupom človeka,
+3. spoločná kontrola všetkých markerov na jednom waveforme; reč sa hľadá až vo vyčistenej stope a začiatok obrazu sa navrhne približne 0,3 sekundy pred vizuálnym vstupom človeka,
 4. ľubovoľné oblasti na waveforme so stíšením 0 až −36 dB alebo úplným tichom,
 5. svetelný prechod s fast-whoosh efektom,
 6. hudba, tri automaticky navrhnuté dropy, hlasitosť úvodu/podmazu/záveru a spoločný náhľad finálneho mixu v jednom kroku,
 7. jednoduché farebné presety a rozbaliteľné pokročilé farby, ostrosť či zoom,
 8. nastavenie obrazu po reči, blur/fade, čistého čierneho záveru a priamy export MP4. Náhľad ostáva počas úprav stále vľavo, preto sa na konci neopakuje ako samostatný krok.
 
-Ak je prestávka medzi „Give Me Five“ a pokračovaním reči dlhšia než zvolený prechod, editor jej stred automaticky odstráni v najjasnejšom bode. Vo vrchole sa približne 0,5 sekundy prekryje záber pred strihom so záberom po strihu pod neutrálnym čisto bielym svetlom. Prechod tak skončí presne pri začiatku druhej reči. Pri kratšej prestávke sa svetelný efekt automaticky skráti, najmenej na 0,5 sekundy.
+Ak je prestávka medzi „Give Me Five“ a pokračovaním reči dlhšia než zvolený prechod, editor jej stred automaticky odstráni vo svetelnom vrchole. Predvolený prechod má 1 sekundu a podľa referencie z `18_A_davinci.mov` používa skutočný additive dissolve: záber pred strihom a záber po strihu sa v RGB kanáloch postupne sčítajú, vo vrchole sú oba na plnej sile a potom prvý plynulo zmizne. Farby tak zostanú sýte a najjasnejšie miesta sa krátko prepália; nejde o obyčajnú polopriehľadnú bielu vrstvu. Whoosh aj drop hudby vrcholia v rovnakom bode. Po skončení svetla zostane 0,1 sekundy priestoru a potom začne druhá reč. Pri kratšej prestávke sa efekt automaticky skráti, najmenej na 0,5 sekundy.
 
 Prvá manuálna zmena ktoréhokoľvek markeru prepne všetky markery do manuálneho režimu. AI ich už následne neposúva, takže ručné doladenie zostane zachované.
 
-AI denoise (DeepFilterNet3) vyčistí súvislo celý pôvodný zvuk. Aplikácia z hlučnosti, nízkofrekvenčného vetra a aktivity reči navrhne silu čistenia, dolnú hranicu aj jemné zvýraznenie hlasu. Vyčistená stopa sa ukladá do cache aktuálnej session a rovnaká verzia sa použije v náhľade aj exporte. Klikateľné informačné tlačidlá pri parametroch vysvetľujú, čo zmeniť pri kovovom, tlmenom alebo stále hlučnom hlase.
+AI denoise (DeepFilterNet3) vyčistí súvislo celý pôvodný zvuk. Aplikácia z hlučnosti, nízkofrekvenčného vetra a aktivity reči navrhne silu čistenia, dolnú hranicu aj jemné zvýraznenie hlasu. Po oddelení hlasu pridá miernu kompresiu, ktorá vyrovná hovorené slovo podobne ako automatické „studio voice“ nástroje. Vyčistená stopa sa ukladá do cache aktuálnej session a rovnaký reťazec sa použije v náhľade aj exporte. Klikateľné informačné tlačidlá pri parametroch vysvetľujú, čo zmeniť pri kovovom, tlmenom alebo stále hlučnom hlase.
 
 Hudobný analyzátor prejde celú skladbu, odporučí tri dropy, zobrazí BPM/beat mriežku a umožní zoom 1–32×. Tlačidlo **Prehrať mix** prehráva aktuálny finálny zvuk: vyčistený hlas, lokálne stíšené miesta, hudbu s automatickým stíšením, whoosh +5 dB aj všetky fade efekty.
 
@@ -48,14 +48,14 @@ Predvolený preset **Živé farby** sa použije už v okamžitom náhľade aj pr
 
 Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
-Predvolený hudobný podmaz je počas reči o 17 dB tichší. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
-Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +5“, ktorý je približne o 5 LU hlasnejší než −16 LUFS profil. Jemná kompresia a bezpečnostný limiter zabránia digitálnemu klipovaniu; aplikácia po renderi urobí druhý normalizačný priechod a pri náhľade ukáže skutočne nameranú hodnotu. Voliteľne možno zvoliť −14 alebo −16 LUFS a korekciu hlasu ±12 dB. Náhľady jednotlivých úsekov sa prehrávajú raz; automatické opakovanie je vypnuté.
+Predvolený hudobný podmaz je počas reči o 17 dB tichší a hlavná korekcia hlasu začína na +2 dB. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
+Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +5“, ktorý je približne o 5 LU hlasnejší než −16 LUFS profil. Jemná kompresia a bezpečnostný limiter s −2,2 dB true-peak rezervou zabránia aj AAC medzivzorkovému klipovaniu bez zbytočného stíšenia hlasného profilu; aplikácia po renderi urobí druhý normalizačný priechod a pri náhľade ukáže skutočne nameranú hodnotu. Voliteľne možno zvoliť −14 alebo −16 LUFS a korekciu hlasu ±12 dB. Náhľady jednotlivých úsekov sa prehrávajú raz; automatické opakovanie je vypnuté.
 
 ## Výstup
 
 - H.264 video a AAC audio v MP4
 - pôvodné rozlíšenie a FPS zdrojového videa
-- svetelný prechod 0,5–4 s s priloženým fast-whoosh efektom
+- predvolene 1-sekundový referenčný svetelný prechod (voliteľne 0,5–4 s) s priloženým fast-whoosh efektom
 - predvolene 4 sekundy obrazu po reči, 2-sekundový plynulo silnejúci blur/fade a ďalšie 2 sekundy čistého čierneho obrazu; všetky tri hodnoty možno zmeniť a hudba doznieva až do konca
 - cieľová finálna hlasitosť −11 LUFS (voliteľne −14/−16 LUFS), nameraná hodnota sa zobrazí po renderi
 - počas exportu sa priebežne zobrazuje percento aj uplynutý čas

@@ -1,6 +1,6 @@
 {
   "name": "give-me-five-editor",
-  "version": "3.8.1",
+  "version": "3.9.0",
   "private": true,
   "description": "Local portrait-video editor for the Give Me Five workflow.",
   "main": "server.js",

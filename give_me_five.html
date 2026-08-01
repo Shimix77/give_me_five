@@ -493,6 +493,7 @@
       border-radius: 22px;
       background: #02060c;
       box-shadow: 0 25px 60px rgba(0, 0, 0, .5);
+      isolation: isolate;
     }
 
     .video-wrap video {
@@ -514,7 +515,7 @@
       opacity: 0;
       pointer-events: none;
       background: transparent;
-      mix-blend-mode: screen;
+      mix-blend-mode: plus-lighter;
     }
 
     .empty-video {
@@ -543,8 +544,8 @@
     }
 
     .light-flash {
-      background: radial-gradient(circle at 55% 46%, #fff 0 17%, rgba(255, 255, 255, .88) 38%, transparent 77%);
-      mix-blend-mode: screen;
+      background: rgb(61, 61, 61);
+      mix-blend-mode: plus-lighter;
     }
 
     .finish-shade { z-index: 4; background: #000; }
@@ -2332,8 +2333,8 @@
           </div>
           <div class="mixer-strip">
             <label for="voiceMaster">Korekcia hlasu</label>
-            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="0">
-            <span class="value" id="voiceMasterValue">0 dB</span>
+            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="2">
+            <span class="value" id="voiceMasterValue">+2 dB</span>
           </div>
           <div class="level-meter"><i id="voiceMeter"></i></div>
           <div class="mixer-strip">
@@ -2524,7 +2525,7 @@
 
           <div class="control-card collapsed" id="denoiseCard">
             <h3>AI denoise celého videa <span class="value" id="globalStrengthValue">72 %</span></h3>
-            <p>DeepFilterNet3 oddeľuje hovorený hlas od vetra a stáleho šumu. Čistenie sa aplikuje súvislo na celé video aj export.</p>
+            <p>Automatika v štýle Captions oddeľuje hlas od pozadia pomocou DeepFilterNet3, potláča vietor a šum a jemne vyrovná hlas. Platí súvislo pre celé video aj export.</p>
             <div class="recommendation" id="denoiseRecommendation">Po prepise aplikácia zmeria šum a automaticky odporučí bezpečné nastavenia.</div>
             <div class="ab-status" id="denoiseTestPhrase">Testovacia veta sa vyberie z úseku s istou hovorenou rečou.</div>
             <div class="field">
@@ -2580,11 +2581,11 @@
 
           <div class="control-card collapsed" id="transitionCard">
             <h3>Svetelný prechod <span class="value" id="transitionValue">2,0 s</span></h3>
-            <p>Začne 0,5 s po „Give Me Five“. Vo vrchole sa približne 0,5 s prekryjú oba zábery pod čisto bielym svetlom a maximom whooshu.</p>
+            <p>Začne 0,5 s po „Give Me Five“. Referenčný 1 s efekt symetricky stúpne a klesne; vo vrchole zostáva obraz viditeľný, oba zábery sa krátko prekryjú a zaznie maximum whooshu.</p>
             <div class="recommendation" id="gapEditSummary">Po označení „Give Me Five“ a druhej reči sa tu zobrazí automatický strih prestávky.</div>
             <div class="field">
               <label for="transitionDuration">Dĺžka svetla 0,5–4 s</label>
-              <input id="transitionDuration" type="range" min=".5" max="4" step=".1" value="2">
+              <input id="transitionDuration" type="range" min=".5" max="4" step=".1" value="1">
             </div>
             <div class="field-line" style="margin-top:11px">
               <span class="muted-copy">Fast whoosh</span>
@@ -2616,7 +2617,7 @@
       <div class="panel-head">
         <div>
           <h2>Hudobný podmaz a drop</h2>
-          <p>Drop skladby sa stretne so začiatkom druhej časti reči; prehrávanie je synchronizované s videom</p>
+          <p>Drop skladby sa stretne s vrcholom svetla a whooshu; druhá reč začne 0,1 s po skončení prechodu</p>
         </div>
         <div style="display:flex;gap:7px;align-items:center">
           <button class="btn ghost" id="toggleMusicPanel" type="button">Skryť hudobný panel</button>
@@ -2647,7 +2648,7 @@
             <span><i style="--dot:var(--green)"></i>pasáž použitá vo videu</span>
           </div>
           <div class="drop-note">
-            <span><strong>Drop:</strong> Každý z troch návrhov môžete najprv vyskúšať spolu s videom, prechodom a whooshom.</span>
+            <span><strong>Drop:</strong> Každý z troch návrhov môžete najprv vyskúšať. Vybraný beat sa zarovná na najsvetlejší a najhlasnejší bod prechodu.</span>
             <button class="btn" id="setDropBtn" type="button" disabled>Nastaviť drop</button>
           </div>
           <div class="drop-candidates" id="dropCandidates"></div>
@@ -2730,7 +2731,7 @@
     <div class="guide-body">
       <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video a voliteľnú hudbu. Pôvodné video prehráte okamžite so Živými farbami a automatickým zarámovaním; spoločný čas ukazuje cestu až po presný náhľad.</span></div></div>
       <div class="guide-step"><b>2</b><div><strong>AI denoise pred markermi</strong><span>Aplikácia najprv oddelí hlas od vetra, sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
-      <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne približne 0,1 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
+      <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne približne 0,3 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
       <div class="guide-step"><b>4</b><div><strong>Hlučné miesta</strong><span>Kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho bez strihu obrazu.</span></div></div>
       <div class="guide-step"><b>5</b><div><strong>Svetelný prechod</strong><span>Prehrajte Give Me Five, whoosh a pokračovanie reči. Dlhá prestávka medzi nimi sa skráti automaticky.</span></div></div>
       <div class="guide-step"><b>6</b><div><strong>Hudba, drop a hlasitosť</strong><span>V jednom kroku vyskúšate tri navrhnuté dropy, nastavíte hlasitosť úvodu, podmazu aj záveru a prehráte ich spolu s videom, hlasom, prechodom a whooshom.</span></div></div>
@@ -2766,6 +2767,10 @@
     const css = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
     const MEDIA_SESSION_ID = uid();
     const DEFAULT_VIDEO_ZOOM = 1;
+    const TRANSITION_DELAY_SECONDS = .5;
+    const TRANSITION_PEAK_RATIO = .5;
+    const CONTINUATION_GAP_SECONDS = .1;
+    let whooshPeakSeconds = .558;
     const COLOUR_PRESETS = {
       neutral: { mode: "all", boost: 0, red: 0, green: 0, blue: 0, temperature: 0, intensity: 0, sharpness: 0 },
       vivid: { mode: "all", boost: 45, red: 0, green: 0, blue: 0, temperature: 0, intensity: 8, sharpness: 25 },
@@ -2789,12 +2794,12 @@
       audioRangeDraft: null,
       globalDenoise: { enabled: true, strength: 72, lowCut: 110, clarity: 18 },
       denoiseManuallyEdited: false,
-      transitionDuration: 2,
+      transitionDuration: 1,
       timelineZoom: 1,
       musicZoom: 1,
       beatSnap: true,
       markersManuallyEdited: false,
-      voiceMasterDb: 0,
+      voiceMasterDb: 2,
       loudnessTargetLufs: -11,
       ending: { holdDuration: 4, blurDuration: 2, blackDuration: 2 },
       colour: structuredClone(COLOUR_PRESETS.vivid),
@@ -2865,7 +2870,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.8.1";
+    const APP_VERSION = "3.9.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3264,10 +3269,10 @@
     }
 
     const markerInfo = {
-      trimStart: { label: "Začiatok videa", hint: "AI navrhne približne 0,1 s pred vizuálnym vstupom človeka", color: "#eef3fb" },
+      trimStart: { label: "Začiatok videa", hint: "AI navrhne približne 0,3 s pred vizuálnym vstupom človeka", color: "#eef3fb" },
       speechStart: { label: "Začína reč", hint: "hudba sa 1 s plynulo stíši", color: "#6fa8ff" },
       giveEnd: { label: "Koniec „Give Me Five“", hint: "svetlo začne o 0,5 s neskôr", color: "#f0c75e" },
-      continueStart: { label: "Druhá časť reči", hint: "sem sa zarovná drop hudby", color: "#ec7db3" },
+      continueStart: { label: "Druhá časť reči", hint: "začne 0,1 s po skončení svetla", color: "#ec7db3" },
       speechEnd: { label: "Koniec hovoreného slova", hint: "hudba sa začne dvíhať", color: "#73ddb1" },
       trimEnd: { label: "Koniec videa", hint: "ľubovoľný trim OUT", color: "#eef3fb" }
     };
@@ -3634,6 +3639,9 @@
         }
         state.serverReady = true;
         state.serverVersion = data.version || null;
+        whooshPeakSeconds = Number.isFinite(Number(data.whooshPeakSeconds))
+          ? Number(data.whooshPeakSeconds)
+          : .558;
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
         $("#serverNoticeText").textContent = "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.";
@@ -3771,7 +3779,7 @@
       const visualStart = Number(record.analysis.visualEntry?.suggestedStart);
       state.trimStart = Number.isFinite(visualStart) ? clamp(visualStart, 0, duration - .1) : 0;
       state.trimEnd = duration;
-      state.voiceMasterDb = 0;
+      state.voiceMasterDb = 2;
       state.loudnessTargetLufs = -11;
       state.denoiseManuallyEdited = false;
       if (record.analysis.denoiseRecommendation) {
@@ -3909,21 +3917,21 @@
           cutDuration: 0,
           transitionDuration: state.transitionDuration,
           pauseDuration: 0,
-          targetPauseDuration: .5 + state.transitionDuration,
+          targetPauseDuration: TRANSITION_DELAY_SECONDS + state.transitionDuration + CONTINUATION_GAP_SECONDS,
           tooShort: false
         };
       }
       const giveEnd = state.markers.giveEnd;
       const continueStart = state.markers.continueStart;
       const pauseDuration = Math.max(0, continueStart - giveEnd);
-      const maximumFittingDuration = pauseDuration - .5;
+      const maximumFittingDuration = pauseDuration - TRANSITION_DELAY_SECONDS - CONTINUATION_GAP_SECONDS;
       const transitionDuration = maximumFittingDuration >= .5
         ? Math.min(state.transitionDuration, maximumFittingDuration)
         : .5;
-      const targetPauseDuration = .5 + transitionDuration;
+      const targetPauseDuration = TRANSITION_DELAY_SECONDS + transitionDuration + CONTINUATION_GAP_SECONDS;
       const requestedCutDuration = Math.max(0, pauseDuration - targetPauseDuration);
       const cutStart = clamp(
-        giveEnd + .5 + transitionDuration * .3,
+        giveEnd + TRANSITION_DELAY_SECONDS + transitionDuration * TRANSITION_PEAK_RATIO,
         giveEnd,
         continueStart
       );
@@ -3942,8 +3950,8 @@
     }
 
     function calculateAdditiveOverlap(gapEdit = calculateGapEdit()) {
-      if (!state.video || !gapEdit.active) return 0;
-      const desired = clamp(gapEdit.transitionDuration * .3, .3, .55);
+      if (!state.video) return 0;
+      const desired = clamp(gapEdit.transitionDuration, .5, 4);
       const availableBefore = Math.max(0, (gapEdit.cutStart - state.trimStart) * 2);
       const availableAfter = Math.max(0, (state.trimEnd - gapEdit.cutEnd) * 2);
       const overlap = Math.min(desired, availableBefore, availableAfter);
@@ -4130,7 +4138,7 @@
         trimEnd: state.trimEnd
       };
       const gapEdit = calculateGapEdit();
-      const transitionStart = state.markers.giveEnd + .5;
+      const transitionStart = state.markers.giveEnd + TRANSITION_DELAY_SECONDS;
       const leftShade = `<div class="trim-shade" style="left:0;width:${markerPercent(state.trimStart, duration)}"></div>`;
       const rightShade = `<div class="trim-shade" style="left:${markerPercent(state.trimEnd, duration)};right:0"></div>`;
       const transition = `<div class="transition-band" style="left:${markerPercent(transitionStart, duration)};width:${markerPercent(Math.min(gapEdit.transitionDuration, duration - transitionStart), duration)}"></div>`;
@@ -4389,7 +4397,7 @@
       },
       {
         title: "Skontrolujte prechod po Give Me Five",
-        hint: "Dlhá prestávka sa automaticky vystrihne v najjasnejšom bode. Prechod skončí presne pri druhej reči."
+        hint: "Dlhá prestávka sa automaticky vystrihne vo vrchole svetla. Druhá reč začne 0,1 s po skončení prechodu."
       },
       {
         title: "Nastavte hudbu, drop a hlasitosť",
@@ -4566,8 +4574,11 @@
     function calculateMusicPassage() {
       if (!state.video || !state.music) return null;
       const outputDuration = editedOutputEnd() - state.trimStart;
-      const continuationRelative = sourceToEditedTime(state.markers.continueStart) - state.trimStart;
-      const start = effectiveDropTime() - continuationRelative;
+      const gapEdit = calculateGapEdit();
+      const transitionPeakRelative = sourceToEditedTime(state.markers.giveEnd + TRANSITION_DELAY_SECONDS)
+        + gapEdit.transitionDuration * TRANSITION_PEAK_RATIO
+        - state.trimStart;
+      const start = effectiveDropTime() - transitionPeakRelative;
       return { start, end: start + outputDuration, duration: outputDuration };
     }
 
@@ -4725,9 +4736,9 @@
       } else if (gapEdit.tooShort) {
         $("#gapEditSummary").innerHTML = `<strong>Krátka prestávka:</strong> prechod sa automaticky skráti na minimum ${gapEdit.transitionDuration.toFixed(1)} s.`;
       } else if (gapEdit.active) {
-        $("#gapEditSummary").innerHTML = `<strong>Automatický strih:</strong> odstráni sa ${gapEdit.cutDuration.toFixed(1)} s uprostred prestávky. V čisto bielom vrchole sa oba zábery prekryjú ${calculateAdditiveOverlap(gapEdit).toFixed(2)} s a prechod skončí presne pri druhej reči.`;
+        $("#gapEditSummary").innerHTML = `<strong>Automatický strih:</strong> odstráni sa ${gapEdit.cutDuration.toFixed(1)} s uprostred prestávky. Vo svetelnom vrchole zostane obraz viditeľný a oba zábery sa prekryjú ${calculateAdditiveOverlap(gapEdit).toFixed(2)} s. Druhá reč začne o 0,1 s neskôr.`;
       } else {
-        $("#gapEditSummary").innerHTML = `<strong>Bez vystrihnutia:</strong> prestávka už sedí na prechod dlhý ${gapEdit.transitionDuration.toFixed(1)} s.`;
+        $("#gapEditSummary").innerHTML = `<strong>Bez vystrihnutia:</strong> prestávka už sedí na prechod dlhý ${gapEdit.transitionDuration.toFixed(1)} s a 0,1 s priestoru pred druhou rečou.`;
       }
     }
 
@@ -4912,13 +4923,17 @@
       if (!state.video) return;
       const time = currentPreviewTime();
       const gapEdit = calculateGapEdit();
-      const start = sourceToEditedTime(state.markers.giveEnd + .5);
-      const fadeIn = gapEdit.transitionDuration * .3;
+      const start = sourceToEditedTime(state.markers.giveEnd + TRANSITION_DELAY_SECONDS);
+      const fadeIn = gapEdit.transitionDuration * TRANSITION_PEAK_RATIO;
       const end = start + gapEdit.transitionDuration;
+      const overlap = calculateAdditiveOverlap(gapEdit);
       let light = 0;
-      if (time >= start && time < start + fadeIn) light = (time - start) / Math.max(.01, fadeIn);
-      else if (time >= start + fadeIn && time <= end) light = 1 - ((time - start - fadeIn) / Math.max(.01, gapEdit.transitionDuration - fadeIn));
-      $("#lightFlash").style.opacity = String(clamp(light * .94, 0, .94));
+      if (time >= start && time < start + fadeIn) {
+        light = Math.sin(clamp((time - start) / Math.max(.01, fadeIn), 0, 1) * Math.PI / 2);
+      } else if (time >= start + fadeIn && time <= end) {
+        light = Math.sin(clamp((end - time) / Math.max(.01, gapEdit.transitionDuration - fadeIn), 0, 1) * Math.PI / 2);
+      }
+      $("#lightFlash").style.opacity = overlap > 0 ? "0" : String(clamp(light, 0, 1));
 
       const visibleEnd = endingVisibleEnd();
       const fadeStart = visibleEnd - state.ending.blurDuration;
@@ -4934,7 +4949,6 @@
       $("#video").style.transformOrigin = "center";
 
       const transitionGhost = $("#transitionGhost");
-      const overlap = calculateAdditiveOverlap(gapEdit);
       const transitionPeak = sourceToEditedTime(gapEdit.cutStart);
       const overlapStart = transitionPeak - overlap / 2;
       const overlapProgress = overlap > 0
@@ -4951,7 +4965,7 @@
         transitionGhost.style.filter = previewFilter;
         transitionGhost.style.transform = safePreviewTransform(ghostSegment?.transform || transform);
         transitionGhost.style.transformOrigin = "center";
-        transitionGhost.style.opacity = String(Math.sin(Math.PI * overlapProgress) * .76);
+        transitionGhost.style.opacity = String(Math.sin(Math.PI * overlapProgress));
       } else {
         transitionGhost.style.opacity = "0";
       }
@@ -5264,6 +5278,7 @@
       const quickPreviewStereoGain = context.createGain();
       const cleanHighpass = context.createBiquadFilter();
       const cleanPresence = context.createBiquadFilter();
+      const cleanVoiceCompressor = context.createDynamicsCompressor();
       const cleanCompensation = context.createGain();
       const masterLimiter = context.createDynamicsCompressor();
       const connectDualMono = (source, destination) => {
@@ -5283,6 +5298,11 @@
       cleanPresence.type = "peaking";
       cleanPresence.frequency.value = 2700;
       cleanPresence.Q.value = 1.25;
+      cleanVoiceCompressor.threshold.value = -22;
+      cleanVoiceCompressor.knee.value = 9;
+      cleanVoiceCompressor.ratio.value = 1.8;
+      cleanVoiceCompressor.attack.value = .012;
+      cleanVoiceCompressor.release.value = .16;
       cleanCompensation.gain.value = 1.333521;
       masterLimiter.threshold.value = -2;
       masterLimiter.knee.value = 0;
@@ -5296,6 +5316,7 @@
       const cleanVoiceDualMono = connectDualMono(cleanVoiceSource, cleanHighpass);
       cleanHighpass
         .connect(cleanPresence)
+        .connect(cleanVoiceCompressor)
         .connect(cleanCompensation)
         .connect(cleanGain)
         .connect(masterLimiter);
@@ -5311,6 +5332,7 @@
         whooshGain,
         cleanHighpass,
         cleanPresence,
+        cleanVoiceCompressor,
         masterLimiter,
         videoDualMono,
         cleanVoiceDualMono,
@@ -5490,9 +5512,9 @@
 
       if (state.video && !video.paused && state.previewTailStartedAt === null) {
         const gapEdit = calculateGapEdit();
-        const transitionStart = sourceToEditedTime(state.markers.giveEnd + .5);
-        const peakTime = transitionStart + gapEdit.transitionDuration * .3;
-        const whooshStart = Math.max(state.trimStart, peakTime - .44);
+        const transitionStart = sourceToEditedTime(state.markers.giveEnd + TRANSITION_DELAY_SECONDS);
+        const peakTime = transitionStart + gapEdit.transitionDuration * TRANSITION_PEAK_RATIO;
+        const whooshStart = Math.max(state.trimStart, peakTime - whooshPeakSeconds);
         if (previewTime < whooshStart - .04) state.whooshPlayed = false;
         if (!state.whooshPlayed && previewTime >= whooshStart && previewTime <= whooshStart + .22) {
           state.whooshPlayed = true;
@@ -5535,7 +5557,9 @@
       }
       state.previewTailStartedAt = null;
       const gapEdit = calculateGapEdit();
-      state.whooshPlayed = currentPreviewTime() > sourceToEditedTime(state.markers.giveEnd + .5) + gapEdit.transitionDuration * .3 - .44;
+      state.whooshPlayed = currentPreviewTime() > sourceToEditedTime(state.markers.giveEnd + TRANSITION_DELAY_SECONDS)
+        + gapEdit.transitionDuration * TRANSITION_PEAK_RATIO
+        - whooshPeakSeconds;
       updateAudioMix(true);
       await video.play();
       await ensureMusicPreviewPlaying(true);
@@ -5561,7 +5585,7 @@
       renderAll();
       recordUsage("transition_previewed", {
         durationSeconds: calculateGapEdit().transitionDuration,
-        transitionStartSeconds: state.markers.giveEnd + .5,
+        transitionStartSeconds: state.markers.giveEnd + TRANSITION_DELAY_SECONDS,
         continuousLoop: false
       });
       if ($("#video").paused) await toggleVideoPlayback();
