@@ -20,7 +20,7 @@ const {
   setRenderTimingStage
 } = require("./render-timing");
 const { detectVisualEntryFromRgb } = require("./visual-entry");
-const { refineSuggestionsWithAudio } = require("./marker-analysis");
+const { calculateGapEdit, refineSuggestionsWithAudio } = require("./marker-analysis");
 
 const APP_DIR = __dirname;
 const IS_RENDER = process.env.RENDER === "true";
@@ -1484,35 +1484,6 @@ function normaliseSegments(segments, trimStart, trimEnd) {
   return sorted;
 }
 
-function calculateGapEdit(markers, trimStart, trimEnd, requestedTransitionDuration) {
-  const giveEnd = clamp(numeric(markers?.giveEnd, trimStart), trimStart, trimEnd);
-  const continueStart = clamp(numeric(markers?.continueStart, giveEnd), giveEnd, trimEnd);
-  const pauseDuration = Math.max(0, continueStart - giveEnd);
-  const requested = clamp(numeric(requestedTransitionDuration, 1), 0.5, 4);
-  const maximumFittingDuration = pauseDuration - TRANSITION_DELAY_SECONDS - CONTINUATION_GAP_SECONDS;
-  const transitionDuration = maximumFittingDuration >= 0.5
-    ? Math.min(requested, maximumFittingDuration)
-    : 0.5;
-  const targetPauseDuration = TRANSITION_DELAY_SECONDS + transitionDuration + CONTINUATION_GAP_SECONDS;
-  const cutDuration = Math.max(0, pauseDuration - targetPauseDuration);
-  const cutStart = clamp(
-    giveEnd + TRANSITION_DELAY_SECONDS + transitionDuration * TRANSITION_PEAK_RATIO,
-    giveEnd,
-    continueStart
-  );
-  const cutEnd = clamp(cutStart + cutDuration, cutStart, continueStart);
-  return {
-    pauseDuration,
-    transitionDuration,
-    targetPauseDuration,
-    cutStart,
-    cutEnd,
-    cutDuration: Math.max(0, cutEnd - cutStart),
-    active: cutEnd - cutStart > 0.015,
-    tooShort: pauseDuration + 0.001 < targetPauseDuration
-  };
-}
-
 function removeGapFromSegments(segments, gapEdit) {
   if (!gapEdit.active) return segments;
   const pieces = [];
@@ -1675,7 +1646,11 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const giveEnd = clamp(numeric(markers.giveEnd, speechStart), speechStart, trimEnd);
   const continueStart = clamp(numeric(markers.continueStart, giveEnd), giveEnd, trimEnd);
   const speechEnd = clamp(numeric(markers.speechEnd, continueStart), continueStart, trimEnd);
-  const gapEdit = calculateGapEdit(markers, trimStart, trimEnd, payload.transitionDuration);
+  const gapEdit = calculateGapEdit(markers, trimStart, trimEnd, payload.transitionDuration, {
+    transitionDelay: TRANSITION_DELAY_SECONDS,
+    continuationGap: CONTINUATION_GAP_SECONDS,
+    transitionPeakRatio: TRANSITION_PEAK_RATIO
+  });
   const transitionDuration = gapEdit.transitionDuration;
   const additiveOverlap = calculateAdditiveOverlap(gapEdit, trimStart, trimEnd);
   const sourceVisibleDuration = trimEnd - trimStart - gapEdit.cutDuration;

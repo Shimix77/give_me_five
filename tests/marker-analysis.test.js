@@ -2,7 +2,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { refineSuggestionsWithAudio } = require("../marker-analysis");
+const { calculateGapEdit, refineSuggestionsWithAudio } = require("../marker-analysis");
 
 function points(start, end, label = "speech") {
   const result = [];
@@ -33,4 +33,40 @@ test("keeps transcript timing when no sustained cleaned-speech run exists", () =
   const suggestions = { speechStart: 4, speechEnd: 8 };
   const refined = refineSuggestionsWithAudio(suggestions, points(0.1, 0.2), 12);
   assert.deepEqual(refined, suggestions);
+});
+
+test("finds the start of the second sentence despite fragmented voice detection", () => {
+  const activity = [
+    ...points(3.4, 5.95),
+    ...points(6.95, 7.1),
+    ...points(7.35, 7.55),
+    ...points(7.8, 10.05),
+    ...points(10.7, 14.9),
+    ...points(15.2, 32.1),
+    ...points(32.7, 33.55),
+    ...points(38.1, 38.2)
+  ];
+  const refined = refineSuggestionsWithAudio({
+    speechStart: 3.6,
+    giveStart: 5.6,
+    giveEnd: 6.43,
+    continueStart: 6.5,
+    peaceStart: 32.7,
+    speechEnd: 37.1
+  }, activity, 39.67);
+  assert.equal(refined.speechStart, 3.4);
+  assert.ok(refined.giveEnd >= 6 && refined.giveEnd <= 6.1);
+  assert.equal(refined.continueStart, 6.95);
+  assert.ok(refined.speechEnd >= 33.55 && refined.speechEnd <= 33.7);
+});
+
+test("always removes the middle of a genuinely long post-Give-Me-Five pause", () => {
+  const edit = calculateGapEdit({ giveEnd: 6, continueStart: 12 }, 2, 30, 1);
+  assert.equal(edit.pauseDuration, 6);
+  assert.equal(edit.transitionDuration, 1);
+  assert.equal(edit.targetPauseDuration, 1.6);
+  assert.ok(Math.abs(edit.cutDuration - 4.4) < 1e-9);
+  assert.equal(edit.cutStart, 7);
+  assert.equal(edit.cutEnd, 11.4);
+  assert.equal(edit.active, true);
 });
