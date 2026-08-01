@@ -235,14 +235,19 @@
 
     .quick-preview-card {
       display: grid;
-      min-height: 676px;
+      min-height: 742px;
       place-items: center;
     }
     .quick-preview-copy-card { min-height: 0; }
     .quick-preview-copy { position: relative; z-index: 1; }
+    .quick-preview-frame {
+      display: grid;
+      width: min(390px, 100%);
+      gap: 8px;
+    }
     .quick-preview-media {
       position: relative;
-      width: min(360px, 100%);
+      width: 100%;
       aspect-ratio: 9 / 16;
       overflow: hidden;
       border: 1px solid var(--line);
@@ -253,29 +258,57 @@
       display: block;
       width: 100%;
       height: 100%;
+      cursor: pointer;
       object-fit: cover;
       transform-origin: center;
     }
     .quick-preview-media video:not([src]) { visibility: hidden; }
     .quick-framing-status {
-      position: absolute;
-      right: 9px;
-      bottom: 44px;
-      left: 9px;
-      z-index: 3;
-      padding: 7px 9px;
+      padding: 8px 10px;
       border: 1px solid rgba(115, 221, 177, .28);
       border-radius: 8px;
       background: rgba(4, 12, 23, .82);
       color: #bff5dd;
-      font-size: 9px;
+      font-size: 10px;
       font-weight: 760;
       text-align: center;
-      backdrop-filter: blur(7px);
     }
     .quick-framing-status.warning {
       border-color: rgba(240, 199, 94, .34);
       color: #f6dfa0;
+    }
+    .quick-preview-controls {
+      display: grid;
+      grid-template-columns: auto minmax(80px, 1fr) auto auto;
+      align-items: center;
+      gap: 7px;
+      padding: 7px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(4, 12, 23, .9);
+    }
+    .quick-preview-controls .timecode {
+      min-width: 82px;
+      font-size: 9px;
+      text-align: center;
+    }
+    .quick-preview-controls .btn { min-height: 34px; padding: 7px 9px; }
+    .quick-preview-frame:fullscreen {
+      width: 100%;
+      height: 100%;
+      padding: 12px;
+      place-content: center;
+      background: #030812;
+    }
+    .quick-preview-frame:fullscreen .quick-preview-media {
+      justify-self: center;
+      width: min(calc((100vh - 120px) * 9 / 16), calc(100vw - 24px));
+      max-height: calc(100vh - 120px);
+    }
+    .quick-preview-frame:fullscreen .quick-framing-status,
+    .quick-preview-frame:fullscreen .quick-preview-controls {
+      justify-self: center;
+      width: min(calc((100vh - 120px) * 9 / 16), calc(100vw - 24px));
     }
 
     .import-row {
@@ -1798,7 +1831,7 @@
       border-radius: 12px;
     }
 
-    .quick-preview-card { min-height: 664px; padding: 12px; }
+    .quick-preview-card { min-height: 742px; padding: 12px; }
     .quick-preview-copy-card .eyebrow { display: block; }
     .quick-preview-copy-card h2 { font-size: 17px; }
 
@@ -2233,10 +2266,18 @@
       </article>
       </div>
       <article class="import-card quick-preview-card" id="quickPreviewCard">
-        <div class="quick-preview-media">
-          <video id="quickPreviewVideo" controls playsinline preload="metadata"></video>
+        <div class="quick-preview-frame" id="quickPreviewFrame">
+          <div class="quick-preview-controls" aria-label="Ovládanie prvého náhľadu">
+            <button class="btn" id="quickPreviewPlay" type="button" disabled>▶ Prehrať</button>
+            <input id="quickPreviewScrubber" type="range" min="0" max="1" step=".001" value="0" disabled aria-label="Pozícia prvého náhľadu">
+            <span class="timecode" id="quickPreviewTime">00:00 / 00:00</span>
+            <button class="btn ghost" id="quickPreviewFullscreen" type="button" disabled>⛶ Celá obrazovka</button>
+          </div>
+          <div class="quick-preview-media">
+            <video id="quickPreviewVideo" playsinline preload="metadata" aria-label="Náhľad videa"></video>
+            <div class="empty-video" id="quickPreviewEmpty"><div><strong>Náhľad sa pripraví automaticky</strong>Prvé spracovanie môže chvíľu trvať.</div></div>
+          </div>
           <div class="quick-framing-status" id="quickFramingStatus">Po vložení videa automaticky nastavím tvár a postavu.</div>
-          <div class="empty-video" id="quickPreviewEmpty"><div><strong>Náhľad sa pripraví automaticky</strong>Prvé spracovanie môže chvíľu trvať.</div></div>
         </div>
       </article>
     </section>
@@ -2623,8 +2664,8 @@
                 <input id="musicBase" type="range" min="-30" max="0" step="1" value="-8">
               </div>
               <div class="level-box" data-music-phase="speech">
-                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať úsek reči raz">▶</button> <span class="value" id="musicDuringValue">−22 dB</span></span></div>
-                <input id="musicDuring" type="range" min="-40" max="-5" step="1" value="-22">
+                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať úsek reči raz">▶</button> <span class="value" id="musicDuringValue">−25 dB</span></span></div>
+                <input id="musicDuring" type="range" min="-40" max="-5" step="1" value="-25">
               </div>
               <div class="level-box" data-music-phase="after">
                 <div class="field-line"><label>Po reči</label><span><button class="level-audition" type="button" data-audition-region="ending" title="Prehrať záver raz">▶</button> <span class="value" id="musicAfterValue">−13 dB</span></span></div>
@@ -2632,9 +2673,9 @@
               </div>
             </div>
             <div class="recommendation">
-              <strong>Odporúčanie:</strong> podmaz má byť približne 12–18 dB pod hovoreným slovom. Predvolený rozdiel 14 dB nechá hlas zrozumiteľný aj na telefóne.
+              <strong>Odporúčanie:</strong> podmaz má byť približne 12–18 dB pod hovoreným slovom. Predvolený rozdiel 17 dB dáva hlasu ešte väčšiu zrozumiteľnosť aj na telefóne.
             </div>
-            <button class="btn" id="useRecommendation" type="button" style="width:100%;margin-top:10px">Obnoviť odporúčané −14 dB</button>
+            <button class="btn" id="useRecommendation" type="button" style="width:100%;margin-top:10px">Obnoviť odporúčané −17 dB</button>
           </div>
           <div class="control-card" style="margin-top:12px">
             <h3>Použitá pasáž</h3>
@@ -2768,7 +2809,7 @@
         enabled: true,
         dropTime: 0,
         baseDb: -8,
-        duringSpeechDb: -22,
+        duringSpeechDb: -25,
         afterSpeechDb: -13,
         offsetDb: 0,
         manual: false,
@@ -2824,7 +2865,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.7.1";
+    const APP_VERSION = "3.8.0";
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -3401,12 +3442,52 @@
       preview.style.filter = colourPreviewFilter(0);
     }
 
+    function quickPreviewClock(seconds) {
+      const value = Math.max(0, Number(seconds) || 0);
+      const minutes = Math.floor(value / 60);
+      const secs = Math.floor(value % 60);
+      return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function renderQuickPreviewControls() {
+      const preview = $("#quickPreviewVideo");
+      const hasVideo = Boolean(preview?.getAttribute("src"));
+      const duration = Number.isFinite(preview?.duration) ? preview.duration : 0;
+      $("#quickPreviewPlay").disabled = !hasVideo;
+      $("#quickPreviewPlay").textContent = preview && !preview.paused ? "❚❚ Pauza" : "▶ Prehrať";
+      $("#quickPreviewFullscreen").disabled = !hasVideo;
+      $("#quickPreviewFullscreen").textContent = document.fullscreenElement ? "⛶ Ukončiť" : "⛶ Celá obrazovka";
+      $("#quickPreviewScrubber").disabled = !hasVideo || duration <= 0;
+      $("#quickPreviewScrubber").max = String(Math.max(1, duration));
+      if (document.activeElement !== $("#quickPreviewScrubber")) {
+        $("#quickPreviewScrubber").value = String(preview?.currentTime || 0);
+      }
+      $("#quickPreviewTime").textContent = `${quickPreviewClock(preview?.currentTime)} / ${quickPreviewClock(duration)}`;
+    }
+
+    async function toggleQuickPreviewPlayback() {
+      const preview = $("#quickPreviewVideo");
+      if (!preview.getAttribute("src")) return;
+      if (preview.paused) await preview.play();
+      else preview.pause();
+      renderQuickPreviewControls();
+    }
+
+    async function toggleQuickPreviewFullscreen() {
+      const frame = $("#quickPreviewFrame");
+      if (!$("#quickPreviewVideo").getAttribute("src")) return;
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await frame.requestFullscreen();
+      renderQuickPreviewControls();
+    }
+
     function showSourceQuickPreview(url) {
       if (!url) return;
       const preview = $("#quickPreviewVideo");
       if (preview.dataset.previewKind === "source" && preview.getAttribute("src") === url) {
         $("#quickPreviewEmpty").classList.add("hidden");
         updateQuickSourcePresentation();
+        renderQuickPreviewControls();
         return;
       }
       preview.pause();
@@ -3415,6 +3496,7 @@
       preview.load();
       $("#quickPreviewEmpty").classList.add("hidden");
       updateQuickSourcePresentation();
+      renderQuickPreviewControls();
     }
 
     function beginImmediateVideoPreview(file) {
@@ -5639,6 +5721,7 @@
         video?.removeAttribute("src");
         video?.load();
         $("#quickPreviewEmpty")?.classList.remove("hidden");
+        renderQuickPreviewControls();
       }
       if ($("#quickPreviewProgress")) $("#quickPreviewProgress").style.width = "0%";
       if (state.quickWorkflow.startedAtMs && !options.suppressSource) renderQuickWorkflowPreparation();
@@ -5780,6 +5863,7 @@
         video.src = url;
         video.load();
       });
+      renderQuickPreviewControls();
       state.quickWorkflow.complete = true;
       clearInterval(state.quickWorkflow.timer);
       $("#quickPreviewEmpty").classList.add("hidden");
@@ -5941,6 +6025,25 @@
         if (file) uploadMedia(file, "music");
         event.target.value = "";
       });
+
+      $("#quickPreviewPlay").addEventListener("click", () => {
+        toggleQuickPreviewPlayback().catch((error) => toast(error.message));
+      });
+      $("#quickPreviewVideo").addEventListener("click", () => {
+        toggleQuickPreviewPlayback().catch((error) => toast(error.message));
+      });
+      $("#quickPreviewFullscreen").addEventListener("click", () => {
+        toggleQuickPreviewFullscreen().catch((error) => toast(error.message));
+      });
+      $("#quickPreviewScrubber").addEventListener("input", (event) => {
+        const preview = $("#quickPreviewVideo");
+        preview.currentTime = clamp(Number(event.target.value), 0, Number(preview.duration) || 0);
+        renderQuickPreviewControls();
+      });
+      ["loadedmetadata", "durationchange", "timeupdate", "play", "pause", "ended", "emptied"].forEach((eventName) => {
+        $("#quickPreviewVideo").addEventListener(eventName, renderQuickPreviewControls);
+      });
+      document.addEventListener("fullscreenchange", renderQuickPreviewControls);
 
       $$(".palette button").forEach((button) => button.addEventListener("click", () => {
         document.body.dataset.theme = button.dataset.palette;
@@ -6462,7 +6565,7 @@
       });
       $("#useRecommendation").addEventListener("click", () => {
         state.musicSettings.baseDb = -8;
-        state.musicSettings.duringSpeechDb = -22;
+        state.musicSettings.duringSpeechDb = -25;
         state.musicSettings.afterSpeechDb = -13;
         state.musicSettings.manual = false;
         rememberEdit("Odporúčané hlasitosti hudby");

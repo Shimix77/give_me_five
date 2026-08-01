@@ -41,7 +41,22 @@ test("first step exposes immediate portrait playback and one combined ETA", () =
   assert.match(html, /function combinedQuickRenderTiming/);
   assert.match(html, /class="import-stack"/);
   assert.match(html, /aspect-ratio:\s*9 \/ 16/);
-  assert.match(html, /width:\s*min\(360px, 100%\)/);
+  assert.match(html, /width:\s*min\(390px, 100%\)/);
+});
+
+test("quick preview controls stay outside the transformed portrait image", () => {
+  assert.match(html, /id="quickPreviewPlay"/);
+  assert.match(html, /id="quickPreviewScrubber"/);
+  assert.match(html, /id="quickPreviewFullscreen"/);
+  assert.match(html, /function toggleQuickPreviewFullscreen/);
+  assert.match(html, /class="quick-preview-media">[\s\S]*id="quickPreviewEmpty"[\s\S]*<\/div>\s*<div class="quick-framing-status"/);
+  assert.doesNotMatch(html, /<video id="quickPreviewVideo"[^>]*\scontrols(?:\s|>)/);
+});
+
+test("music is three decibels quieter during speech by default", () => {
+  assert.match(html, /duringSpeechDb:\s*-25/);
+  assert.match(html, /id="musicDuring"[^>]+value="-25"/);
+  assert.match(html, /Predvolený rozdiel 17 dB/);
 });
 
 test("vivid colour preset is the default for preview and quick export", () => {
