@@ -3069,10 +3069,12 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.10.1";
+    const APP_VERSION = "3.10.2";
+    const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
+    let quickPreviewAnimationFrame = null;
 
     function captureEditState() {
       return structuredClone({
@@ -3676,16 +3678,42 @@
       const hasVideo = Boolean(preview?.getAttribute("src"));
       const canPlay = hasVideo && state.renderedPreview.ready && preview.dataset.previewKind === "rendered";
       const duration = Number.isFinite(preview?.duration) ? preview.duration : 0;
+      const currentTime = clamp(Number(preview?.currentTime) || 0, 0, duration || 0);
+      const atEnd = duration > 0 && (Boolean(preview?.ended) || currentTime >= duration - .025);
       $("#quickPreviewPlay").disabled = !canPlay;
       $("#quickPreviewPlay").textContent = preview && !preview.paused ? "❚❚ Pauza" : "▶ Prehrať";
       $("#quickPreviewFullscreen").disabled = !canPlay;
       $("#quickPreviewFullscreen").textContent = document.fullscreenElement ? "⛶ Ukončiť" : "⛶ Celá obrazovka";
       $("#quickPreviewScrubber").disabled = !canPlay || duration <= 0;
-      $("#quickPreviewScrubber").max = String(Math.max(1, duration));
-      if (document.activeElement !== $("#quickPreviewScrubber")) {
-        $("#quickPreviewScrubber").value = String(preview?.currentTime || 0);
-      }
-      $("#quickPreviewTime").textContent = `${quickPreviewClock(preview?.currentTime)} / ${quickPreviewClock(duration)}`;
+      $("#quickPreviewScrubber").max = String(QUICK_PREVIEW_SCRUBBER_STEPS);
+      $("#quickPreviewScrubber").value = String(
+        duration > 0
+          ? atEnd
+            ? QUICK_PREVIEW_SCRUBBER_STEPS
+            : Math.round(currentTime / duration * QUICK_PREVIEW_SCRUBBER_STEPS)
+          : 0
+      );
+      $("#quickPreviewTime").textContent = `${quickPreviewClock(atEnd ? duration : currentTime)} / ${quickPreviewClock(duration)}`;
+    }
+
+    function stopQuickPreviewProgressTracking() {
+      if (quickPreviewAnimationFrame === null) return;
+      cancelAnimationFrame(quickPreviewAnimationFrame);
+      quickPreviewAnimationFrame = null;
+    }
+
+    function startQuickPreviewProgressTracking() {
+      stopQuickPreviewProgressTracking();
+      const update = () => {
+        const preview = $("#quickPreviewVideo");
+        renderQuickPreviewControls();
+        if (preview && !preview.paused && !preview.ended) {
+          quickPreviewAnimationFrame = requestAnimationFrame(update);
+        } else {
+          quickPreviewAnimationFrame = null;
+        }
+      };
+      quickPreviewAnimationFrame = requestAnimationFrame(update);
     }
 
     async function toggleQuickPreviewPlayback() {
@@ -6182,13 +6210,14 @@
         const timing = combinedQuickRenderTiming(renderTiming);
         const overallProgress = combinedQuickProgress(job.progress);
         state.renderedPreview.timing = timing;
+        const overallPercent = Math.round(overallProgress * 100);
         const stageMessage = state.renderedPreview.stale
-          ? `Dokončujem rozpracovaný náhľad · render ${percent} %`
-          : `${job.message || "Pripravujem náhľad…"} · render ${percent} %`;
+          ? `Dokončujem rozpracovaný náhľad · celkom ${overallPercent} %`
+          : `${job.message || "Pripravujem náhľad…"} · celkom ${overallPercent} %`;
         setQuickPreviewProgress(overallProgress, stageMessage);
         $("#quickPreviewStatus").textContent = state.renderedPreview.stale
-          ? `Dokončujem rozpracovaný náhľad; potom kliknite na Obnoviť presný náhľad… render ${percent} %`
-          : `${job.message || "Pripravujem náhľad…"} celkom ${Math.round(overallProgress * 100)} % · render ${percent} %`;
+          ? `Dokončujem rozpracovaný náhľad; potom kliknite na Obnoviť presný náhľad… celkom ${overallPercent} %`
+          : `${job.message || "Pripravujem náhľad…"} · celkom ${overallPercent} %`;
         $("#progressLabel").textContent = job.message || "Pripravujem presný náhľad…";
         $("#progressPercent").textContent = `${percent} %`;
         $("#progressFill").style.width = `${percent}%`;
@@ -6451,12 +6480,17 @@
       });
       $("#quickPreviewScrubber").addEventListener("input", (event) => {
         const preview = $("#quickPreviewVideo");
-        preview.currentTime = clamp(Number(event.target.value), 0, Number(preview.duration) || 0);
+        const duration = Number.isFinite(preview.duration) ? preview.duration : 0;
+        const position = clamp(Number(event.target.value) / QUICK_PREVIEW_SCRUBBER_STEPS, 0, 1);
+        preview.currentTime = duration * position;
         renderQuickPreviewControls();
       });
-      ["loadedmetadata", "durationchange", "timeupdate", "play", "pause", "ended", "emptied"].forEach((eventName) => {
+      ["loadedmetadata", "durationchange", "timeupdate", "pause", "ended", "emptied"].forEach((eventName) => {
         $("#quickPreviewVideo").addEventListener(eventName, renderQuickPreviewControls);
       });
+      $("#quickPreviewVideo").addEventListener("play", startQuickPreviewProgressTracking);
+      $("#quickPreviewVideo").addEventListener("pause", stopQuickPreviewProgressTracking);
+      $("#quickPreviewVideo").addEventListener("ended", stopQuickPreviewProgressTracking);
       document.addEventListener("fullscreenchange", renderQuickPreviewControls);
 
       $$(".palette button").forEach((button) => button.addEventListener("click", () => {

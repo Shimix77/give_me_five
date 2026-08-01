@@ -57,6 +57,17 @@ test("quick preview controls stay outside the transformed portrait image", () =>
   assert.doesNotMatch(html, /<video id="quickPreviewVideo"[^>]*\scontrols(?:\s|>)/);
 });
 
+test("quick preview progress and scrubber stay synchronized", () => {
+  assert.match(html, /const QUICK_PREVIEW_SCRUBBER_STEPS = 1000/);
+  assert.match(html, /Math\.round\(currentTime \/ duration \* QUICK_PREVIEW_SCRUBBER_STEPS\)/);
+  assert.match(html, /preview\.currentTime = duration \* position/);
+  assert.match(html, /preview && !preview\.paused && !preview\.ended/);
+  assert.match(html, /quickPreviewAnimationFrame = requestAnimationFrame\(update\)/);
+  assert.doesNotMatch(html, /document\.activeElement !== \$\("#quickPreviewScrubber"\)/);
+  assert.match(html, /const overallPercent = Math\.round\(overallProgress \* 100\)/);
+  assert.match(html, /celkom \$\{overallPercent\} %/);
+});
+
 test("long media names cannot push the audio chooser outside its import card", () => {
   assert.match(html, /\.import-row > div:nth-child\(2\) \{ min-width: 0; \}/);
   assert.match(html, /\.import-row > label\.btn[\s\S]*?white-space: nowrap/);
