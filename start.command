@@ -51,6 +51,8 @@ fi
 
 NODE_BIN="$(command -v node || true)"
 PNPM_BIN="$(command -v pnpm || true)"
+DEPENDENCY_VERSION_FILE="$APP_DIR/node_modules/.gmf-app-version"
+INSTALLED_DEPENDENCY_VERSION="$(/usr/bin/sed -n '1p' "$DEPENDENCY_VERSION_FILE" 2>/dev/null || true)"
 
 if [ -z "$NODE_BIN" ] && [ -x "/Users/jakubsimonak/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node" ]; then
   NODE_BIN="/Users/jakubsimonak/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node"
@@ -70,7 +72,7 @@ fi
 NODE_DIR="$(dirname "$NODE_BIN")"
 export PATH="$NODE_DIR:$PATH"
 
-if [ ! -d "node_modules" ] || ! "$NODE_BIN" -e "require('express'); require('ffmpeg-static'); require('ffprobe-static'); require.resolve('@huggingface/transformers')" >/dev/null 2>&1; then
+if [ ! -d "node_modules" ] || [ "$INSTALLED_DEPENDENCY_VERSION" != "$EXPECTED_VERSION" ] || ! "$NODE_BIN" -e "require('express'); require('ffmpeg-static'); require('ffprobe-static'); require.resolve('@huggingface/transformers')" >/dev/null 2>&1; then
   echo "Pripravujem lokálny video engine. Pri prvom spustení to môže chvíľu trvať…"
   if [ -n "$PNPM_BIN" ]; then
     if ! "$PNPM_BIN" install; then
@@ -89,6 +91,7 @@ if [ ! -d "node_modules" ] || ! "$NODE_BIN" -e "require('express'); require('ffm
     pause_if_terminal
     exit 1
   fi
+  /usr/bin/printf '%s\n' "$EXPECTED_VERSION" > "$DEPENDENCY_VERSION_FILE"
 fi
 
 echo "Spúšťam Give Me Five Editor…"

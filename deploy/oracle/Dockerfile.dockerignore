@@ -1,0 +1,19 @@
+# Oracle build dostane iba explicitne povolené runtime súbory. Lokálne uploady,
+# modely, node_modules, Git história a cloudové tajomstvá sa do build contextu
+# neposielajú.
+**
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!give_me_five.html
+!server.js
+!transcribe-worker.js
+!render-timing.js
+!marker-analysis.js
+!visual-entry.js
+!music-suitability.js
+!README.md
+!SECURITY.md
+!THIRD_PARTY_NOTICES.md
+!assets/
+!assets/**

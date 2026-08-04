@@ -32,3 +32,10 @@ test("start.command replaces a stale process bound to the editor port", () => {
   assert.match(commandLauncher, /\/bin\/kill "\$LISTENER_PID"/);
   assert.match(commandLauncher, /Staršiu verziu editora sa nepodarilo ukončiť/);
 });
+
+test("local launcher refreshes dependencies after an application update", () => {
+  assert.match(commandLauncher, /DEPENDENCY_VERSION_FILE=/);
+  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_VERSION=/);
+  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_VERSION" != "\$EXPECTED_VERSION/);
+  assert.match(commandLauncher, /printf '%s\\n' "\$EXPECTED_VERSION" > "\$DEPENDENCY_VERSION_FILE"/);
+});
