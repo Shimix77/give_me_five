@@ -38,7 +38,9 @@ const WORK_DIR = process.env.GMF_WORK_DIR
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
 const EXPORT_DIR = path.join(WORK_DIR, "exports");
 const DENOISE_DIR = path.join(WORK_DIR, "denoise");
-const MODEL_DIR = path.join(WORK_DIR, "models");
+const MODEL_DIR = process.env.GMF_MODEL_DIR
+  ? path.resolve(process.env.GMF_MODEL_DIR)
+  : path.join(WORK_DIR, "models");
 const ASSET_DIR = path.join(APP_DIR, "assets");
 const WHOOSH_PATH = path.join(ASSET_DIR, "fast-whoosh.mp3");
 const RNNOISE_MODEL_PATH = path.join(ASSET_DIR, "rnnoise-voice.rnnn");
@@ -55,6 +57,15 @@ const PORT = Number(process.env.PORT || process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = Math.max(
   25 * 1024 * 1024,
   Number(process.env.GMF_MAX_UPLOAD_MB || (IS_PUBLIC_DEPLOYMENT ? 300 : 1024)) * 1024 * 1024
+);
+const MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BYTES + 2 * 1024 * 1024;
+const MAX_RUNNING_UPLOADS = Math.max(
+  1,
+  Number(process.env.GMF_MAX_RUNNING_UPLOADS || (IS_PUBLIC_DEPLOYMENT ? 1 : 4))
+);
+const MIN_FREE_UPLOAD_BYTES = Math.max(
+  64 * 1024 * 1024,
+  Number(process.env.GMF_MIN_FREE_DISK_MB || (IS_PUBLIC_DEPLOYMENT ? 512 : 128)) * 1024 * 1024
 );
 const ACCESS_USER = String(process.env.GMF_ACCESS_USER || "give-me-five");
 const ACCESS_KEY = String(process.env.GMF_ACCESS_KEY || "");
@@ -126,7 +137,9 @@ const authFailures = new Map();
 const heavyRequests = new Map();
 const activeChildren = new Set();
 const activeWorkers = new Set();
+const activeUploadSessions = new Set();
 let activeMediaAnalyses = 0;
+let activeUploads = 0;
 let whooshPeakSeconds = 0.558;
 
 function normaliseSessionId(value) {
@@ -288,6 +301,54 @@ function requestHasValidAccess(request) {
   } catch (_error) {
     return false;
   }
+}
+
+function availableUploadBytes() {
+  if (typeof fs.statfsSync !== "function") return Number.POSITIVE_INFINITY;
+  try {
+    const stats = fs.statfsSync(UPLOAD_DIR);
+    return Number(stats.bavail) * Number(stats.bsize);
+  } catch (_error) {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+function reserveMediaUpload(request, response, next) {
+  const sessionId = request.gmfSessionId;
+  if (!sessionId) {
+    response.status(400).json({ error: "The browser session is missing. Refresh the editor and try again." });
+    return;
+  }
+
+  const declaredLength = Number(request.headers["content-length"] || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_UPLOAD_REQUEST_BYTES) {
+    response.status(413).json({ error: "Vybraný súbor je príliš veľký." });
+    return;
+  }
+  if (activeUploads >= MAX_RUNNING_UPLOADS || activeUploadSessions.has(sessionId)) {
+    response.setHeader("Retry-After", "5");
+    response.status(429).json({ error: "Iný upload ešte prebieha. Počkajte na jeho dokončenie." });
+    return;
+  }
+  if (availableUploadBytes() < MAX_UPLOAD_BYTES + MIN_FREE_UPLOAD_BYTES) {
+    response.setHeader("Retry-After", "60");
+    response.status(507).json({ error: "Server nemá dostatok voľného dočasného miesta pre ďalšie video." });
+    return;
+  }
+
+  activeUploads += 1;
+  activeUploadSessions.add(sessionId);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    activeUploads = Math.max(0, activeUploads - 1);
+    activeUploadSessions.delete(sessionId);
+  };
+  request.once("aborted", release);
+  response.once("finish", release);
+  response.once("close", release);
+  next();
 }
 
 const storage = multer.diskStorage({
@@ -892,7 +953,7 @@ async function analyseMedia(filePath, id, kind) {
   };
 }
 
-app.post("/api/media", upload.single("file"), async (request, response) => {
+app.post("/api/media", reserveMediaUpload, upload.single("file"), async (request, response) => {
   if (!request.file) {
     response.status(400).json({ error: "No media file was uploaded." });
     return;
@@ -2227,7 +2288,8 @@ app.post("/api/preview-audio", async (request, response) => {
   }
 });
 
-app.use((error, _request, response, _next) => {
+app.use((error, request, response, _next) => {
+  if (request.file?.path) safeRemove(request.file.path);
   if (error instanceof multer.MulterError) {
     const tooLarge = error.code === "LIMIT_FILE_SIZE";
     response.status(tooLarge ? 413 : 400).json({

@@ -1,6 +1,6 @@
 # Give Me Five Video Editor
 
-Webová aplikácia pre Google Chrome. V lokálnom režime video a audio ostávajú v počítači; natívny FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4. Cloudová verzia bude používať rovnaký serverový render a médiá spracuje iba dočasne počas otvorenej relácie.
+Webová aplikácia pre Google Chrome. V lokálnom režime video a audio ostávajú v počítači; natívny FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4. Oracle verzia používa rovnaký serverový render, ale má úplne oddelené spúšťanie, heslá a dočasné úložisko v `deploy/oracle/`.
 
 ## Spustenie
 
@@ -62,13 +62,13 @@ Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +
 
 AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. Rovnaký DeepFilter výstup sa použije aj pred lokálnym slovenským prepisom a určovaním markerov.
 
-## Cloud: aktuálny stav
+## Oddelená Oracle verzia
 
-Server už podporuje `PORT`, bindovanie na `0.0.0.0`, bezpečnostné hlavičky, serverové overovanie uploadov, časové a súbežné limity, vyčistenie dočasných médií a korektné ukončenie pri reštarte. V cloudovom režime sa bez premennej `GMF_ACCESS_KEY` s minimálne 20 znakmi úmyselne nespustí. Prihlásenie používa meno `give-me-five` a hodnotu tejto premennej ako heslo.
+Lokálna verzia sa naďalej spúšťa rovnakým spôsobom cez `start.command` a používa iba `.gmf-work`. Oracle konfigurácia je v `deploy/oracle/`; lokálny adresár sa do kontajnera nepripája. Cloudový server podporuje bindovanie na `0.0.0.0`, bezpečnostné hlavičky, serverové overovanie uploadov, časové a súbežné limity, limit jedného súbežného cloudového uploadu a korektné ukončenie pri reštarte. Bez `GMF_ACCESS_KEY` s minimálne 20 znakmi sa cloudový režim úmyselne nespustí.
 
-Plnú verziu zatiaľ nenasadzujte z tohto checkoutu priamo na Linux. Slovenský Whisper model má v lokálnej cache približne 1,3 GB ešte pred započítaním Node.js a samotnej inferencie. Pribalený `tools/deep-filter` je navyše macOS ARM binárka, nie Linux binárka. Pre Oracle Cloud zostáva doplniť pripnutý Linux ARM64 DeepFilterNet a kontajnerový deployment; lokálna macOS verzia zostane zachovaná.
+Oracle image obsahuje samostatnú pripnutú Linux ARM64 binárku DeepFilterNet a všetky runtime moduly. Uploady, denoise medzisúbory a exporty sú v dočasnom `tmpfs`, ktorý sa pri reštarte bezpodmienečne vymaže; persistentný zostáva iba AI model. Pred verejným použitím ešte treba image zostaviť a urobiť plný integračný test priamo na Oracle Ampere A1.
 
-Podrobný audit a deployment checklist sú v [SECURITY.md](SECURITY.md).
+Presný postup je v [deploy/oracle/README.md](deploy/oracle/README.md) a audit v [SECURITY.md](SECURITY.md).
 V prvom kroku sú importy videa, hudby a rozhodnutie „upraviť alebo exportovať“ kompaktne pod sebou vľavo; pravý portrétový prehrávač má výšku týchto troch blokov. Informácia o zarámovaní je nad obrazom, play, časová os a fullscreen pod ním. Kým upload, obrazová analýza, AI denoise/prepis, analýza hudby a presný render pokračujú, video je uzamknuté a na jeho prvom zábere vidno kruhové percentá aj aktuálnu činnosť. Jeden spoločný ukazovateľ zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Po prijatí FFmpeg progresu sa odhad priebežne spresňuje. Staršiu verziu bežiaceho servera editor rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
 
 Hovorený zvuk z nahratého videa sa v živom náhľade, AI denoise porovnaní aj exporte prevádza na dual-mono stereo: rovnaký hlas ide do ľavého aj pravého kanála. Hudba a whoosh zostávajú v pôvodnom stereo obraze.

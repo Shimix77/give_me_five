@@ -1,0 +1,28 @@
+{
+  servers {
+    max_header_size 32KB
+  }
+}
+
+{$GMF_DOMAIN} {
+  encode zstd gzip
+
+  request_body {
+    # 300 MiB aplikačný limit plus multipart réžia; Caddy používa desatinné MB.
+    max_size 320MB
+  }
+
+  header {
+    -Server
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "no-referrer"
+  }
+
+  reverse_proxy editor:4173 {
+    health_uri /api/health
+    health_interval 30s
+    fail_duration 30s
+  }
+}

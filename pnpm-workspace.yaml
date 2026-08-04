@@ -3,3 +3,7 @@ allowBuilds:
   onnxruntime-node: true
   protobufjs: true
   sharp: true
+
+overrides:
+  adm-zip: 0.6.0
+  sharp: 0.35.3
