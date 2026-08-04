@@ -564,6 +564,18 @@
       transform: translateY(-1px);
     }
 
+    .btn[aria-disabled="true"] {
+      pointer-events: none;
+      opacity: .48;
+    }
+
+    .btn.needs-attention {
+      border-color: #8fc1ff;
+      background: #6fa8ff;
+      color: #07101d;
+      box-shadow: 0 0 0 4px rgba(111, 168, 255, .2);
+    }
+
     .btn.primary {
       border-color: rgba(var(--accent-rgb), .48);
       background: linear-gradient(180deg, rgba(var(--accent-rgb), .85), rgba(var(--accent-rgb), .63));
@@ -1181,7 +1193,7 @@
 
     .marker-row {
       display: grid;
-      grid-template-columns: 11px 1fr auto auto;
+      grid-template-columns: 11px 1fr auto auto auto;
       align-items: center;
       gap: 9px;
       padding: 9px 10px;
@@ -1250,6 +1262,26 @@
     .marker-row code {
       color: #dbe5f2;
       font-size: 10px;
+    }
+
+    .marker-confidence {
+      padding: 3px 6px;
+      border: 1px solid rgba(115, 221, 177, .28);
+      border-radius: 999px;
+      color: #bff5dd;
+      font-size: 8px;
+      font-weight: 820;
+      white-space: nowrap;
+    }
+
+    .marker-confidence.check {
+      border-color: rgba(240, 199, 94, .35);
+      color: #f6dfa0;
+    }
+
+    .marker-confidence.manual {
+      border-color: rgba(111, 168, 255, .38);
+      color: #cde1ff;
     }
 
     .marker-row .btn {
@@ -2300,6 +2332,7 @@
     body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoVisualizer,
     body.wizard-mode[data-wizard-step="2"] #timelinePanel #videoTrackTitle,
     body.wizard-mode[data-wizard-step="2"] #timelinePanel .video-legend,
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #markerReview,
     body.wizard-mode[data-wizard-step="2"] #timelinePanel .marker-details,
     body.wizard-mode[data-wizard-step="2"] #timelinePanel #masterPlay,
     body.wizard-mode[data-wizard-step="2"] #timelinePanel .zoom-tool,
@@ -2321,6 +2354,7 @@
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #videoTrackTitle { display: flex; }
     body.wizard-mode[data-wizard-step="2"] #timelinePanel .video-legend,
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .video-legend { display: flex; }
+    body.wizard-mode[data-wizard-step="2"] #timelinePanel #markerReview { display: flex; }
     body.wizard-mode[data-wizard-step="2"] #timelinePanel .marker-details { display: block; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel .segment-heading { display: flex; }
     body.wizard-mode[data-wizard-step="3"] #timelinePanel #segmentLane { display: block; }
@@ -2455,9 +2489,10 @@
           </div>
           <div class="button-pair" style="margin-top:10px">
             <button class="btn" id="quickEditBtn" type="button" disabled>Chcem video upraviť</button>
-            <button class="btn primary" id="quickExportBtn" type="button" disabled>Exportovať tento návrh</button>
+            <button class="btn primary" id="quickExportBtn" type="button" disabled>Stiahnuť hotové MP4</button>
           </div>
           <button class="btn ghost" id="quickRenderBtn" type="button" disabled style="width:100%;margin-top:7px">↻ Obnoviť presný náhľad</button>
+          <button class="btn danger hidden" id="quickCancelRenderBtn" type="button" style="width:100%;margin-top:7px">Zrušiť spracovanie</button>
         </div>
       </article>
       </div>
@@ -2532,8 +2567,8 @@
           </div>
           <div class="mixer-strip">
             <label for="voiceMaster">Korekcia hlasu</label>
-            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="2">
-            <span class="value" id="voiceMasterValue">+2 dB</span>
+            <input id="voiceMaster" type="range" min="-12" max="12" step=".5" value="8">
+            <span class="value" id="voiceMasterValue">+8 dB</span>
           </div>
           <div class="level-meter"><i id="voiceMeter"></i></div>
           <div class="mixer-strip">
@@ -2583,7 +2618,7 @@
           <button class="btn ghost" id="autoTrimSpeech" type="button" disabled>Začiatok −2 s pred rečou</button>
           <button class="btn ghost" id="autoTail" type="button" disabled>Automatický záver</button>
           <button class="btn ghost" id="previewTransition" type="button" disabled>✦ Náhľad prechodu</button>
-          <button class="btn ghost" id="showTranscript" type="button" disabled>ⓘ Prepis</button>
+          <button class="btn ghost hidden" id="showTranscript" type="button" disabled aria-hidden="true">ⓘ Prepis</button>
           <label class="zoom-tool">Zoom stopy <input id="timelineZoom" type="range" min="1" max="8" step=".25" value="1"><span id="timelineZoomValue">1×</span></label>
         </div>
         <div class="timeline-body">
@@ -2630,11 +2665,10 @@
           <div class="marker-review" id="markerReview">
             <div>
               <strong id="markerReviewTitle">Rýchla kontrola značiek</strong>
-              <small id="markerReviewHint">Prejdite šesť bodov postupne; každý môžete doladiť o 0,1 s.</small>
+              <small id="markerReviewHint">Prejdite šesť bodov; každý sa prehrá raz od 1 s pred po 2 s za bodom.</small>
             </div>
-            <button class="btn ghost" id="markerNudgeBack" type="button" disabled>−0,1 s</button>
-            <button class="btn ghost" id="markerAudition" type="button" disabled>▶ Slučka</button>
-            <button class="btn ghost" id="markerNudgeForward" type="button" disabled>+0,1 s</button>
+            <button class="btn ghost" id="markerAudition" type="button" disabled>▶ Prehrať raz</button>
+            <button class="btn ghost" id="resetAutomaticMarkers" type="button" disabled>Obnoviť AI</button>
             <button class="btn" id="markerReviewNext" type="button" disabled>Začať kontrolu</button>
           </div>
           <details class="marker-details" open>
@@ -2654,7 +2688,7 @@
         </div>
         <div class="inspector-body">
           <div class="control-card collapsed" id="transformCard">
-            <h3>Transformácia segmentu <span class="value" id="transformZoomValue">100 %</span></h3>
+            <h3>Zarámovanie celého videa <span class="value" id="transformZoomValue">100 %</span></h3>
             <p>Zoom sa dá iba zväčšiť. Poloha X/Y využíva len bezpečný priestor, takže sa nikdy neobjaví čierny okraj.</p>
             <div class="mode-switch" style="margin-bottom:9px">
               <button type="button" id="framingStatic">Stály detail</button>
@@ -2687,7 +2721,7 @@
 
           <div class="control-card collapsed" id="colourCard">
             <h3>Farby celého videa <span class="value" id="colourBoostValue">0 %</span></h3>
-            <p>Color boost je globálny. Môžete zvýrazniť všetky farby alebo samostatne červenú, zelenú a modrú.</p>
+            <p>Color boost je globálny a zvýrazňuje všetky farby spolu. Celé číslo môžete nastaviť sliderom aj vpísaním.</p>
             <div class="colour-presets" id="colourPresets">
               <button class="colour-preset" type="button" data-colour-preset="neutral">Neutrálne</button>
               <button class="colour-preset active" type="button" data-colour-preset="vivid">Živé farby</button>
@@ -2695,7 +2729,7 @@
             </div>
             <button class="btn ghost" id="toggleAdvancedColour" type="button" style="width:100%;margin-bottom:8px">Pokročilé nastavenia</button>
             <div class="advanced-colour">
-            <div class="mode-switch">
+            <div class="mode-switch hidden" aria-hidden="true">
               <button type="button" id="colourAll" class="active">Všetky farby</button>
               <button type="button" id="colourIndividual">Jednotlivé RGB</button>
             </div>
@@ -2809,13 +2843,13 @@
 
           <div class="control-card collapsed" id="finishCard">
             <h3>Finálny obraz</h3>
-            <p>Ak v zdroji chýba dostatok obrazu, posledný vhodný záber sa automaticky zmrazí. Hudba plynulo dohrá až do konca čiernej.</p>
+            <p>Ak v zdroji chýba dostatok obrazu, aplikácia najprv skráti 4 s pokojného obrazu a blur začne skôr. Záber nikdy nezmrazí. Hudba plynulo dohrá až do konca čiernej.</p>
             <div class="field"><div class="field-line"><label for="endingHold">Obraz po reči</label><span class="value" id="endingHoldValue">4,0 s</span></div><input id="endingHold" type="range" min="0" max="10" step=".5" value="4"></div>
             <div class="field"><div class="field-line"><label for="endingBlur">Blur/fade</label><span class="value" id="endingBlurValue">2,0 s</span></div><input id="endingBlur" type="range" min=".5" max="5" step=".5" value="2"></div>
             <div class="field"><div class="field-line"><label for="endingBlack">Čierny obraz</label><span class="value" id="endingBlackValue">2,0 s</span></div><input id="endingBlack" type="range" min="0" max="5" step=".5" value="2"></div>
           </div>
 
-          <div class="control-card collapsed" id="transcriptCard">
+          <div class="control-card collapsed hidden" id="transcriptCard" aria-hidden="true">
             <h3>Informačný prepis <span class="pill" id="transcriptPill">Čaká</span></h3>
             <p id="transcriptStatus">Po vložení videa sa na pozadí spustí slovenský Whisper model trénovaný na viac než 2 800 hodinách slovenskej reči.</p>
             <div class="transcript-progress"><i id="transcriptProgress"></i></div>
@@ -2912,7 +2946,10 @@
           <summary>Diagnostika workflow · export logu</summary>
           <div class="usage-log-body">
             <p><span id="usageLogStatus">Zaznamenávam anonymné kroky tejto relácie.</span> Log neobsahuje video, zvuk, prepis, názvy súborov ani lokálne cesty.</p>
-            <button class="btn ghost" id="exportUsageLog" type="button">↓ Exportovať JSON log</button>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end">
+              <button class="btn ghost" id="clearAiCache" type="button">Vymazať AI cache</button>
+              <button class="btn ghost" id="exportUsageLog" type="button">↓ Exportovať JSON log</button>
+            </div>
           </div>
         </details>
       </div>
@@ -2928,6 +2965,7 @@
           </div>
         </div>
         <button class="btn primary export-btn" id="exportBtn" type="button" disabled>↓ Exportovať MP4</button>
+        <button class="btn ghost hidden" id="openDownloadsBtn" type="button">Otvoriť Stiahnuté vo Finderi</button>
       </div>
     </section>
     <div class="media-pool" id="mediaPool" aria-hidden="true"></div>
@@ -2944,7 +2982,7 @@
     <div class="guide-body">
       <div class="guide-step"><b>1</b><div><strong>Import a prvý návrh</strong><span>Vložte video, vyberte stály alebo dynamický detail a pridajte hudbu. Kým sa renderuje odporúčaný výsledok, vidíte prvý záber s kruhovým progresom; prehrávanie sa odomkne až po dokončení.</span></div></div>
       <div class="guide-step"><b>2</b><div><strong>AI denoise pred markermi</strong><span>Aplikácia najprv oddelí hlas od vetra, sama navrhne parametre a istú hovorenú vetu. A/B prehrá najprv originál a potom tú istú vetu vyčistenú.</span></div></div>
-      <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne približne 0,3 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
+      <div class="guide-step"><b>3</b><div><strong>Šesť časových bodov naraz</strong><span>AI ich hľadá až vo vyčistenom hlase. Začiatok obrazu navyše navrhne 0,1 s pred vstupom človeka. Na spoločnom waveforme upravíte iba potrebné body.</span></div></div>
       <div class="guide-step"><b>4</b><div><strong>Hlučné miesta</strong><span>Kliknite „Označiť hlučnú oblasť“, potiahnite po waveforme a nastavte útlm alebo úplné ticho bez strihu obrazu.</span></div></div>
       <div class="guide-step"><b>5</b><div><strong>Svetelný prechod</strong><span>Prehrajte Give Me Five, whoosh a pokračovanie reči. Dlhá prestávka medzi nimi sa skráti automaticky.</span></div></div>
       <div class="guide-step"><b>6</b><div><strong>Hudba, drop a hlasitosť</strong><span>V jednom kroku vyskúšate tri navrhnuté dropy, nastavíte hlasitosť úvodu, podmazu aj záveru a prehráte ich spolu s videom, hlasom, prechodom a whooshom.</span></div></div>
@@ -2952,6 +2990,10 @@
       <div class="guide-step"><b>8</b><div><strong>Záver a export</strong><span>Nastavte obraz po reči, 2 s blur/fade a 2 s čiernej s doznievajúcou hudbou. Náhľad vľavo zostáva dostupný, preto môžete rovno exportovať MP4.</span></div></div>
       <div class="guide-shortcuts"><strong>Tip:</strong> Každý krok ukazuje iba ovládače, ktoré práve potrebujete. Späť a Ďalej nemenia už nastavené hodnoty.</div>
       <div class="guide-shortcuts"><strong>Skratky:</strong> medzerník = prehrať/pozastaviť finálny mix · šípky = posun o 0,1 s · ⌘/Ctrl+Z = krok späť · ⇧⌘/Ctrl+Z = krok vpred.</div>
+      <details class="usage-log">
+        <summary>Čo je nové</summary>
+        <div class="guide-shortcuts">Automatický návrh je teraz jediný plnohodnotný render pripravený na stiahnutie. Markery ukazujú istotu AI, prehrávajú sa iba raz a možno ich obnoviť. Hlas začína na +8 dB, AI model zostáva načítaný a koniec videa sa už nikdy nezmrazí.</div>
+      </details>
     </div>
   </dialog>
 
@@ -3040,7 +3082,9 @@
       musicZoom: 1,
       beatSnap: true,
       markersManuallyEdited: false,
-      voiceMasterDb: 2,
+      markerConfidence: { trimStart: "check", speechStart: "check", giveEnd: "check", continueStart: "check", speechEnd: "check", trimEnd: "high" },
+      automaticMarkerSnapshot: null,
+      voiceMasterDb: 8,
       loudnessTargetLufs: -11,
       ending: { holdDuration: 4, blurDuration: 2, blackDuration: 2 },
       colour: structuredClone(COLOUR_PRESETS.vivid),
@@ -3105,7 +3149,7 @@
         timer: null,
         complete: false
       },
-      renderedPreview: { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null }
+      renderedPreview: { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null }
     };
 
     const editHistory = {
@@ -3117,7 +3161,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.10.6";
+    const APP_VERSION = "3.11.1";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
@@ -3524,7 +3568,7 @@
     }
 
     const markerInfo = {
-      trimStart: { label: "Začiatok videa", hint: "AI navrhne približne 0,3 s pred vizuálnym vstupom človeka", color: "#eef3fb" },
+      trimStart: { label: "Začiatok videa", hint: "AI navrhne 0,1 s pred vizuálnym vstupom človeka", color: "#eef3fb" },
       speechStart: { label: "Začína reč", hint: "hudba sa 1 s plynulo stíši", color: "#6fa8ff" },
       giveEnd: { label: "Koniec „Give Me Five“", hint: "svetlo začne o 0,5 s neskôr", color: "#f0c75e" },
       continueStart: { label: "Druhá časť reči", hint: "začne 0,1 s po skončení svetla", color: "#ec7db3" },
@@ -3853,6 +3897,7 @@
       ensureQuickWorkflowTimer();
       renderQuickWorkflowPreparation("Načítavam prvý záber · prehrávač odomknem po dokončení presného náhľadu…");
       openFramingModeDialog();
+      renderValidation();
     }
 
     function beginMusicPreparation(file) {
@@ -3871,6 +3916,7 @@
       $("#replaceMusicBtn").classList.add("hidden");
       ensureQuickWorkflowTimer();
       renderQuickWorkflowPreparation("Analyzujem hudbu a priebežne počítam čas do hotového náhľadu…");
+      renderValidation();
     }
 
     function renderFramingModeControls() {
@@ -3895,11 +3941,22 @@
       if (!dialog.open) dialog.showModal();
     }
 
+    function renderQuickFramingStatus(record = state.video) {
+      const framingStatus = $("#quickFramingStatus");
+      const automaticTransform = initialVideoTransform(record);
+      const modeLabel = state.framingMode === "dynamic" ? "Dynamický záber" : "Stály detail";
+      framingStatus.classList.toggle("warning", !automaticTransform.autoFraming);
+      framingStatus.textContent = automaticTransform.autoFraming
+        ? `${modeLabel} · automatické zarámovanie ${Math.round(automaticTransform.zoom * 100)} % · tvár a postava zostávajú v obraze.`
+        : record
+          ? "Postavu sa nepodarilo spoľahlivo určiť · ponechávam 100 %. Zoom môžete nastaviť pri úpravách."
+          : `${modeLabel} · automatické zarámovanie doplním po analýze tváre a postavy.`;
+    }
+
     function confirmFramingMode() {
       state.framingChoiceConfirmed = true;
       $("#framingModeDialog").close();
-      const label = state.framingMode === "dynamic" ? "Dynamický záber" : "Stály detail";
-      $("#quickFramingStatus").textContent = `${label} · automatické zarámovanie doplním po analýze tváre a postavy.`;
+      renderQuickFramingStatus();
       recordUsage("framing_mode_selected", { mode: state.framingMode, source: "upload_popup" });
       renderQuickWorkflowPreparation();
       maybePrepareQuickPreview();
@@ -3962,6 +4019,23 @@
       } catch {}
     }
 
+    async function clearAiCache() {
+      if (!window.confirm("Vymazať lokálnu AI cache? Pri ďalšej analýze bude potrebné model znova načítať.")) return;
+      const button = $("#clearAiCache");
+      button.disabled = true;
+      button.textContent = "Vymazávam…";
+      try {
+        await api("/api/models/clear", { method: "POST" });
+        recordUsage("ai_cache_cleared");
+        toast("AI cache bola vymazaná. Médiá a nastavenia zostali zachované.");
+      } catch (error) {
+        toast(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Vymazať AI cache";
+      }
+    }
+
     function signalMediaSessionClosing() {
       const target = `${API_ORIGIN}/api/session/closing?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
       navigator.sendBeacon?.(target);
@@ -4011,6 +4085,11 @@
     }
 
     async function uploadMedia(file, kind) {
+      if (state.renderedPreview.rendering) {
+        recordUsage("media_import_blocked", { kind, reason: "final_draft_rendering" });
+        toast("Počas prípravy plnohodnotného návrhu sa vstupné súbory nedajú vymeniť.");
+        return;
+      }
       if (!state.serverReady) {
         recordUsage("media_import_blocked", { kind, reason: "engine_unavailable" });
         $("#serverNotice").classList.add("visible");
@@ -4080,6 +4159,7 @@
         toast(error.message);
       } finally {
         card.classList.remove("loading");
+        renderValidation();
       }
     }
 
@@ -4125,7 +4205,7 @@
       const visualStart = Number(record.analysis.visualEntry?.suggestedStart);
       state.trimStart = Number.isFinite(visualStart) ? clamp(visualStart, 0, duration - .1) : 0;
       state.trimEnd = duration;
-      state.voiceMasterDb = 2;
+      state.voiceMasterDb = 8;
       state.loudnessTargetLufs = -11;
       state.denoiseManuallyEdited = false;
       if (record.analysis.denoiseRecommendation) {
@@ -4142,6 +4222,8 @@
       state.audioRangeSelecting = false;
       state.audioRangeDraft = null;
       state.markersManuallyEdited = false;
+      state.markerConfidence = { trimStart: "check", speechStart: "check", giveEnd: "check", continueStart: "check", speechEnd: "check", trimEnd: "high" };
+      state.automaticMarkerSnapshot = null;
       state.markerReviewIndex = -1;
       state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
       state.cleanVoice = { key: null, ready: false, loading: false, error: null };
@@ -4182,12 +4264,7 @@
       $("#videoFileName").textContent = `${record.file.name} · ${(record.file.size / 1024 / 1024).toFixed(1)} MB`;
       const meta = record.analysis.metadata;
       $("#videoMetaPill").textContent = `${meta.width} × ${meta.height} · ${meta.fps.toFixed(2).replace(".00", "")} FPS`;
-      const framingStatus = $("#quickFramingStatus");
-      framingStatus.classList.toggle("warning", !automaticTransform.autoFraming);
-      const modeLabel = state.framingMode === "dynamic" ? "Dynamický záber" : "Stály detail";
-      framingStatus.textContent = automaticTransform.autoFraming
-        ? `${modeLabel} · automatické zarámovanie ${Math.round(automaticTransform.zoom * 100)} % · tvár a postava zostávajú v obraze.`
-        : "Postavu sa nepodarilo spoľahlivo určiť · ponechávam 100 %. Zoom môžete nastaviť pri úpravách.";
+      renderQuickFramingStatus(record);
       showSourceQuickPreview(record.url);
       const quickPreview = $("#quickPreviewVideo");
       const seekQuickPreviewToFirstFrame = () => {
@@ -4344,10 +4421,7 @@
 
     function endingVisibleEnd() {
       if (!state.video) return 0;
-      const requested = sourceToEditedTime(state.markers.speechEnd)
-        + state.ending.holdDuration
-        + state.ending.blurDuration;
-      return Math.max(editedTrimEnd(), requested);
+      return editedTrimEnd();
     }
 
     function editedOutputEnd() {
@@ -4709,9 +4783,12 @@
       ];
       list.innerHTML = values.map(([key, value]) => {
         const info = markerInfo[key];
+        const confidence = state.markersManuallyEdited ? "manual" : state.markerConfidence[key] || "check";
+        const confidenceLabel = confidence === "high" ? "Spoľahlivé" : confidence === "manual" ? "Manuálne" : "Skontrolovať";
         return `<div class="marker-row${key === activeKey ? " active" : ""}" data-review-marker="${key}" style="--marker:${info.color}">
           <i></i>
           <span><strong>${info.label}</strong><small>${info.hint}</small></span>
+          <span class="marker-confidence ${confidence}">${confidenceLabel}</span>
           <code>${formatTime(value)}</code>
           <button class="btn ghost" type="button" data-set-marker="${key}">Na playhead</button>
         </div>`;
@@ -4725,9 +4802,8 @@
     function renderMarkerReview() {
       const key = markerReviewOrder[state.markerReviewIndex] || null;
       const hasVideo = Boolean(state.video);
-      $("#markerNudgeBack").disabled = !key;
       $("#markerAudition").disabled = !key;
-      $("#markerNudgeForward").disabled = !key;
+      $("#resetAutomaticMarkers").disabled = !state.automaticMarkerSnapshot || !state.markersManuallyEdited;
       $("#markerReviewNext").disabled = !hasVideo;
       if (!key) {
         $("#markerReviewTitle").textContent = hasVideo ? "Rýchla kontrola značiek" : "Rýchla kontrola značiek";
@@ -4740,8 +4816,9 @@
         return;
       }
       const info = markerInfo[key];
-      $("#markerReviewTitle").textContent = `${state.markerReviewIndex + 1}/6 · ${info.label} · ${formatTime(markerValue(key))}`;
-      $("#markerReviewHint").textContent = info.hint;
+      const confidence = state.markersManuallyEdited ? "Manuálne uzamknuté" : state.markerConfidence[key] === "high" ? "Spoľahlivé" : "Skontrolovať";
+      $("#markerReviewTitle").textContent = `${state.markerReviewIndex + 1}/${markerReviewOrder.length} · ${info.label} · ${formatTime(markerValue(key))}`;
+      $("#markerReviewHint").textContent = `${confidence} · ${info.hint}`;
       $("#markerReviewNext").textContent = state.markerReviewIndex === markerReviewOrder.length - 1 ? "Dokončiť" : "Potvrdiť + ďalšia";
     }
 
@@ -5272,9 +5349,10 @@
       checks.push({ text: `Svetelný prechod ${gapEdit.transitionDuration.toFixed(1)} s` });
       const sourceTail = state.trimEnd - m.speechEnd;
       const requestedSourceTail = state.ending.holdDuration + state.ending.blurDuration;
-      const freezeDuration = Math.max(0, requestedSourceTail - sourceTail);
-      checks.push({ text: `Obraz ${state.ending.holdDuration.toFixed(1)} s + blur ${state.ending.blurDuration.toFixed(1)} s` });
-      if (freezeDuration > .01) checks.push({ text: `Zmrazený záber ${freezeDuration.toFixed(1)} s` });
+      const effectiveBlur = Math.min(state.ending.blurDuration, Math.max(.1, sourceTail));
+      const effectiveHold = Math.min(state.ending.holdDuration, Math.max(0, sourceTail - effectiveBlur));
+      checks.push({ text: `Obraz ${effectiveHold.toFixed(1)} s + blur ${effectiveBlur.toFixed(1)} s` });
+      if (sourceTail + .01 < requestedSourceTail) warnings.push("Po reči nie je dosť zdrojového obrazu; pokojný obraz sa skráti a blur začne skôr bez zmrazenia.");
       checks.push({ text: `Čierny obraz +${state.ending.blackDuration.toFixed(1)} s` });
       if (state.muteRanges.length) checks.push({ text: `${state.muteRanges.length} lokálne stíšené oblasti` });
 
@@ -5320,6 +5398,15 @@
         || state.transcript.status === "running";
       $("#quickEditBtn").disabled = !state.renderedPreview.ready;
       $("#quickExportBtn").disabled = !state.renderedPreview.ready || state.renderedPreview.rendering || result.errors.length > 0 || state.exporting;
+      const renderLocked = state.renderedPreview.rendering;
+      $("#videoFile").disabled = renderLocked || state.quickWorkflow.videoImporting;
+      $("#musicFile").disabled = renderLocked || state.quickWorkflow.musicImporting;
+      document.querySelectorAll('label[for="videoFile"], label[for="musicFile"]').forEach((label) => {
+        const disabled = label.htmlFor === "videoFile" ? $("#videoFile").disabled : $("#musicFile").disabled;
+        label.setAttribute("aria-disabled", String(disabled));
+      });
+      $("#quickCancelRenderBtn").classList.toggle("hidden", !renderLocked);
+      $("#quickCancelRenderBtn").disabled = !renderLocked || !state.renderedPreview.jobId;
       return result;
     }
 
@@ -5524,14 +5611,6 @@
       recordUsage("marker_review_selected", { marker: key, index: index + 1 });
     }
 
-    function nudgeReviewedMarker(delta) {
-      const key = markerReviewOrder[state.markerReviewIndex];
-      if (!key) return;
-      setMarker(key, markerValue(key) + delta);
-      $("#video").currentTime = markerValue(key);
-      updateAudioMix(true);
-    }
-
     async function auditionReviewedMarker() {
       const key = markerReviewOrder[state.markerReviewIndex];
       if (!key || !state.video) return;
@@ -5540,8 +5619,8 @@
       state.previewLoop = {
         mode: "marker",
         enabled: false,
-        customStart: Math.max(state.trimStart, editedValue - 1.5),
-        customEnd: Math.min(editedTrimEnd() + (key === "trimEnd" ? 2 : 0), editedValue + 1.5)
+        customStart: Math.max(state.trimStart, editedValue - 1),
+        customEnd: Math.min(editedTrimEnd() + (key === "trimEnd" ? 2 : 0), editedValue + 2)
       };
       state.previewTailStartedAt = null;
       $("#video").currentTime = editedToSourceTime(state.previewLoop.customStart);
@@ -5550,6 +5629,22 @@
       recordUsage("marker_review_auditioned", { marker: key });
       if ($("#video").paused) await toggleVideoPlayback();
       else updateAudioMix(true);
+    }
+
+    function resetAutomaticMarkers() {
+      const snapshot = state.automaticMarkerSnapshot;
+      if (!state.video || !snapshot) return;
+      state.trimStart = snapshot.trimStart;
+      state.trimEnd = snapshot.trimEnd;
+      state.markers = structuredClone(snapshot.markers);
+      state.markerConfidence = structuredClone(snapshot.confidence);
+      state.markersManuallyEdited = false;
+      state.markerReviewIndex = -1;
+      enforceMarkerOrder();
+      rememberEdit("Obnovenie automatických markerov");
+      renderAll();
+      recordUsage("automatic_markers_restored");
+      toast("Obnovil som posledný automatický návrh všetkých markerov.");
     }
 
     async function advanceMarkerReview() {
@@ -6161,7 +6256,7 @@
       if (Number.isFinite(suggestions.speechStart)) state.markers.speechStart = clamp(suggestions.speechStart, 0, duration);
       if (Number.isFinite(suggestions.giveEnd)) state.markers.giveEnd = clamp(suggestions.giveEnd, state.markers.speechStart, duration);
       if (Number.isFinite(suggestions.continueStart)) state.markers.continueStart = clamp(suggestions.continueStart, state.markers.giveEnd, duration);
-      if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd, state.markers.continueStart, duration);
+      if (Number.isFinite(suggestions.speechEnd)) state.markers.speechEnd = clamp(suggestions.speechEnd + .2, state.markers.continueStart, duration);
       enforceMarkerOrder();
       const visualStart = Number(state.video.analysis.visualEntry?.suggestedStart);
       state.trimStart = Number.isFinite(visualStart)
@@ -6169,6 +6264,13 @@
         : Math.max(0, state.markers.speechStart - 2);
       state.trimEnd = Math.min(duration, state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration);
       enforceMarkerOrder();
+      state.markerConfidence = { ...state.markerConfidence, ...(result.markerConfidence || {}) };
+      state.automaticMarkerSnapshot = {
+        trimStart: state.trimStart,
+        trimEnd: state.trimEnd,
+        markers: structuredClone(state.markers),
+        confidence: structuredClone(state.markerConfidence)
+      };
       rememberEdit("AI návrh časových značiek");
       recordUsage("markers_auto_applied", {
         giveMeFiveFound: Number.isFinite(suggestions.giveEnd),
@@ -6272,7 +6374,7 @@
         return;
       }
       if (current?.url) URL.revokeObjectURL(current.url);
-      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
+      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       const sourceUrl = options.suppressSource
         ? null
         : state.video?.url || state.instantPreview.url;
@@ -6327,20 +6429,20 @@
       clearRenderedPreview();
       const key = previewProjectKey();
       const token = uid();
-      state.renderedPreview = { url: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
+      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
       const workflowElapsed = state.quickWorkflow.startedAtMs
         ? performance.now() - state.quickWorkflow.startedAtMs
         : 0;
-      const localTiming = localRenderTimingEstimate("preview", 0, state.renderedPreview.startedAtMs);
+      const localTiming = localRenderTimingEstimate("export", 0, state.renderedPreview.startedAtMs);
       state.quickWorkflow.renderStartFraction = clamp(
         workflowElapsed / Math.max(workflowElapsed + Number(localTiming?.remainingMs || 1), 1),
         .05,
         .45
       );
-      $("#quickPreviewStatus").textContent = "Pripravujem presný náhľad s aktuálnym denoise, hudbou a efektmi…";
+      $("#quickPreviewStatus").textContent = "Pripravujem plnohodnotný návrh v pôvodnom rozlíšení a FPS…";
       $("#quickRenderBtn").disabled = true;
       renderTimingEstimate("preview", combinedQuickRenderTiming(localTiming));
-      recordUsage("exact_preview_started", { automatic: Boolean(options.automatic) });
+      recordUsage("final_draft_started", { automatic: Boolean(options.automatic), reusedForDownload: true });
       try {
         const response = await api("/api/render-preview", {
           method: "POST",
@@ -6348,6 +6450,8 @@
           body: JSON.stringify(exportPayload())
         });
         const data = await response.json();
+        if (state.renderedPreview.token === token) state.renderedPreview.jobId = data.jobId;
+        renderValidation();
         await pollRenderedPreview(data.jobId, key, token);
       } catch (error) {
         if (state.renderedPreview.token !== token) return;
@@ -6361,7 +6465,7 @@
 
     function restartSupersededPreview(key, token) {
       if (state.renderedPreview.token !== token) return;
-      state.renderedPreview = { url: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
+      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       setQuickPreviewProgress(0, "Nastavenia sa zmenili · kliknite na Obnoviť presný náhľad.");
       $("#quickPreviewTiming").classList.add("hidden");
       $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Kliknite na Obnoviť presný náhľad.";
@@ -6376,7 +6480,7 @@
       const ownsPreviewState = state.renderedPreview.token === token;
       if (ownsPreviewState) {
         const renderTiming = job.timing || localRenderTimingEstimate(
-          "preview",
+          "export",
           job.progress,
           state.renderedPreview.startedAtMs,
           job.message
@@ -6398,6 +6502,17 @@
         renderTimingEstimate("preview", timing);
       }
       if (job.status === "failed") throw new Error(job.error || "Presný náhľad zlyhal.");
+      if (job.status === "cancelled") {
+        if (ownsPreviewState) {
+          state.renderedPreview.rendering = false;
+          state.renderedPreview.jobId = null;
+          state.renderedPreview.token = null;
+          $("#quickPreviewStatus").textContent = "Spracovanie bolo zrušené. Keď budete pripravený, kliknite na Obnoviť návrh.";
+          setQuickPreviewProgress(0, "Spracovanie bolo zrušené");
+          renderValidation();
+        }
+        return;
+      }
       if (job.status !== "completed") {
         await new Promise((resolve) => setTimeout(resolve, 850));
         return pollRenderedPreview(jobId, key, token);
@@ -6416,13 +6531,24 @@
       }
       const url = URL.createObjectURL(blob);
       const renderCompletedTiming = job.timing || localRenderTimingEstimate(
-        "preview",
+        "export",
         1,
         state.renderedPreview.startedAtMs,
         job.message
       );
       const completedTiming = combinedQuickRenderTiming(renderCompletedTiming);
-      state.renderedPreview = { url, rendering: false, ready: true, key, token: null, stale: false, timing: completedTiming };
+      state.renderedPreview = {
+        url,
+        blob,
+        downloadName: job.downloadName || editedExportFilename(),
+        jobId: null,
+        rendering: false,
+        ready: true,
+        key,
+        token: null,
+        stale: false,
+        timing: completedTiming
+      };
       ["quickPreviewVideo"].forEach((id) => {
         const video = $(`#${id}`);
         video.dataset.previewKind = "rendered";
@@ -6438,17 +6564,28 @@
       $("#quickPreviewEmpty").classList.add("hidden");
       const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
       const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
-      $("#quickPreviewStatus").textContent = `Presný automatický náhľad je pripravený${loudnessLabel}. Môžete ho exportovať alebo pokračovať v úpravách.`;
-      setQuickPreviewProgress(1, "Presný náhľad je pripravený");
+      $("#quickPreviewStatus").textContent = `Plnohodnotný automatický návrh je pripravený${loudnessLabel}. Môžete ho rovno stiahnuť alebo upraviť.`;
+      setQuickPreviewProgress(1, "Plnohodnotný návrh je pripravený na stiahnutie");
       renderTimingEstimate("preview", completedTiming);
       $("#quickExportBtn").disabled = false;
-      recordUsage("exact_preview_completed", {
+      recordUsage("final_draft_completed", {
         sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1),
         processingSeconds: roundedLogNumber(Number(completedTiming?.elapsedMs || 0) / 1000, 1),
         initialEstimateSeconds: roundedLogNumber(Number(completedTiming?.initialEstimatedTotalMs || 0) / 1000, 1)
       });
       renderValidation();
-      $("#quickPreviewVideo").pause();
+      const preview = $("#quickPreviewVideo");
+      const autoplay = () => {
+        preview.play().then(() => {
+          $("#quickPreviewPlay").classList.remove("needs-attention");
+          startQuickPreviewProgressTracking();
+        }).catch(() => {
+          $("#quickPreviewPlay").classList.add("needs-attention");
+          $("#quickPreviewStatus").textContent += " Chrome zablokoval automatické prehratie – kliknite na modré Prehrať.";
+        });
+      };
+      if (preview.readyState >= 3) autoplay();
+      else preview.addEventListener("canplay", autoplay, { once: true });
     }
 
     function exportPayload() {
@@ -6497,15 +6634,6 @@
       return `${safeBase}_edited.mp4`;
     }
 
-    function showQuickExportProgress(percent, message) {
-      const value = clamp(Math.round(Number(percent) || 0), 0, 100);
-      const button = $("#quickExportBtn");
-      button.textContent = `Exportujem… ${value} %`;
-      button.setAttribute("aria-busy", "true");
-      $("#quickPreviewStatus").textContent = `${message || "Pripravujem finálne MP4…"} · export ${value} %`;
-      $("#quickPreviewProgress").style.width = `${value}%`;
-    }
-
     async function exportProject() {
       const validation = renderValidation();
       if (validation.errors.length) {
@@ -6516,34 +6644,51 @@
         toast(validation.errors[0]);
         return;
       }
+      const current = state.renderedPreview;
+      const currentKey = previewProjectKey();
+      if (!current.ready || !current.blob || current.key !== currentKey) {
+        recordUsage("download_blocked", { reason: current.rendering ? "draft_rendering" : "draft_stale_or_missing" });
+        if (current.rendering) {
+          toast("Plnohodnotný návrh sa ešte pripravuje.");
+        } else {
+          toast("Najskôr obnovte plnohodnotný návrh s aktuálnymi nastaveniami.");
+          renderProjectPreview({ automatic: false });
+        }
+        return;
+      }
       const exportStartedAt = performance.now();
       recordUsage("export_started", {
         outputDurationSeconds: editedOutputEnd() - state.trimStart,
         hasMusic: Boolean(state.music),
         segmentCount: state.segments.length,
         audioRangeCount: state.muteRanges.length,
-        warningCount: validation.warnings.length
+        warningCount: validation.warnings.length,
+        reusedFinalDraft: true
       });
       state.exporting = true;
-      showQuickExportProgress(0, `Spúšťam export ${editedExportFilename()}`);
-      const updateExportElapsed = () => {
-        $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
-      };
-      $("#progressLabel").textContent = "Pripravujem lokálny export…";
-      $("#progressPercent").textContent = "0 %";
-      $("#progressFill").style.width = "0%";
-      renderTimingEstimate("export", localRenderTimingEstimate("export", 0, exportStartedAt));
-      updateExportElapsed();
-      const exportElapsedTimer = setInterval(updateExportElapsed, 1000);
+      const downloadName = current.downloadName || editedExportFilename();
+      $("#quickExportBtn").textContent = "Sťahujem…";
+      $("#quickExportBtn").setAttribute("aria-busy", "true");
       renderValidation();
       try {
-        const response = await api("/api/export", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(exportPayload())
+        const link = document.createElement("a");
+        link.href = current.url;
+        link.download = downloadName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        state.exporting = false;
+        $("#quickExportBtn").textContent = "Stiahnuť znova";
+        $("#quickExportBtn").removeAttribute("aria-busy");
+        $("#quickPreviewStatus").textContent = `${downloadName} sa sťahuje. Ďalší render nebol potrebný.`;
+        $("#openDownloadsBtn").classList.remove("hidden");
+        recordUsage("export_completed", {
+          processingSeconds: 0,
+          reusedFinalDraft: true,
+          sizeMb: roundedLogNumber(current.blob.size / 1024 / 1024, 1)
         });
-        const data = await response.json();
-        await pollExport(data.jobId, exportStartedAt);
+        toast("Hotové MP4 sa sťahuje bez ďalšieho renderovania.");
+        renderValidation();
       } catch (error) {
         state.exporting = false;
         $("#progressLabel").textContent = error.message;
@@ -6553,57 +6698,21 @@
         recordUsage("export_failed", { reason: "request_or_render_error" });
         toast(error.message);
         renderValidation();
-      } finally {
-        clearInterval(exportElapsedTimer);
-        updateExportElapsed();
       }
     }
 
-    async function pollExport(jobId, exportStartedAt) {
-      const response = await api(`/api/jobs/${jobId}`);
-      const job = await response.json();
-      const percent = Math.round((job.progress || 0) * 100);
-      const timing = job.timing || localRenderTimingEstimate("export", job.progress, exportStartedAt, job.message);
-      $("#progressLabel").textContent = job.message || "Spracúvam…";
-      $("#progressElapsed").textContent = `Čas ${formatElapsedTime(performance.now() - exportStartedAt)}`;
-      $("#progressPercent").textContent = `${percent} %`;
-      $("#progressFill").style.width = `${percent}%`;
-      showQuickExportProgress(percent, job.message || "Spracúvam finálne MP4…");
-      renderTimingEstimate("export", timing, performance.now() - exportStartedAt);
-      if (job.status === "completed") {
-        state.exporting = false;
-        const downloadName = job.downloadName || editedExportFilename();
-        $("#quickExportBtn").textContent = "Exportovať znova";
-        $("#quickExportBtn").removeAttribute("aria-busy");
-        $("#quickPreviewStatus").textContent = `${downloadName} je pripravené a sťahuje sa.`;
-        $("#quickPreviewProgress").style.width = "100%";
-        renderValidation();
-        recordUsage("export_completed", {
-          processingSeconds: roundedLogNumber((performance.now() - exportStartedAt) / 1000, 1),
-          serverProcessingSeconds: roundedLogNumber(Number(timing?.elapsedMs || 0) / 1000, 1),
-          initialEstimateSeconds: roundedLogNumber(Number(timing?.initialEstimatedTotalMs || 0) / 1000, 1),
-          integratedLufs: job.details?.finalLoudness?.integratedLufs ?? null,
-          truePeakDb: job.details?.finalLoudness?.truePeakDb ?? null
-        });
-        const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
-        toast(Number.isFinite(measuredLufs)
-          ? `MP4 je pripravené · ${measuredLufs.toFixed(1)} LUFS · sťahuje sa.`
-          : "MP4 je pripravené a sťahuje sa.");
-        const link = document.createElement("a");
-        link.href = `${API_ORIGIN}${job.downloadUrl}?sessionId=${encodeURIComponent(MEDIA_SESSION_ID)}`;
-        link.download = downloadName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        return;
+    async function cancelDraftRender() {
+      const jobId = state.renderedPreview.jobId;
+      if (!state.renderedPreview.rendering || !jobId) return;
+      $("#quickCancelRenderBtn").disabled = true;
+      $("#quickPreviewStatus").textContent = "Zastavujem spracovanie…";
+      try {
+        await api(`/api/jobs/${jobId}/cancel`, { method: "POST" });
+        recordUsage("final_draft_cancel_requested");
+      } catch (error) {
+        $("#quickCancelRenderBtn").disabled = false;
+        toast(error.message);
       }
-      if (job.status === "failed") {
-        state.exporting = false;
-        renderValidation();
-        throw new Error(job.error || "Export zlyhal.");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 850));
-      return pollExport(jobId, exportStartedAt);
     }
 
     function bindIntegerPair(rangeId, numberId, minimum, maximum, onChange) {
@@ -6624,12 +6733,16 @@
     function setupEvents() {
       $("#videoFile").addEventListener("change", (event) => {
         const file = event.target.files[0];
-        if (file) uploadMedia(file, "video");
+        const confirmed = !file || !state.video || window.confirm("Nahradiť aktuálne video? Doterajšie úpravy tohto videa sa zahodia.");
+        if (file && confirmed) uploadMedia(file, "video");
+        else if (file) recordUsage("media_replacement_cancelled", { kind: "video" });
         event.target.value = "";
       });
       $("#musicFile").addEventListener("change", (event) => {
         const file = event.target.files[0];
-        if (file) uploadMedia(file, "music");
+        const confirmed = !file || !state.music || window.confirm("Nahradiť aktuálnu hudbu a zopakovať kontrolu hlasitosti a dropov?");
+        if (file && confirmed) uploadMedia(file, "music");
+        else if (file) recordUsage("media_replacement_cancelled", { kind: "music" });
         event.target.value = "";
       });
 
@@ -6685,6 +6798,7 @@
       $("#quickPreviewFullscreen").addEventListener("click", () => {
         toggleQuickPreviewFullscreen().catch((error) => toast(error.message));
       });
+      $("#quickCancelRenderBtn").addEventListener("click", cancelDraftRender);
       $("#quickPreviewScrubber").addEventListener("input", (event) => {
         const preview = $("#quickPreviewVideo");
         const duration = Number.isFinite(preview.duration) ? preview.duration : 0;
@@ -6772,9 +6886,8 @@
         const row = event.target.closest("[data-review-marker]");
         if (row) selectMarkerForReview(row.dataset.reviewMarker);
       });
-      $("#markerNudgeBack").addEventListener("click", () => nudgeReviewedMarker(-.1));
-      $("#markerNudgeForward").addEventListener("click", () => nudgeReviewedMarker(.1));
       $("#markerAudition").addEventListener("click", auditionReviewedMarker);
+      $("#resetAutomaticMarkers").addEventListener("click", resetAutomaticMarkers);
       $("#markerReviewNext").addEventListener("click", advanceMarkerReview);
       $("#selectAudioRange").addEventListener("click", () => {
         if (!state.video) return;
@@ -7070,13 +7183,14 @@
         $(`#${id}`).addEventListener("input", (event) => {
           const segment = getSelectedSegment();
           if (!segment) return;
-          segment.transform ||= initialVideoTransform();
-          segment.transform[key] = Number(event.target.value);
-          const minimumZoom = Number(segment.transform.minimumZoom) || 1;
-          if (key === "zoom" && segment.transform.zoom < minimumZoom) {
-            segment.transform.zoom = minimumZoom;
-          }
-          rememberEdit(`Transformácia segmentu: ${key}`, `transform-${key}`);
+          const value = Number(event.target.value);
+          state.segments.forEach((item) => {
+            item.transform ||= initialVideoTransform();
+            item.transform[key] = key === "zoom"
+              ? Math.max(value, Number(item.transform.minimumZoom) || 1)
+              : value;
+          });
+          rememberEdit(`Zarámovanie celého videa: ${key}`, `transform-${key}`);
           renderInspector();
           renderPreviewEffects();
           recordUsage("segment_transform_adjusted", {
@@ -7088,8 +7202,9 @@
       $("#resetTransform").addEventListener("click", () => {
         const segment = getSelectedSegment();
         if (!segment) return;
-        segment.transform = initialVideoTransform();
-        rememberEdit("Obnovenie transformácie");
+        const automatic = initialVideoTransform();
+        state.segments.forEach((item) => { item.transform = structuredClone(automatic); });
+        rememberEdit("Obnovenie zarámovania celého videa");
         renderInspector();
         renderPreviewEffects();
         recordUsage("segment_transform_reset");
@@ -7243,6 +7358,15 @@
       $("#quickEditBtn").addEventListener("click", () => setWizardStep(1));
       $("#quickExportBtn").addEventListener("click", exportProject);
       $("#exportUsageLog").addEventListener("click", exportUsageLog);
+      $("#clearAiCache").addEventListener("click", clearAiCache);
+      $("#openDownloadsBtn").addEventListener("click", async () => {
+        try {
+          await api("/api/open-downloads", { method: "POST" });
+          recordUsage("downloads_folder_opened");
+        } catch (error) {
+          toast(error.message);
+        }
+      });
       $("#usageLogPanel").addEventListener("toggle", () => {
         recordUsage("usage_log_panel_toggled", { open: $("#usageLogPanel").open });
       });

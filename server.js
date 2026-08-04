@@ -24,17 +24,16 @@ const { calculateGapEdit, refineSuggestionsWithAudio } = require("./marker-analy
 const { analyseMusicSuitability } = require("./music-suitability");
 
 const APP_DIR = __dirname;
-const IS_RENDER = process.env.RENDER === "true";
-const HOST = process.env.GMF_HOST || (IS_RENDER ? "0.0.0.0" : "127.0.0.1");
-const IS_LOCAL_HOST = ["127.0.0.1", "localhost", "::1"].includes(HOST);
-const IS_PUBLIC_DEPLOYMENT = IS_RENDER || !IS_LOCAL_HOST;
-const TRUST_PROXY = IS_RENDER || process.env.GMF_TRUST_PROXY === "true";
-const IS_HTTPS_DEPLOYMENT = IS_RENDER || process.env.GMF_HTTPS === "true";
+// This edition is intentionally local-only. Environment variables cannot widen
+// the bind address, so an accidental shell setting never publishes uploaded
+// media or the editor API to the LAN or internet.
+const HOST = "127.0.0.1";
+const IS_PUBLIC_DEPLOYMENT = false;
+const TRUST_PROXY = false;
+const IS_HTTPS_DEPLOYMENT = false;
 const WORK_DIR = process.env.GMF_WORK_DIR
   ? path.resolve(process.env.GMF_WORK_DIR)
-  : IS_PUBLIC_DEPLOYMENT
-    ? path.join(os.tmpdir(), "give-me-five")
-    : path.join(APP_DIR, ".gmf-work");
+  : path.join(APP_DIR, ".gmf-work");
 const UPLOAD_DIR = path.join(WORK_DIR, "uploads");
 const EXPORT_DIR = path.join(WORK_DIR, "exports");
 const DENOISE_DIR = path.join(WORK_DIR, "denoise");
@@ -56,16 +55,16 @@ const ffprobePath = process.env.GMF_FFPROBE_PATH
 const PORT = Number(process.env.PORT || process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = Math.max(
   25 * 1024 * 1024,
-  Number(process.env.GMF_MAX_UPLOAD_MB || (IS_PUBLIC_DEPLOYMENT ? 300 : 1024)) * 1024 * 1024
+  Number(process.env.GMF_MAX_UPLOAD_MB || 1024) * 1024 * 1024
 );
 const MAX_UPLOAD_REQUEST_BYTES = MAX_UPLOAD_BYTES + 2 * 1024 * 1024;
 const MAX_RUNNING_UPLOADS = Math.max(
   1,
-  Number(process.env.GMF_MAX_RUNNING_UPLOADS || (IS_PUBLIC_DEPLOYMENT ? 1 : 4))
+  Number(process.env.GMF_MAX_RUNNING_UPLOADS || 4)
 );
 const MIN_FREE_UPLOAD_BYTES = Math.max(
   64 * 1024 * 1024,
-  Number(process.env.GMF_MIN_FREE_DISK_MB || (IS_PUBLIC_DEPLOYMENT ? 512 : 128)) * 1024 * 1024
+  Number(process.env.GMF_MIN_FREE_DISK_MB || 128) * 1024 * 1024
 );
 const ACCESS_USER = String(process.env.GMF_ACCESS_USER || "give-me-five");
 const ACCESS_KEY = String(process.env.GMF_ACCESS_KEY || "");
@@ -81,7 +80,7 @@ const TRANSCRIPT_MODEL_REVISION = String(
 const SESSION_CLOSE_GRACE_MS = 8000;
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const MAX_VIDEO_DURATION = 90.25;
-const MAX_MUSIC_DURATION = 30 * 60;
+const MAX_MUSIC_DURATION = 15 * 60;
 const MAX_MEDIA_DIMENSION = 4320;
 const MAX_MEDIA_FPS = 120;
 const MAX_RUNNING_ANALYSES = Math.max(1, Number(process.env.GMF_MAX_RUNNING_ANALYSES || 1));
@@ -137,10 +136,102 @@ const authFailures = new Map();
 const heavyRequests = new Map();
 const activeChildren = new Set();
 const activeWorkers = new Set();
+const transcriptWorkerPending = new Map();
 const activeUploadSessions = new Set();
 let activeMediaAnalyses = 0;
 let activeUploads = 0;
 let whooshPeakSeconds = 0.558;
+let persistentTranscriptWorker = null;
+
+function rejectPendingTranscriptWorkerJobs(error) {
+  for (const pending of transcriptWorkerPending.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(error);
+  }
+  transcriptWorkerPending.clear();
+}
+
+function ensureTranscriptWorker() {
+  if (persistentTranscriptWorker) return persistentTranscriptWorker;
+  const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
+    workerData: {
+      modelDir: MODEL_DIR,
+      rnnoiseModelPath: RNNOISE_MODEL_PATH,
+      modelRevision: TRANSCRIPT_MODEL_REVISION
+    }
+  });
+  persistentTranscriptWorker = worker;
+  activeWorkers.add(worker);
+  worker.on("message", (message) => {
+    if (message.type === "preload-error") {
+      console.warn("Could not preload the phrase model:", message.error);
+      return;
+    }
+    const pending = transcriptWorkerPending.get(message.jobId);
+    if (!pending) return;
+    if (message.type === "progress") {
+      pending.job.progress = Math.max(pending.job.progress, numeric(message.progress));
+      pending.job.message = message.message || pending.job.message;
+      return;
+    }
+    clearTimeout(pending.timer);
+    transcriptWorkerPending.delete(message.jobId);
+    if (message.type === "result") pending.resolve(message.result);
+    else if (message.type === "error") pending.reject(new Error(message.error || "Lokálne rozpoznanie fráz zlyhalo."));
+  });
+  worker.on("error", (error) => {
+    rejectPendingTranscriptWorkerJobs(error);
+  });
+  worker.on("exit", (code) => {
+    activeWorkers.delete(worker);
+    if (persistentTranscriptWorker === worker) persistentTranscriptWorker = null;
+    if (transcriptWorkerPending.size) {
+      rejectPendingTranscriptWorkerJobs(new Error(`AI worker sa ukončil s kódom ${code}.`));
+    }
+  });
+  return worker;
+}
+
+function runTranscriptWorker(data, job) {
+  return new Promise((resolve, reject) => {
+    const worker = ensureTranscriptWorker();
+    const jobId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      transcriptWorkerPending.delete(jobId);
+      reject(new Error("Rozpoznanie fráz prekročilo bezpečnostný časový limit."));
+    }, TRANSCRIPT_TIMEOUT_MS);
+    timer.unref();
+    transcriptWorkerPending.set(jobId, { resolve, reject, timer, job });
+    worker.postMessage({ type: "transcribe", jobId, data });
+  });
+}
+
+function startSleepPrevention(job) {
+  if (process.platform !== "darwin" || !job || job.caffeinate) return;
+  try {
+    const child = spawn("/usr/bin/caffeinate", ["-dimsu"], { stdio: "ignore" });
+    job.caffeinate = child;
+    activeChildren.add(child);
+    child.on("error", () => {
+      activeChildren.delete(child);
+      if (job.caffeinate === child) job.caffeinate = null;
+    });
+    child.on("close", () => {
+      activeChildren.delete(child);
+      if (job.caffeinate === child) job.caffeinate = null;
+    });
+  } catch {
+    // Rendering still works if caffeinate is unavailable.
+  }
+}
+
+function stopSleepPrevention(job) {
+  const child = job?.caffeinate;
+  if (!child) return;
+  job.caffeinate = null;
+  activeChildren.delete(child);
+  if (!child.killed) child.kill("SIGTERM");
+}
 
 function normaliseSessionId(value) {
   const id = String(value || "").trim();
@@ -464,6 +555,36 @@ app.get("/api/health", (request, response) => {
   });
 });
 
+app.post("/api/models/clear", async (request, response) => {
+  const transcriptRunning = [...transcriptJobs.values()].some((job) => job.status === "running");
+  if (transcriptRunning || transcriptWorkerPending.size) {
+    response.status(409).json({ error: "AI práve analyzuje video. Cache vymažte až po dokončení." });
+    return;
+  }
+  if (persistentTranscriptWorker) {
+    const worker = persistentTranscriptWorker;
+    persistentTranscriptWorker = null;
+    activeWorkers.delete(worker);
+    await worker.terminate().catch(() => {});
+  }
+  safeRemove(MODEL_DIR);
+  fs.mkdirSync(MODEL_DIR, { recursive: true });
+  response.json({ ok: true, message: "AI cache bola vymazaná." });
+});
+
+app.post("/api/open-downloads", (_request, response) => {
+  if (process.platform !== "darwin") {
+    response.status(422).json({ error: "Otvorenie priečinka je v tejto verzii dostupné na macOS." });
+    return;
+  }
+  const child = spawn("/usr/bin/open", [path.join(os.homedir(), "Downloads")], {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
+  response.status(202).json({ ok: true });
+});
+
 app.post("/api/session/heartbeat", (request, response) => {
   const sessionId = request.gmfSessionId || requestSessionId(request);
   if (!sessionId) {
@@ -530,7 +651,7 @@ function validateMediaMetadata(metadata, kind) {
   if (!metadata.hasAudio) throw new Error("Vybraný súbor nemá zvukovú stopu.");
   if (kind === "music") {
     if (metadata.duration > MAX_MUSIC_DURATION) {
-      throw new Error("Hudobná stopa môže mať najviac 30 minút.");
+      throw new Error("Hudobná stopa môže mať najviac 15 minút.");
     }
     return;
   }
@@ -551,12 +672,13 @@ function validateMediaMetadata(metadata, kind) {
 
 function runProcess(executable, args, options = {}) {
   return new Promise((resolve, reject) => {
-    const { timeoutMs = PROCESS_TIMEOUT_MS, ...spawnOptions } = options;
+    const { timeoutMs = PROCESS_TIMEOUT_MS, onChild = null, ...spawnOptions } = options;
     const child = spawn(executable, args, {
       cwd: APP_DIR,
       stdio: ["ignore", "pipe", "pipe"],
       ...spawnOptions
     });
+    if (typeof onChild === "function") onChild(child);
     activeChildren.add(child);
     const stdout = [];
     const stderr = [];
@@ -574,6 +696,7 @@ function runProcess(executable, args, options = {}) {
       if (settled) return;
       settled = true;
       activeChildren.delete(child);
+      if (typeof onChild === "function") onChild(null);
       clearTimeout(timer);
       reject(error);
     });
@@ -581,6 +704,7 @@ function runProcess(executable, args, options = {}) {
       if (settled) return;
       settled = true;
       activeChildren.delete(child);
+      if (typeof onChild === "function") onChild(null);
       clearTimeout(timer);
       const result = {
         code,
@@ -1227,68 +1351,37 @@ async function transcribeMedia(record, job, requestedDenoise = null) {
   job.message = "Analyzujem vyčistený hlas pre presnejšie časové značky…";
   const cleanedPcm = await extractMonoPcm(denoisedAudioPath, 8000);
   const cleanedAnalysis = analysePcm(cleanedPcm, 8000, record.metadata.duration);
-  const workerResult = await new Promise((resolve, reject) => {
-    const worker = new Worker(path.join(APP_DIR, "transcribe-worker.js"), {
-      workerData: {
-        mediaPath: denoisedAudioPath,
-        precleaned: true,
-        lowCut: preliminaryDenoise.lowCut,
-        clarity: preliminaryDenoise.clarity,
-        modelDir: MODEL_DIR,
-        rnnoiseModelPath: RNNOISE_MODEL_PATH,
-        modelRevision: TRANSCRIPT_MODEL_REVISION
-      }
-    });
-    activeWorkers.add(worker);
-    let settled = false;
-    const finish = (callback, value) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      activeWorkers.delete(worker);
-      callback(value);
-    };
-    const timer = setTimeout(() => {
-      worker.terminate().catch(() => {});
-      finish(reject, new Error("Prepis prekročil bezpečnostný časový limit."));
-    }, TRANSCRIPT_TIMEOUT_MS);
-    timer.unref();
-    worker.on("message", (message) => {
-      if (message.type === "progress") {
-        job.progress = Math.max(job.progress, numeric(message.progress));
-        job.message = message.message || job.message;
-      } else if (message.type === "result") {
-        finish(resolve, message.result);
-      } else if (message.type === "error") {
-        finish(reject, new Error(message.error || "Lokálny prepis zlyhal."));
-      }
-    });
-    worker.on("error", (error) => finish(reject, error));
-    worker.on("exit", (code) => {
-      activeWorkers.delete(worker);
-      if (!settled && job.status === "running") {
-        finish(
-          reject,
-          new Error(code === 0 ? "Prepisový worker skončil bez výsledku." : `Prepisový worker skončil s kódom ${code}.`)
-        );
-      }
-    });
-  });
+  const workerResult = await runTranscriptWorker({
+    mediaPath: denoisedAudioPath,
+    precleaned: true,
+    lowCut: preliminaryDenoise.lowCut,
+    clarity: preliminaryDenoise.clarity
+  }, job);
   const words = alignTranscriptWordsToSpeech(
     workerResult.words || [],
     cleanedAnalysis.activity,
     record.metadata.duration
   );
+  const rawSuggestions = transcriptSuggestions(words, record.metadata.duration);
   const suggestions = refineSuggestionsWithAudio(
-    transcriptSuggestions(words, record.metadata.duration),
+    rawSuggestions,
     cleanedAnalysis.activity,
     record.metadata.duration
   );
   const testPhrase = selectReliableSpeechPhrase(words, suggestions, record.metadata.duration);
+  const markerConfidence = {
+    trimStart: record.visualEntry?.confidence === "high" ? "high" : "check",
+    speechStart: Number.isFinite(rawSuggestions.speechStart) && words.length >= 3 ? "high" : "check",
+    giveEnd: Number.isFinite(rawSuggestions.giveEnd) ? "high" : "check",
+    continueStart: Number.isFinite(rawSuggestions.giveEnd) && Number.isFinite(rawSuggestions.continueStart) ? "high" : "check",
+    speechEnd: Number.isFinite(rawSuggestions.peaceStart) ? "high" : "check",
+    trimEnd: "high"
+  };
   return {
     text: String(workerResult.text || words.map((word) => word.text).join(" ")).trim(),
     words,
     suggestions,
+    markerConfidence,
     testPhrase,
     denoiseRecommendation: recommendDenoise(record, testPhrase),
     markerAudioBasis: "deepfilter-net3",
@@ -1738,13 +1831,15 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
   const additiveOverlap = calculateAdditiveOverlap(gapEdit, trimStart, trimEnd);
   const sourceVisibleDuration = trimEnd - trimStart - gapEdit.cutDuration;
   const ending = payload.ending || {};
-  const holdDuration = clamp(numeric(ending.holdDuration, 4), 0, 10);
-  const finalFade = clamp(numeric(ending.blurDuration, 2), 0.5, 5);
+  const requestedHoldDuration = clamp(numeric(ending.holdDuration, 4), 0, 10);
+  const requestedFinalFade = clamp(numeric(ending.blurDuration, 2), 0.5, 5);
   const blackTailDuration = clamp(numeric(ending.blackDuration, 2), 0, 5);
   const speechEndRel = speechEnd - trimStart - gapEdit.cutDuration;
-  const minimumVisibleDuration = speechEndRel + holdDuration + finalFade;
-  const visibleDuration = Math.max(sourceVisibleDuration, minimumVisibleDuration);
-  const freezeFrameDuration = Math.max(0, visibleDuration - sourceVisibleDuration);
+  const availableTailDuration = Math.max(0, sourceVisibleDuration - speechEndRel);
+  const finalFade = Math.min(requestedFinalFade, Math.max(0.1, availableTailDuration));
+  const holdDuration = Math.min(requestedHoldDuration, Math.max(0, availableTailDuration - finalFade));
+  const visibleDuration = sourceVisibleDuration;
+  const freezeFrameDuration = 0;
   const outputDuration = visibleDuration + blackTailDuration;
   const transitionStartRel = giveEnd + TRANSITION_DELAY_SECONDS - trimStart;
   const transitionFadeIn = transitionDuration * TRANSITION_PEAK_RATIO;
@@ -1830,10 +1925,7 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
     );
     videoSequenceLabel = dynamicResult.label;
   }
-  const freezeFilter = freezeFrameDuration > 0.001
-    ? `,tpad=stop_mode=clone:stop_duration=${freezeFrameDuration.toFixed(4)}`
-    : "";
-  filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}${freezeFilter}[videoBase]`);
+  filters.push(`[${videoSequenceLabel}]${colourFilters(payload.colour).join(",")}[videoBase]`);
   const finishedVideoLabel = options.preview ? "voutFull" : "vout";
   filters.push(
     "[videoBase]split=2[sharpFinal][blurInput]",
@@ -1909,7 +2001,6 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
     "-b:a", options.preview ? "128k" : "192k",
     "-ar", "48000",
     "-movflags", "+faststart",
-    "-threads", "2",
     "-progress", "pipe:1",
     "-nostats",
     outputPath
@@ -1925,6 +2016,8 @@ function buildExportPlan(payload, denoisedAudioPath = null, options = {}) {
       sourceVisibleDuration,
       visibleDuration,
       holdDuration,
+      requestedHoldDuration,
+      requestedFinalFade,
       finalFade,
       freezeFrameDuration,
       blackTailDuration,
@@ -1951,6 +2044,7 @@ function renderExportPlan(job, plan) {
       cwd: APP_DIR,
       stdio: ["ignore", "pipe", "pipe"]
     });
+    job.child = child;
     activeChildren.add(child);
     let progressBuffer = "";
     let errorBuffer = "";
@@ -1984,6 +2078,7 @@ function renderExportPlan(job, plan) {
       if (settled) return;
       settled = true;
       activeChildren.delete(child);
+      if (job.child === child) job.child = null;
       clearTimeout(timer);
       reject(error);
     });
@@ -1991,13 +2086,16 @@ function renderExportPlan(job, plan) {
       if (settled) return;
       settled = true;
       activeChildren.delete(child);
+      if (job.child === child) job.child = null;
       clearTimeout(timer);
-      if (code === 0 && fs.existsSync(plan.outputPath)) {
+      if (!job.cancelRequested && code === 0 && fs.existsSync(plan.outputPath)) {
         resolve();
         return;
       }
       fs.rmSync(plan.outputPath, { force: true });
-      if (timedOut) {
+      if (job.cancelRequested) {
+        reject(new Error("Spracovanie bolo zrušené."));
+      } else if (timedOut) {
         reject(new Error(`Export prekročil bezpečnostný limit ${Math.round(EXPORT_TIMEOUT_MS / 60000)} minút.`));
       } else {
         reject(new Error(errorBuffer.trim().split("\n").slice(-8).join("\n") || `FFmpeg exited with ${code}`));
@@ -2006,7 +2104,7 @@ function renderExportPlan(job, plan) {
   });
 }
 
-async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
+async function finaliseRenderedLoudness(filePath, targetLufs, preview, job = null) {
   const requestedTarget = clamp(numeric(targetLufs, -11), -24, -7);
   const normalisationTarget = requestedTarget >= -12 ? requestedTarget + 0.7 : requestedTarget;
   const compression = requestedTarget >= -12
@@ -2017,6 +2115,7 @@ async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
     `${preview ? "preview-" : ""}normalised-${crypto.randomUUID()}.mp4`
   );
   try {
+    if (job?.cancelRequested) throw new Error("Spracovanie bolo zrušené.");
     await runProcess(ffmpegPath, [
       "-y",
       "-hide_banner",
@@ -2031,8 +2130,15 @@ async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
       "-ar", "48000",
       "-movflags", "+faststart",
       outputPath
-    ], { timeoutMs: EXPORT_TIMEOUT_MS });
+    ], {
+      timeoutMs: EXPORT_TIMEOUT_MS,
+      onChild: (child) => {
+        if (job) job.child = child;
+      }
+    });
+    if (job?.cancelRequested) throw new Error("Spracovanie bolo zrušené.");
     const measured = await measureIntegratedLoudness(outputPath);
+    if (job?.cancelRequested) throw new Error("Spracovanie bolo zrušené.");
     fs.rmSync(filePath, { force: true });
     return { outputPath, measured };
   } catch (error) {
@@ -2042,12 +2148,18 @@ async function finaliseRenderedLoudness(filePath, targetLufs, preview) {
 }
 
 function startExportJob(payload, sessionId, options = {}) {
+  const isProxyPreview = Boolean(options.preview);
+  const isDownloadableDraft = Boolean(options.draft);
   const id = crypto.randomUUID();
   const job = {
     id,
     status: "running",
     progress: 0,
-    message: options.preview ? "Pripravujem presný náhľad…" : "Pripravujem lokálny export…",
+    message: isProxyPreview
+      ? "Pripravujem rýchly náhľad…"
+      : isDownloadableDraft
+        ? "Pripravujem jediný plnohodnotný návrh…"
+        : "Pripravujem lokálny export…",
     outputPath: null,
     details: null,
     timing: null,
@@ -2055,12 +2167,16 @@ function startExportJob(payload, sessionId, options = {}) {
     createdAt: Date.now(),
     sessionId,
     mediaIds: [payload.videoId, payload.musicId].filter(Boolean),
-    kind: options.preview ? "preview" : "export",
-    downloadName: options.preview ? "give_me_five_preview.mp4" : editedExportFilename(payload.sourceFileName)
+    cancelRequested: false,
+    child: null,
+    caffeinate: null,
+    kind: isProxyPreview ? "preview" : isDownloadableDraft ? "draft" : "export",
+    downloadName: isProxyPreview ? "give_me_five_preview.mp4" : editedExportFilename(payload.sourceFileName)
   };
   jobs.set(id, job);
 
   (async () => {
+    startSleepPrevention(job);
     try {
       const video = media.get(payload.videoId);
       const music = payload.musicId ? media.get(payload.musicId) : null;
@@ -2068,7 +2184,7 @@ function startExportJob(payload, sessionId, options = {}) {
       if (payload.musicId && (!music || music.sessionId !== sessionId)) throw new Error("Hudba už nie je načítaná. Vložte ju znova.");
       const preflightPlan = buildExportPlan(payload, null, options);
       job.timing = createRenderTiming({
-        kind: options.preview ? "preview" : "export",
+        kind: isProxyPreview ? "preview" : "export",
         sourceDuration: video.metadata.duration,
         outputDuration: preflightPlan.outputDuration,
         width: video.metadata.width,
@@ -2083,6 +2199,7 @@ function startExportJob(payload, sessionId, options = {}) {
         job.message = "DeepFilterNet3 oddeľuje hlas od vetra a okolitého šumu…";
         job.progress = 0.02;
         denoisedAudioPath = await prepareDenoisedTrack(video, payload.globalDenoise);
+        if (job.cancelRequested) throw new Error("Spracovanie bolo zrušené.");
         job.progress = 0.08;
       }
       const plan = buildExportPlan(payload, denoisedAudioPath, options);
@@ -2090,26 +2207,34 @@ function startExportJob(payload, sessionId, options = {}) {
       job.details = plan.details;
       setRenderTimingStage(job.timing, "rendering");
       await renderExportPlan(job, plan);
+      if (job.cancelRequested) throw new Error("Spracovanie bolo zrušené.");
       job.progress = 0.99;
       job.message = "Finalizujem výslednú LUFS hlasitosť…";
       setRenderTimingStage(job.timing, "finalising");
       const loudnessResult = await finaliseRenderedLoudness(
         plan.outputPath,
         payload.loudness?.targetLufs,
-        Boolean(options.preview)
+        isProxyPreview,
+        job
       );
       job.outputPath = loudnessResult.outputPath;
       job.details.finalLoudness = loudnessResult.measured;
       job.status = "completed";
       job.progress = 1;
-      job.message = options.preview ? "Presný náhľad je pripravený." : "MP4 export je pripravený.";
+      job.message = isProxyPreview
+        ? "Rýchly náhľad je pripravený."
+        : isDownloadableDraft
+          ? "Plnohodnotný návrh je pripravený na prehratie aj stiahnutie."
+          : "MP4 export je pripravený.";
       setRenderTimingStage(job.timing, "completed");
     } catch (error) {
-      job.status = "failed";
+      job.status = job.cancelRequested ? "cancelled" : "failed";
       job.error = error.message || "Export zlyhal.";
-      job.message = "Export zlyhal.";
-      setRenderTimingStage(job.timing, "failed");
+      job.message = job.cancelRequested ? "Spracovanie bolo zrušené." : "Export zlyhal.";
+      setRenderTimingStage(job.timing, job.cancelRequested ? "cancelled" : "failed");
       if (job.outputPath) fs.rmSync(job.outputPath, { force: true });
+    } finally {
+      stopSleepPrevention(job);
     }
   })();
   return job;
@@ -2144,7 +2269,10 @@ app.post("/api/render-preview", (request, response) => {
       response.status(429).json({ error: "Iné video spracovanie ešte prebieha. Počkajte na jeho dokončenie." });
       return;
     }
-    const job = startExportJob(request.body || {}, request.gmfSessionId, { preview: true, previewHeight: 960 });
+    // The first automatic proposal is deliberately the final-quality file. The
+    // browser reuses this exact MP4 for download, so the user never waits for a
+    // second, identical export render.
+    const job = startExportJob(request.body || {}, request.gmfSessionId, { draft: true });
     response.status(202).json({ jobId: job.id, status: job.status });
   } catch (error) {
     response.status(422).json({ error: error.message || "Náhľad sa nepodarilo spustiť." });
@@ -2168,6 +2296,22 @@ app.get("/api/jobs/:id", (request, response) => {
     downloadUrl: job.status === "completed" ? `/api/jobs/${job.id}/download` : null,
     downloadName: job.status === "completed" ? job.downloadName : null
   });
+});
+
+app.post("/api/jobs/:id/cancel", (request, response) => {
+  const job = jobs.get(request.params.id);
+  if (!job || !request.gmfSessionId || job.sessionId !== request.gmfSessionId) {
+    response.status(404).json({ error: "Spracovanie sa nenašlo." });
+    return;
+  }
+  if (job.status !== "running") {
+    response.json({ status: job.status });
+    return;
+  }
+  job.cancelRequested = true;
+  job.message = "Zastavujem spracovanie…";
+  if (job.child && !job.child.killed) job.child.kill("SIGTERM");
+  response.status(202).json({ status: "cancelling" });
 });
 
 app.get("/api/jobs/:id/download", (request, response) => {
@@ -2375,6 +2519,8 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 detectWhooshPeak().finally(() => {
   httpServer = app.listen(PORT, HOST, () => {
     purgeTemporaryWorkspace();
+    migrateLegacyTranscriptCache();
+    ensureTranscriptWorker();
     const browserHost = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
     const url = `http://${browserHost}:${PORT}`;
     console.log(`Give Me Five editor is ready at ${url}`);

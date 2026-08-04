@@ -7,9 +7,8 @@ const test = require("node:test");
 
 const html = fs.readFileSync(path.join(__dirname, "..", "give_me_five.html"), "utf8");
 
-test("preview and export always have a local ETA fallback", () => {
-  assert.match(html, /job\.timing \|\| localRenderTimingEstimate\(\s*"preview"/);
-  assert.match(html, /job\.timing \|\| localRenderTimingEstimate\("export"/);
+test("the full-quality proposal always has a local export ETA fallback", () => {
+  assert.match(html, /job\.timing \|\| localRenderTimingEstimate\(\s*"export"/);
   assert.doesNotMatch(html, /renderTimingEstimate\("(?:preview|export)", null/);
 });
 
@@ -82,11 +81,11 @@ test("framing popup offers static detail and dynamic speech-timed zoom", () => {
   assert.match(html, /framing:\s*\{\s*mode: state\.framingMode/);
 });
 
-test("music stays at minus 25 dB and voice gets another two dB by default", () => {
+test("music stays at minus 25 dB and voice starts at plus eight dB", () => {
   assert.match(html, /duringSpeechDb:\s*-25/);
   assert.match(html, /id="musicDuring"[^>]+value="-25"/);
-  assert.match(html, /voiceMasterDb:\s*2/);
-  assert.match(html, /id="voiceMaster"[^>]+value="2"/);
+  assert.match(html, /voiceMasterDb:\s*8/);
+  assert.match(html, /id="voiceMaster"[^>]+value="8"/);
   assert.match(html, /Predvolený rozdiel 17 dB/);
 });
 

@@ -32,8 +32,8 @@ test("edited pause leaves 0.1 second after light and aligns music to the whoosh 
   assert.match(html, /whooshPeakSeconds = Number\.isFinite/);
 });
 
-test("visual entry keeps a 0.3 second lead-in", () => {
-  assert.match(visualEntry, /detectedAt - 0\.3/);
+test("visual entry keeps a 0.1 second lead-in", () => {
+  assert.match(visualEntry, /detectedAt - 0\.1/);
 });
 
 test("denoised voice uses the same mild studio compressor in render and live monitoring", () => {

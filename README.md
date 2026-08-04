@@ -1,6 +1,6 @@
 # Give Me Five Video Editor
 
-Webová aplikácia pre Google Chrome. V lokálnom režime video a audio ostávajú v počítači; natívny FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4. Oracle verzia používa rovnaký serverový render, ale má úplne oddelené spúšťanie, heslá a dočasné úložisko v `deploy/oracle/`.
+Lokálna webová aplikácia pre Google Chrome. Video a audio zostávajú v počítači; natívny FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4.
 
 ## Spustenie
 
@@ -48,7 +48,7 @@ Predvolený preset **Živé farby** sa použije už v prvom presnom náhľade aj
 
 Ak chcete zefektívniť ďalší workflow, v spodnom paneli otvorte **Diagnostika workflow · export logu** a stiahnite anonymný JSON report. Obsahuje poradie krokov, časy, opakované nastavenia, blokované exporty a automatické návrhy na zjednodušenie. Neobsahuje médiá, prepis, názvy súborov ani lokálne cesty.
 
-Predvolený hudobný podmaz je počas reči o 17 dB tichší a hlavná korekcia hlasu začína na +2 dB. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
+Predvolený hudobný podmaz je počas reči o 17 dB tichší a hlavná korekcia hlasu začína na +8 dB. Bežne dobre funguje rozdiel 12–18 dB; manuálne posunutie ovládačov má vždy prednosť.
 Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +5“, ktorý je približne o 5 LU hlasnejší než −16 LUFS profil. Jemná kompresia a bezpečnostný limiter s −2,2 dB true-peak rezervou zabránia aj AAC medzivzorkovému klipovaniu bez zbytočného stíšenia hlasného profilu; aplikácia po renderi urobí druhý normalizačný priechod a pri náhľade ukáže skutočne nameranú hodnotu. Voliteľne možno zvoliť −14 alebo −16 LUFS a korekciu hlasu ±12 dB. Náhľady jednotlivých úsekov sa prehrávajú raz; automatické opakovanie je vypnuté.
 
 ## Výstup
@@ -62,13 +62,10 @@ Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +
 
 AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. Rovnaký DeepFilter výstup sa použije aj pred lokálnym slovenským prepisom a určovaním markerov.
 
-## Oddelená Oracle verzia
+Prvý automatický návrh je už plnohodnotný MP4 v pôvodnom rozlíšení a FPS. Tlačidlo **Stiahnuť hotové MP4** použije presne tento súbor, takže export nespúšťa druhý rovnaký render. Počas spracovania Mac zostáva bdelý, zdrojové súbory sú uzamknuté proti náhodnej výmene a render možno bezpečne zrušiť. Po stiahnutí možno priamo z editora otvoriť priečinok Downloads.
 
-Lokálna verzia sa naďalej spúšťa rovnakým spôsobom cez `start.command` a používa iba `.gmf-work`. Oracle konfigurácia je v `deploy/oracle/`; lokálny adresár sa do kontajnera nepripája. Cloudový server podporuje bindovanie na `0.0.0.0`, bezpečnostné hlavičky, serverové overovanie uploadov, časové a súbežné limity, limit jedného súbežného cloudového uploadu a korektné ukončenie pri reštarte. Bez `GMF_ACCESS_KEY` s minimálne 20 znakmi sa cloudový režim úmyselne nespustí.
+Kontrola markerov zobrazuje pri každom bode stav **Spoľahlivé** alebo **Skontrolovať**. Každý bod sa dá prehrať raz od jednej sekundy pred po dve sekundy za markerom; prvá manuálna zmena uzamkne všetkých šesť bodov proti ďalšiemu automatickému posunu. Slovenský frázový model zostáva počas behu aplikácie zahriaty v pamäti. Jeho lokálnu cache možno vedome vymazať v diagnostike, no pri ďalšom videu sa bude musieť znovu stiahnuť.
 
-Oracle image obsahuje samostatnú pripnutú Linux ARM64 binárku DeepFilterNet a všetky runtime moduly. Uploady, denoise medzisúbory a exporty sú v dočasnom `tmpfs`, ktorý sa pri reštarte bezpodmienečne vymaže; persistentný zostáva iba AI model. Pred verejným použitím ešte treba image zostaviť a urobiť plný integračný test priamo na Oracle Ampere A1.
-
-Presný postup je v [deploy/oracle/README.md](deploy/oracle/README.md) a audit v [SECURITY.md](SECURITY.md).
 V prvom kroku sú importy videa, hudby a rozhodnutie „upraviť alebo exportovať“ kompaktne pod sebou vľavo; pravý portrétový prehrávač má výšku týchto troch blokov. Informácia o zarámovaní je nad obrazom, play, časová os a fullscreen pod ním. Kým upload, obrazová analýza, AI denoise/prepis, analýza hudby a presný render pokračujú, video je uzamknuté a na jeho prvom zábere vidno kruhové percentá aj aktuálnu činnosť. Jeden spoločný ukazovateľ zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Po prijatí FFmpeg progresu sa odhad priebežne spresňuje. Staršiu verziu bežiaceho servera editor rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
 
 Hovorený zvuk z nahratého videa sa v živom náhľade, AI denoise porovnaní aj exporte prevádza na dual-mono stereo: rovnaký hlas ide do ľavého aj pravého kanála. Hudba a whoosh zostávajú v pôvodnom stereo obraze.

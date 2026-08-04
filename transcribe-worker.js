@@ -51,23 +51,64 @@ function filterPath(filePath) {
     .replace(/'/g, "\\'");
 }
 
-function report(progress, message) {
-  parentPort.postMessage({ type: "progress", progress, message });
+function report(jobId, progress, message) {
+  parentPort.postMessage({ type: "progress", jobId, progress, message });
 }
 
-async function main() {
-  report(0.18, workerData.precleaned
+let transcriberPromise = null;
+
+async function getTranscriber(config, jobId = null) {
+  if (transcriberPromise) return transcriberPromise;
+  transcriberPromise = (async () => {
+    const { env, pipeline } = await import("@huggingface/transformers");
+    env.cacheDir = config.modelDir;
+    env.allowLocalModels = true;
+    env.allowRemoteModels = true;
+    const modelParts = new Map([
+      ["encoder_model_q4.onnx", 0],
+      ["decoder_model_merged_q4.onnx", 0]
+    ]);
+    let lastModelPercent = -1;
+    const transcriber = await pipeline("automatic-speech-recognition", "Xurify/whisper-large-v3-turbo-sk-onnx", {
+      dtype: "q4",
+      revision: config.modelRevision,
+      progress_callback: (progress) => {
+        if (progress.status === "progress" && Number.isFinite(progress.progress)) {
+          const fileName = String(progress.file || "").split("/").at(-1);
+          if (modelParts.has(fileName)) modelParts.set(fileName, progress.progress);
+          const percent = Math.round([...modelParts.values()].reduce((sum, value) => sum + value, 0) / modelParts.size);
+          if (percent > lastModelPercent) {
+            lastModelPercent = percent;
+            report(jobId, Math.min(0.52, 0.05 + percent / 100 * 0.47), `Načítavam slovenský Whisper model… ${percent} %`);
+          }
+        } else if (progress.status === "ready") {
+          report(jobId, 0.55, "Slovenský Whisper model je pripravený.");
+        }
+      }
+    });
+    parentPort.postMessage({ type: "ready", jobId: null });
+    return transcriber;
+  })().catch((error) => {
+    transcriberPromise = null;
+    throw error;
+  });
+  return transcriberPromise;
+}
+
+async function transcribeJob(jobId, requestData) {
+  const data = { ...(workerData || {}), ...(requestData || {}) };
+  report(jobId, 0.18, data.precleaned
     ? "DeepFilterNet3 hlas je pripravený; pripravujem ho pre slovenský prepis…"
     : "AI čistí zvuk pre presnejší slovenský prepis…");
-  const lowCut = Math.max(50, Math.min(250, Math.round(Number(workerData.lowCut) || 110)));
-  const clarity = Math.max(0, Math.min(100, Number(workerData.clarity) || 0));
-  const audioFilter = workerData.precleaned
+  const lowCut = Math.max(50, Math.min(250, Math.round(Number(data.lowCut) || 110)));
+  const clarity = Math.max(0, Math.min(100, Number(data.clarity) || 0));
+  const audioFilter = data.precleaned
     ? `highpass=f=${lowCut},equalizer=f=2700:t=q:w=1.25:g=${(clarity / 100 * 2.2).toFixed(2)}`
-    : `highpass=f=110,arnndn=m='${filterPath(workerData.rnnoiseModelPath)}':mix=0.798,equalizer=f=2700:t=q:w=1.25:g=0.81`;
+    : `highpass=f=110,arnndn=m='${filterPath(data.rnnoiseModelPath)}':mix=0.798,equalizer=f=2700:t=q:w=1.25:g=0.81`;
   const pcm = await runProcess(ffmpegPath, [
     "-hide_banner",
     "-loglevel", "error",
-    "-i", workerData.mediaPath,
+    "-i", data.mediaPath,
     "-map", "0:a:0",
     "-vn",
     "-af", audioFilter,
@@ -80,33 +121,8 @@ async function main() {
   const audio = new Float32Array(samples.length);
   for (let index = 0; index < samples.length; index++) audio[index] = samples[index] / 32768;
 
-  const { env, pipeline } = await import("@huggingface/transformers");
-  env.cacheDir = workerData.modelDir;
-  env.allowLocalModels = true;
-  env.allowRemoteModels = true;
-  const modelParts = new Map([
-    ["encoder_model_q4.onnx", 0],
-    ["decoder_model_merged_q4.onnx", 0]
-  ]);
-  let lastModelPercent = -1;
-  const transcriber = await pipeline("automatic-speech-recognition", "Xurify/whisper-large-v3-turbo-sk-onnx", {
-    dtype: "q4",
-    revision: workerData.modelRevision,
-    progress_callback: (progress) => {
-      if (progress.status === "progress" && Number.isFinite(progress.progress)) {
-        const fileName = String(progress.file || "").split("/").at(-1);
-        if (modelParts.has(fileName)) modelParts.set(fileName, progress.progress);
-        const percent = Math.round([...modelParts.values()].reduce((sum, value) => sum + value, 0) / modelParts.size);
-        if (percent > lastModelPercent) {
-          lastModelPercent = percent;
-          report(Math.min(0.52, 0.05 + percent / 100 * 0.47), `Načítavam slovenský Whisper model… ${percent} %`);
-        }
-      } else if (progress.status === "ready") {
-        report(0.55, "Slovenský Whisper model je pripravený.");
-      }
-    }
-  });
-  report(0.58, "Prepisujem slovenčinu lokálne na pozadí…");
+  const transcriber = await getTranscriber(data, jobId);
+  report(jobId, 0.58, "Rozpoznávam slovenské frázy lokálne na pozadí…");
   const result = await transcriber(audio, {
     language: "slovak",
     task: "transcribe",
@@ -137,6 +153,7 @@ async function main() {
   }).filter((word) => word.text);
   parentPort.postMessage({
     type: "result",
+    jobId,
     result: {
       text: String(result.text || words.map((word) => word.text).join(" ")).trim(),
       words
@@ -144,6 +161,17 @@ async function main() {
   });
 }
 
-main().catch((error) => {
-  parentPort.postMessage({ type: "error", error: error.message || "Lokálny prepis zlyhal." });
+parentPort.on("message", (message) => {
+  if (message?.type !== "transcribe" || !message.jobId) return;
+  transcribeJob(message.jobId, message.data).catch((error) => {
+    parentPort.postMessage({
+      type: "error",
+      jobId: message.jobId,
+      error: error.message || "Lokálne rozpoznanie fráz zlyhalo."
+    });
+  });
+});
+
+getTranscriber(workerData || {}).catch((error) => {
+  parentPort.postMessage({ type: "preload-error", jobId: null, error: error.message || "AI model sa nepodarilo načítať." });
 });

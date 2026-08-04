@@ -4,7 +4,6 @@ node_modules/
 .env
 .env.*
 !.env.example
-!deploy/oracle/.env.example
 .DS_Store
 npm-debug.log*
 pnpm-debug.log*

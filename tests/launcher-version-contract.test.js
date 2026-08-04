@@ -33,9 +33,9 @@ test("start.command replaces a stale process bound to the editor port", () => {
   assert.match(commandLauncher, /Staršiu verziu editora sa nepodarilo ukončiť/);
 });
 
-test("local launcher refreshes dependencies after an application update", () => {
-  assert.match(commandLauncher, /DEPENDENCY_VERSION_FILE=/);
-  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_VERSION=/);
-  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_VERSION" != "\$EXPECTED_VERSION/);
-  assert.match(commandLauncher, /printf '%s\\n' "\$EXPECTED_VERSION" > "\$DEPENDENCY_VERSION_FILE"/);
+test("local launcher refreshes dependencies only when the lockfile or Node version changes", () => {
+  assert.match(commandLauncher, /DEPENDENCY_FINGERPRINT_FILE=/);
+  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_FINGERPRINT=/);
+  assert.match(commandLauncher, /INSTALLED_DEPENDENCY_FINGERPRINT" != "\$DEPENDENCY_FINGERPRINT/);
+  assert.match(commandLauncher, /printf '%s\\n' "\$DEPENDENCY_FINGERPRINT" > "\$DEPENDENCY_FINGERPRINT_FILE"/);
 });
