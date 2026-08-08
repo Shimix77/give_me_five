@@ -2373,6 +2373,20 @@
     body.wizard-mode #colourCard .advanced-colour { display: none !important; }
     body.wizard-mode #colourCard.show-advanced .advanced-colour { display: block !important; }
 
+    .manual-rendered-preview-host {
+      padding: 12px;
+      background: #0a1423;
+      border-bottom: 1px solid var(--line);
+    }
+    .manual-rendered-preview-host .quick-preview-frame {
+      width: 100%;
+      padding: 0;
+      background: transparent;
+    }
+    .manual-rendered-preview-host .quick-preview-media { width: min(190px, 100%); }
+    body.exact-manual-preview #previewPanel > .preview-stage,
+    body.exact-manual-preview #previewPanel > .preview-controls { display: none; }
+
     @media (max-width: 950px) {
       .wizard-bar { grid-template-columns: 1fr; }
       .wizard-actions { justify-content: flex-end; }
@@ -2521,11 +2535,12 @@
       <section class="panel" id="previewPanel">
         <div class="panel-head">
           <div>
-            <h2>Náhľad</h2>
-            <p>Medzerník prehrá · šípky posunú o 0,1 s</p>
+            <h2 id="previewPanelTitle">Náhľad</h2>
+            <p id="previewPanelHint">Medzerník prehrá · šípky posunú o 0,1 s</p>
           </div>
           <span class="pill" id="videoMetaPill">Bez videa</span>
         </div>
+        <div class="manual-rendered-preview-host hidden" id="manualRenderedPreviewHost"></div>
         <div class="preview-stage">
           <div class="video-wrap" id="videoWrap">
             <video id="video" playsinline preload="metadata"></video>
@@ -2912,8 +2927,8 @@
                 <input id="musicBase" type="range" min="-30" max="0" step="1" value="-8">
               </div>
               <div class="level-box" data-music-phase="speech">
-                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať úsek reči raz">▶</button> <span class="value" id="musicDuringValue">−25 dB</span></span></div>
-                <input id="musicDuring" type="range" min="-40" max="-5" step="1" value="-25">
+                <div class="field-line"><label>Počas reči</label><span><button class="level-audition" type="button" data-audition-region="speech" title="Prehrať úsek reči raz">▶</button> <span class="value" id="musicDuringValue">−22 dB</span></span></div>
+                <input id="musicDuring" type="range" min="-40" max="-5" step="1" value="-22">
               </div>
               <div class="level-box" data-music-phase="after">
                 <div class="field-line"><label>Po reči</label><span><button class="level-audition" type="button" data-audition-region="ending" title="Prehrať záver raz">▶</button> <span class="value" id="musicAfterValue">−13 dB</span></span></div>
@@ -2921,9 +2936,9 @@
               </div>
             </div>
             <div class="recommendation">
-              <strong>Odporúčanie:</strong> podmaz má byť približne 12–18 dB pod hovoreným slovom. Predvolený rozdiel 17 dB dáva hlasu ešte väčšiu zrozumiteľnosť aj na telefóne.
+              <strong>Odporúčanie:</strong> podmaz má byť približne 12–18 dB pod hovoreným slovom. Predvolený rozdiel 14 dB ponechá hlas zrozumiteľný, ale hudba počas reči nebude pôsobiť príliš ticho.
             </div>
-            <button class="btn" id="useRecommendation" type="button" style="width:100%;margin-top:10px">Obnoviť odporúčané −17 dB</button>
+            <button class="btn" id="useRecommendation" type="button" style="width:100%;margin-top:10px">Obnoviť odporúčané −14 dB</button>
           </div>
           <div class="control-card" style="margin-top:12px">
             <h3>Použitá pasáž</h3>
@@ -3102,7 +3117,7 @@
         enabled: true,
         dropTime: 0,
         baseDb: -8,
-        duringSpeechDb: -25,
+        duringSpeechDb: -22,
         afterSpeechDb: -13,
         offsetDb: 0,
         normalizationDb: 0,
@@ -3125,8 +3140,9 @@
       cleanVoiceTimer: null,
       whooshPlayed: false,
       previewLoop: { mode: "all", enabled: false, customStart: null, customEnd: null },
+      quickPreviewAuditionEnd: null,
       markerReviewIndex: -1,
-      wizard: { enabled: true, step: 0 },
+      wizard: { enabled: true, step: 0, manualStarted: false },
       previewTailStartedAt: null,
       lastCleanUrl: null,
       denoisePreview: null,
@@ -3162,7 +3178,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.11.2";
+    const APP_VERSION = "3.11.6";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
@@ -3821,6 +3837,7 @@
       if (preview.paused) {
         await ensureAudioGraph();
         updateQuickPreviewAudioRouting();
+        if (preview.ended || preview.currentTime >= preview.duration - .025) preview.currentTime = 0;
         await preview.play();
       }
       else preview.pause();
@@ -4857,7 +4874,8 @@
 
     function setWizardStep(step, options = {}) {
       if (!state.wizard.enabled) return;
-      state.wizard.step = clamp(Number(step), 0, wizardSteps.length - 1);
+      const minimumStep = state.wizard.manualStarted ? 1 : 0;
+      state.wizard.step = clamp(Number(step), minimumStep, wizardSteps.length - 1);
       state.previewTailStartedAt = null;
       $("#video").pause();
       $("#music").pause();
@@ -4868,6 +4886,41 @@
         recordUsage("wizard_step_opened", { step: state.wizard.step + 1 });
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
+    }
+
+    function syncManualPreviewSurface() {
+      const manualStarted = Boolean(state.wizard.manualStarted);
+      const exactPreviewReady = manualStarted && state.renderedPreview.ready && Boolean(state.renderedPreview.url);
+      const host = $("#manualRenderedPreviewHost");
+      const frame = $("#quickPreviewFrame");
+      document.body.classList.toggle("manual-workflow", manualStarted);
+      document.body.classList.toggle("exact-manual-preview", exactPreviewReady);
+      if (manualStarted && frame.parentElement !== host) host.appendChild(frame);
+      host.classList.toggle("hidden", !exactPreviewReady);
+      $("#previewPanelTitle").textContent = manualStarted ? "Aktuálny edit" : "Náhľad";
+      $("#previewPanelHint").textContent = exactPreviewReady
+        ? "Presný vyrenderovaný výsledok · prehrávanie a celá obrazovka sú priamo tu"
+        : manualStarted
+          ? "Zmeny sa zobrazujú priebežne · presný render sa po dokončení otvorí na tomto mieste"
+          : "Medzerník prehrá · šípky posunú o 0,1 s";
+    }
+
+    function startManualWorkflow() {
+      if (!state.video || !state.renderedPreview.ready) return;
+      if (!state.wizard.manualStarted) {
+        state.wizard.manualStarted = true;
+        recordUsage("manual_workflow_started", { automaticStepLocked: true });
+      }
+      setWizardStep(1);
+    }
+
+    function manualExactPreviewActive() {
+      return Boolean(state.wizard.manualStarted && state.renderedPreview.ready && state.renderedPreview.url);
+    }
+
+    async function toggleActiveEditorPlayback() {
+      if (manualExactPreviewActive()) return toggleQuickPreviewPlayback();
+      return toggleVideoPlayback();
     }
 
     function renderWizard() {
@@ -4889,7 +4942,7 @@
       $("#wizardProgress").innerHTML = wizardSteps.map((_, index) =>
         `<i class="${index < step ? "done" : index === step ? "active" : ""}"></i>`
       ).join("");
-      $("#wizardBack").disabled = step === 0;
+      $("#wizardBack").disabled = step <= (state.wizard.manualStarted ? 1 : 0);
       $("#wizardNext").style.display = step === wizardSteps.length - 1 ? "none" : "";
       $("#wizardNext").disabled = step === 0 ? !state.renderedPreview.ready : !state.video;
       $("#wizardNext").textContent = step === 0
@@ -4918,11 +4971,16 @@
 
     function wizardNext() {
       if (!state.video) return;
+      if (state.wizard.step === 0) {
+        startManualWorkflow();
+        return;
+      }
       if (state.wizard.step === 2) recordUsage("all_markers_confirmed", { source: "wizard" });
       setWizardStep(state.wizard.step + 1);
     }
 
     function wizardBack() {
+      if (state.wizard.manualStarted && state.wizard.step <= 1) return;
       setWizardStep(state.wizard.step - 1);
     }
 
@@ -4953,7 +5011,9 @@
 
     function renderMixPreview() {
       const hasVideo = Boolean(state.video);
-      const playing = hasVideo && (!$("#video").paused || state.previewTailStartedAt !== null);
+      const playing = hasVideo && (manualExactPreviewActive()
+        ? !$("#quickPreviewVideo").paused
+        : (!$("#video").paused || state.previewTailStartedAt !== null));
       $("#finalMixPlay").disabled = !hasVideo;
       $("#finalMixPlay").textContent = playing ? "❚❚ Pozastaviť" : "▶ Prehrať mix";
       $("#masterPlay").textContent = playing ? "❚❚ Pozastaviť finálny mix" : "▶ Prehrať finálny mix";
@@ -5626,6 +5686,7 @@
       renderPlayheads();
       renderMeters();
       renderWizard();
+      syncManualPreviewSurface();
       updateAudioMix(true);
     }
 
@@ -5738,6 +5799,18 @@
         customEnd: null
       };
       const bounds = previewLoopBounds(mode);
+      if (manualExactPreviewActive()) {
+        const preview = $("#quickPreviewVideo");
+        preview.pause();
+        state.quickPreviewAuditionEnd = Math.max(0, bounds.end - state.trimStart);
+        preview.currentTime = clamp(bounds.start - state.trimStart, 0, preview.duration || 0);
+        renderMusicLevelActivity(bounds.start);
+        renderMixPreview();
+        recordUsage("mix_region_selected", { region: mode, looping: false, exactPreview: true });
+        await toggleQuickPreviewPlayback();
+        return;
+      }
+      state.quickPreviewAuditionEnd = null;
       state.previewTailStartedAt = null;
       $("#video").currentTime = Math.min(editedToSourceTime(bounds.start), state.trimEnd);
       state.whooshPlayed = false;
@@ -6025,7 +6098,12 @@
     }
 
     function renderMusicLevelActivity(time) {
-      const phase = musicPhaseAtVideoTime(time);
+      const auditionPhase = {
+        intro: "intro",
+        speech: "speech",
+        ending: "after"
+      }[state.previewLoop.mode];
+      const phase = auditionPhase || musicPhaseAtVideoTime(time);
       $$(".level-box[data-music-phase]").forEach((box) => {
         box.classList.toggle("active", box.dataset.musicPhase === phase && Boolean(state.music));
       });
@@ -6425,6 +6503,7 @@
 
     function clearRenderedPreview(options = {}) {
       const current = state.renderedPreview;
+      state.quickPreviewAuditionEnd = null;
       if (current?.rendering && !options.force) {
         current.stale = true;
         current.ready = false;
@@ -6454,6 +6533,7 @@
       if (state.quickWorkflow.startedAtMs && !options.suppressSource) renderQuickWorkflowPreparation();
       else $("#quickPreviewTiming")?.classList.add("hidden");
       if ($("#quickExportBtn")) $("#quickExportBtn").disabled = true;
+      syncManualPreviewSurface();
     }
 
     function previewProjectKey() {
@@ -6525,6 +6605,12 @@
       $("#quickPreviewStatus").textContent = "Pripravujem plnohodnotný návrh v pôvodnom rozlíšení a FPS…";
       $("#quickRenderBtn").disabled = true;
       renderTimingEstimate("preview", combinedQuickRenderTiming(localTiming));
+      if (state.wizard.manualStarted) {
+        $("#progressLabel").textContent = "Spúšťam presný render aktuálneho editu…";
+        $("#progressPercent").textContent = "0 %";
+        $("#progressFill").style.width = "0%";
+        renderTimingEstimate("export", localTiming);
+      }
       recordUsage("final_draft_started", { automatic: Boolean(options.automatic), reusedForDownload: true });
       try {
         const response = await api("/api/render-preview", {
@@ -6585,6 +6671,7 @@
         $("#progressPercent").textContent = `${percent} %`;
         $("#progressFill").style.width = `${percent}%`;
         renderTimingEstimate("preview", timing);
+        if (state.wizard.manualStarted) renderTimingEstimate("export", renderTiming);
       }
       if (job.status === "failed") throw new Error(job.error || "Presný náhľad zlyhal.");
       if (job.status === "cancelled") {
@@ -6643,15 +6730,24 @@
         video.src = url;
         video.load();
       });
+      syncManualPreviewSurface();
       renderQuickPreviewControls();
       state.quickWorkflow.complete = true;
       clearInterval(state.quickWorkflow.timer);
       $("#quickPreviewEmpty").classList.add("hidden");
       const measuredLufs = Number(job.details?.finalLoudness?.integratedLufs);
       const loudnessLabel = Number.isFinite(measuredLufs) ? ` · namerané ${measuredLufs.toFixed(1)} LUFS` : "";
-      $("#quickPreviewStatus").textContent = `Plnohodnotný automatický návrh je pripravený${loudnessLabel}. Môžete ho rovno stiahnuť alebo upraviť.`;
+      $("#quickPreviewStatus").textContent = state.wizard.manualStarted
+        ? `Presný aktuálny edit je pripravený${loudnessLabel}. Náhľad zostáva vľavo a MP4 môžete stiahnuť.`
+        : `Plnohodnotný automatický návrh je pripravený${loudnessLabel}. Môžete ho rovno stiahnuť alebo upraviť.`;
       setQuickPreviewProgress(1, "Plnohodnotný návrh je pripravený na stiahnutie");
       renderTimingEstimate("preview", completedTiming);
+      if (state.wizard.manualStarted) {
+        $("#progressLabel").textContent = job.message || "Plnohodnotný návrh je pripravený.";
+        $("#progressPercent").textContent = "100 %";
+        $("#progressFill").style.width = "100%";
+        renderTimingEstimate("export", renderCompletedTiming);
+      }
       $("#quickExportBtn").disabled = false;
       recordUsage("final_draft_completed", {
         sizeMb: roundedLogNumber(blob.size / 1024 / 1024, 1),
@@ -6894,8 +6990,23 @@
       ["loadedmetadata", "durationchange", "timeupdate", "pause", "ended", "emptied"].forEach((eventName) => {
         $("#quickPreviewVideo").addEventListener(eventName, renderQuickPreviewControls);
       });
-      $("#quickPreviewVideo").addEventListener("play", startQuickPreviewProgressTracking);
-      $("#quickPreviewVideo").addEventListener("pause", stopQuickPreviewProgressTracking);
+      $("#quickPreviewVideo").addEventListener("timeupdate", () => {
+        const preview = $("#quickPreviewVideo");
+        if (!manualExactPreviewActive() || !Number.isFinite(state.quickPreviewAuditionEnd)) return;
+        if (preview.currentTime < state.quickPreviewAuditionEnd - .025) return;
+        preview.pause();
+        state.quickPreviewAuditionEnd = null;
+        state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
+        renderAll();
+      });
+      $("#quickPreviewVideo").addEventListener("play", () => {
+        startQuickPreviewProgressTracking();
+        renderMixPreview();
+      });
+      $("#quickPreviewVideo").addEventListener("pause", () => {
+        stopQuickPreviewProgressTracking();
+        renderMixPreview();
+      });
       $("#quickPreviewVideo").addEventListener("ended", stopQuickPreviewProgressTracking);
       document.addEventListener("fullscreenchange", renderQuickPreviewControls);
 
@@ -7028,8 +7139,8 @@
       $("#previewTransition").addEventListener("click", previewTransition);
       $("#previewTransitionCard").addEventListener("click", previewTransition);
       $("#playVideo").addEventListener("click", toggleVideoPlayback);
-      $("#masterPlay").addEventListener("click", toggleVideoPlayback);
-      $("#finalMixPlay").addEventListener("click", toggleVideoPlayback);
+      $("#masterPlay").addEventListener("click", toggleActiveEditorPlayback);
+      $("#finalMixPlay").addEventListener("click", toggleActiveEditorPlayback);
       $("#undoBtn").addEventListener("click", undoEdit);
       $("#redoBtn").addEventListener("click", redoEdit);
       $("#wizardBack").addEventListener("click", wizardBack);
@@ -7420,7 +7531,7 @@
       });
       $("#useRecommendation").addEventListener("click", () => {
         state.musicSettings.baseDb = -8;
-        state.musicSettings.duringSpeechDb = -25;
+        state.musicSettings.duringSpeechDb = -22;
         state.musicSettings.afterSpeechDb = -13;
         state.musicSettings.manual = false;
         rememberEdit("Odporúčané hlasitosti hudby");
@@ -7440,7 +7551,7 @@
 
       $("#exportBtn").addEventListener("click", exportProject);
       $("#quickRenderBtn").addEventListener("click", () => renderProjectPreview({ automatic: false }));
-      $("#quickEditBtn").addEventListener("click", () => setWizardStep(1));
+      $("#quickEditBtn").addEventListener("click", startManualWorkflow);
       $("#quickExportBtn").addEventListener("click", exportProject);
       $("#exportUsageLog").addEventListener("click", exportUsageLog);
       $("#clearAiCache").addEventListener("click", clearAiCache);
@@ -7476,15 +7587,22 @@
         if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
         if (event.code === "Space") {
           event.preventDefault();
-          toggleVideoPlayback();
+          if (manualExactPreviewActive()) toggleQuickPreviewPlayback();
+          else toggleVideoPlayback();
         }
         if (state.video && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
           event.preventDefault();
           const direction = event.key === "ArrowLeft" ? -1 : 1;
-          $("#video").currentTime = clamp($("#video").currentTime + direction * .1, 0, state.video.analysis.metadata.duration);
-          renderPlayheads();
-          renderPreviewEffects();
-          updateAudioMix(true);
+          if (manualExactPreviewActive()) {
+            const preview = $("#quickPreviewVideo");
+            preview.currentTime = clamp(preview.currentTime + direction * .1, 0, preview.duration || 0);
+            renderQuickPreviewControls();
+          } else {
+            $("#video").currentTime = clamp($("#video").currentTime + direction * .1, 0, state.video.analysis.metadata.duration);
+            renderPlayheads();
+            renderPreviewEffects();
+            updateAudioMix(true);
+          }
         }
       });
 

@@ -81,12 +81,20 @@ test("framing popup offers static detail and dynamic speech-timed zoom", () => {
   assert.match(html, /framing:\s*\{\s*mode: state\.framingMode/);
 });
 
-test("music stays at minus 25 dB and voice starts at plus eight dB", () => {
-  assert.match(html, /duringSpeechDb:\s*-25/);
-  assert.match(html, /id="musicDuring"[^>]+value="-25"/);
+test("music stays at minus 22 dB and voice starts at plus eight dB", () => {
+  assert.match(html, /duringSpeechDb:\s*-22/);
+  assert.match(html, /id="musicDuring"[^>]+value="-22"/);
   assert.match(html, /voiceMasterDb:\s*8/);
   assert.match(html, /id="voiceMaster"[^>]+value="8"/);
-  assert.match(html, /Predvolený rozdiel 17 dB/);
+  assert.match(html, /Predvolený rozdiel 14 dB/);
+  assert.match(html, /Obnoviť odporúčané −14 dB/);
+});
+
+test("manual render exposes real elapsed time and ETA in the visible export panel", () => {
+  assert.match(html, /if \(state\.wizard\.manualStarted\) renderTimingEstimate\("export", renderTiming\)/);
+  assert.match(html, /renderTimingEstimate\("export", renderCompletedTiming\)/);
+  assert.match(html, /id="progressElapsed"/);
+  assert.match(html, /id="progressEta"/);
 });
 
 test("vivid colour preset is the default for preview and quick export", () => {
