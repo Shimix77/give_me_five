@@ -27,7 +27,7 @@ test("edited pause leaves 0.1 second after light and aligns music to the whoosh 
   assert.match(html, /const CONTINUATION_GAP_SECONDS = \.1/);
   assert.match(server, /const CONTINUATION_GAP_SECONDS = 0\.1/);
   assert.match(server, /musicStart = dropTime - transitionPeakRel/);
-  assert.match(html, /const start = effectiveDropTime\(\) - transitionPeakRelative/);
+  assert.match(html, /const start = effectiveDropTime\(\) - geometry\.transitionPeakRelative/);
   assert.match(server, /whooshPeakSeconds,\s*\n\s*rnnoise/);
   assert.match(html, /whooshPeakSeconds = Number\.isFinite/);
 });

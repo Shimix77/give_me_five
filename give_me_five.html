@@ -3146,6 +3146,7 @@
         musicDuration: 0,
         musicStartedAtMs: null,
         renderStartFraction: 0,
+        blockedReason: null,
         timer: null,
         complete: false
       },
@@ -3161,7 +3162,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.11.1";
+    const APP_VERSION = "3.11.2";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
@@ -3687,6 +3688,7 @@
     function quickPreparationMessage() {
       const workflow = state.quickWorkflow;
       if (workflow.videoImporting) return "Analyzujem obraz, zvuk a postavu…";
+      if (workflow.blockedReason) return `Čakám na opravu: ${workflow.blockedReason}`;
       if (!state.framingChoiceConfirmed) return "Vyberte spôsob priblíženia videa.";
       if (!workflow.musicSelected && !workflow.continueWithoutMusic) return "Čakám na hudbu · alebo zvoľte nenápadné „Pokračovať bez hudby“.";
       if (workflow.musicImporting) return "Analyzujem hudbu a hľadám najlepšie dropy…";
@@ -3750,7 +3752,10 @@
 
     function ensureQuickWorkflowTimer() {
       clearInterval(state.quickWorkflow.timer);
-      state.quickWorkflow.timer = setInterval(() => renderQuickWorkflowPreparation(), 1000);
+      state.quickWorkflow.timer = setInterval(() => {
+        renderQuickWorkflowPreparation();
+        maybePrepareQuickPreview();
+      }, 1000);
     }
 
     function updateQuickSourcePresentation() {
@@ -3872,6 +3877,7 @@
         musicDuration: Number(state.music?.analysis?.metadata?.duration) || 0,
         musicStartedAtMs: null,
         renderStartFraction: 0,
+        blockedReason: null,
         timer: null,
         complete: false
       };
@@ -3909,6 +3915,7 @@
       workflow.musicStartedAtMs = performance.now();
       workflow.musicDuration = clamp(file.size / 16_000, 10, 900);
       workflow.complete = false;
+      workflow.blockedReason = null;
       $("#musicQuality").classList.remove("hidden", "warning", "replace");
       $("#musicQualityBadge").textContent = "Kontrola";
       $("#musicQualityTitle").textContent = "Normalizujem a kontrolujem hlasitosť hudby…";
@@ -4314,18 +4321,9 @@
         kneeDb: 8
       });
       state.musicSettings.offsetDb = 0;
-      const continuation = state.video ? state.markers.continueStart - state.trimStart : 0;
-      const recommendedDrop = record.analysis.dropAnalysis?.candidates?.[0]?.time;
       state.musicSettings.dropManual = false;
-      state.musicSettings.dropTime = Number.isFinite(recommendedDrop)
-        ? recommendedDrop
-        : clamp(Math.max(10, continuation), 0, record.analysis.metadata.duration);
-      if (Number.isFinite(recommendedDrop)) {
-        recordUsage("music_drop_auto_selected", {
-          dropSeconds: recommendedDrop,
-          candidateCount: record.analysis.dropAnalysis?.candidates?.length || 0
-        });
-      }
+      state.musicSettings.dropTime = Number(record.analysis.dropAnalysis?.candidates?.[0]?.time) || 0;
+      applyAutomaticMusicDrop("music-upload");
       recordUsage("music_suitability_checked", {
         status: suitability.status || "unknown",
         score: suitability.score ?? null,
@@ -5016,15 +5014,78 @@
       $("#transformY").disabled = !hasSafeTravel;
     }
 
-    function calculateMusicPassage() {
+    function musicPassageGeometry() {
       if (!state.video || !state.music) return null;
       const outputDuration = editedOutputEnd() - state.trimStart;
       const gapEdit = calculateGapEdit();
       const transitionPeakRelative = sourceToEditedTime(state.markers.giveEnd + TRANSITION_DELAY_SECONDS)
         + gapEdit.transitionDuration * TRANSITION_PEAK_RATIO
         - state.trimStart;
-      const start = effectiveDropTime() - transitionPeakRelative;
-      return { start, end: start + outputDuration, duration: outputDuration };
+      return { outputDuration, transitionPeakRelative };
+    }
+
+    function chooseAutomaticMusicDrop({ candidates = [], musicDuration, outputDuration, transitionPeakRelative, preferredTime = 0, beatInterval = null, beatOffset = 0 }) {
+      const minimumDrop = Math.max(0, Number(transitionPeakRelative) || 0);
+      const maximumDrop = Number(musicDuration) - Math.max(0, Number(outputDuration) - minimumDrop);
+      if (!Number.isFinite(maximumDrop) || maximumDrop + .001 < minimumDrop) {
+        return { valid: false, minimumDrop, maximumDrop, time: null, candidate: null };
+      }
+      const candidate = candidates.find((item) => {
+        const time = Number(item?.time);
+        return Number.isFinite(time) && time + .001 >= minimumDrop && time - .001 <= maximumDrop;
+      }) || null;
+      const preferred = Number(candidate?.time ?? preferredTime);
+      let time = clamp(Number.isFinite(preferred) ? preferred : minimumDrop, minimumDrop, maximumDrop);
+      let beatMatched = false;
+      const interval = Number(beatInterval);
+      const offset = Number(beatOffset) || 0;
+      if (!candidate && Number.isFinite(interval) && interval > .1) {
+        const firstBeat = Math.ceil((minimumDrop - offset) / interval);
+        const lastBeat = Math.floor((maximumDrop - offset) / interval);
+        if (firstBeat <= lastBeat) {
+          const nearestBeat = clamp(Math.round((time - offset) / interval), firstBeat, lastBeat);
+          time = offset + nearestBeat * interval;
+          beatMatched = true;
+        }
+      }
+      return { valid: true, minimumDrop, maximumDrop, time, candidate, beatMatched };
+    }
+
+    function applyAutomaticMusicDrop(source = "automatic") {
+      if (!state.video || !state.music || state.musicSettings.dropManual) return null;
+      const geometry = musicPassageGeometry();
+      if (!geometry) return null;
+      const dropAnalysis = state.music.analysis.dropAnalysis || {};
+      const candidates = dropAnalysis.candidates || [];
+      const selection = chooseAutomaticMusicDrop({
+        candidates,
+        musicDuration: state.music.analysis.metadata.duration,
+        outputDuration: geometry.outputDuration,
+        transitionPeakRelative: geometry.transitionPeakRelative,
+        preferredTime: state.musicSettings.dropTime,
+        beatInterval: dropAnalysis.beatInterval,
+        beatOffset: dropAnalysis.beatOffset
+      });
+      if (!selection.valid) return selection;
+      const changed = Math.abs(Number(state.musicSettings.dropTime) - selection.time) > .001;
+      state.musicSettings.dropTime = selection.time;
+      if (changed || source === "music-upload") {
+        recordUsage("music_drop_auto_selected", {
+          dropSeconds: selection.time,
+          candidateCount: candidates.length,
+          candidateMatched: Boolean(selection.candidate),
+          beatMatched: selection.beatMatched,
+          source
+        });
+      }
+      return selection;
+    }
+
+    function calculateMusicPassage() {
+      const geometry = musicPassageGeometry();
+      if (!geometry) return null;
+      const start = effectiveDropTime() - geometry.transitionPeakRelative;
+      return { start, end: start + geometry.outputDuration, duration: geometry.outputDuration };
     }
 
     function musicWindowPercentile(values, ratio) {
@@ -6264,6 +6325,7 @@
         : Math.max(0, state.markers.speechStart - 2);
       state.trimEnd = Math.min(duration, state.markers.speechEnd + state.ending.holdDuration + state.ending.blurDuration);
       enforceMarkerOrder();
+      applyAutomaticMusicDrop("final-markers");
       state.markerConfidence = { ...state.markerConfidence, ...(result.markerConfidence || {}) };
       state.automaticMarkerSnapshot = {
         trimStart: state.trimStart,
@@ -6399,6 +6461,26 @@
       return JSON.stringify(exportPayload());
     }
 
+    function blockQuickPreviewPreparation(reason, eventName = "automatic_preview_blocked") {
+      const message = String(reason || "Automatický návrh sa nepodarilo spustiť.");
+      const changed = state.quickWorkflow.blockedReason !== message;
+      state.quickWorkflow.blockedReason = message;
+      clearInterval(state.quickWorkflow.timer);
+      const baseline = quickWorkflowBaseline();
+      const preparationProgress = clamp(baseline.preparationMs / Math.max(1, baseline.totalMs), .05, .45);
+      setQuickPreviewProgress(preparationProgress, `Potrebný zásah · ${message}`);
+      $("#quickPreviewStatus").textContent = `Automatický návrh sa nespustil: ${message}`;
+      $("#quickPreviewTiming").classList.remove("hidden");
+      $("#quickPreviewEta").textContent = "Čakám na opravu nastavenia";
+      if (/hudb|drop|skladb/i.test(message)) {
+        $("#musicQuality").classList.remove("hidden");
+        $("#musicQuality").classList.add("replace");
+        $("#replaceMusicBtn").classList.remove("hidden");
+      }
+      if (changed) recordUsage(eventName, { reason: message });
+      renderValidation();
+    }
+
     function maybePrepareQuickPreview() {
       if (!state.video
         || state.quickWorkflow.videoImporting
@@ -6409,10 +6491,10 @@
         || state.renderedPreview.rendering) return;
       const validation = validate();
       if (validation.errors.length) {
-        $("#quickPreviewStatus").textContent = `Automatický návrh potrebuje kontrolu: ${validation.errors[0]}`;
-        $("#quickRenderBtn").disabled = false;
+        blockQuickPreviewPreparation(validation.errors[0]);
         return;
       }
+      state.quickWorkflow.blockedReason = null;
       const key = previewProjectKey();
       if (state.renderedPreview.ready && state.renderedPreview.key === key) return;
       renderProjectPreview({ automatic: true });
@@ -6423,9 +6505,10 @@
       const validation = renderValidation();
       if (validation.errors.length) {
         if (!options.automatic) toast(validation.errors[0]);
-        $("#quickPreviewStatus").textContent = `Náhľad sa nedá pripraviť: ${validation.errors[0]}`;
+        blockQuickPreviewPreparation(validation.errors[0]);
         return;
       }
+      state.quickWorkflow.blockedReason = null;
       clearRenderedPreview();
       const key = previewProjectKey();
       const token = uid();
@@ -6456,7 +6539,9 @@
       } catch (error) {
         if (state.renderedPreview.token !== token) return;
         state.renderedPreview.rendering = false;
-        $("#quickPreviewStatus").textContent = error.message;
+        state.renderedPreview.jobId = null;
+        state.renderedPreview.token = null;
+        blockQuickPreviewPreparation(error.message, "automatic_preview_failed");
         recordUsage("exact_preview_failed", { reason: "render_error" });
         if (!options.automatic) toast(error.message);
         renderValidation();
