@@ -27,6 +27,8 @@ Každé načítanie editora vytvorí novú pracovnú session. Nahrané video, hu
 
 Pri spustení server odstráni aj dočasné zvyšky z predchádzajúceho procesu. AI model pre slovenský prepis zostáva v cache, aby sa pri každom videu nemusel znovu sťahovať.
 
+Pred importom appka zobrazí voľné miesto: pod 2 GB import zablokuje, medzi 2 a 5 GB iba výrazne upozorní. Prečo: počas denoise a exportu vzniknú dočasné video a audio súbory; ochrana pred plným diskom je spoľahlivejšia než nechať poškodiť hotový MP4 uprostred renderu.
+
 Samotný súbor `give_me_five.html` lokálny engine nespustí. Ak ho otvoríte priamo, editor zobrazí pokyn na spustenie aplikácie a po zapnutí servera sa automaticky znovu pripojí.
 
 ## Pracovný postup

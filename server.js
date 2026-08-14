@@ -66,6 +66,8 @@ const MIN_FREE_UPLOAD_BYTES = Math.max(
   64 * 1024 * 1024,
   Number(process.env.GMF_MIN_FREE_DISK_MB || 128) * 1024 * 1024
 );
+const DISK_SPACE_BLOCK_BYTES = 2 * 1024 * 1024 * 1024;
+const DISK_SPACE_WARNING_BYTES = 5 * 1024 * 1024 * 1024;
 const ACCESS_USER = String(process.env.GMF_ACCESS_USER || "give-me-five");
 const ACCESS_KEY = String(process.env.GMF_ACCESS_KEY || "");
 const PROCESS_TIMEOUT_MS = Math.max(30_000, Number(process.env.GMF_PROCESS_TIMEOUT_MS || 15 * 60 * 1000));
@@ -404,6 +406,21 @@ function availableUploadBytes() {
   }
 }
 
+function localStorageStatus() {
+  const availableBytes = availableUploadBytes();
+  if (!Number.isFinite(availableBytes)) {
+    return { availableBytes: null, status: "unknown" };
+  }
+  return {
+    availableBytes,
+    status: availableBytes < DISK_SPACE_BLOCK_BYTES
+      ? "blocked"
+      : availableBytes < DISK_SPACE_WARNING_BYTES
+        ? "warning"
+        : "ready"
+  };
+}
+
 function reserveMediaUpload(request, response, next) {
   const sessionId = request.gmfSessionId;
   if (!sessionId) {
@@ -427,6 +444,11 @@ function reserveMediaUpload(request, response, next) {
   const requiredUploadBytes = declaredLength > 0
     ? Math.min(declaredLength, MAX_UPLOAD_REQUEST_BYTES)
     : MAX_UPLOAD_BYTES;
+  const storage = localStorageStatus();
+  if (storage.status === "blocked") {
+    response.status(507).json({ error: "Na disku zostávajú menej než 2 GB. Import je zablokovaný, aby sa počas renderu video nepoškodilo." });
+    return;
+  }
   if (availableUploadBytes() < requiredUploadBytes + MIN_FREE_UPLOAD_BYTES) {
     response.setHeader("Retry-After", "60");
     response.status(507).json({ error: "Na disku nie je dostatok voľného miesta pre vybrané médium a jeho spracovanie." });
@@ -557,7 +579,8 @@ app.get("/api/health", (request, response) => {
     whoosh: fs.existsSync(WHOOSH_PATH),
     whooshPeakSeconds,
     rnnoise: fs.existsSync(RNNOISE_MODEL_PATH),
-    deepfilter: fs.existsSync(DEEPFILTER_PATH)
+    deepfilter: fs.existsSync(DEEPFILTER_PATH),
+    storage: localStorageStatus()
   });
 });
 

@@ -2431,8 +2431,11 @@
     </header>
 
     <div class="notice" id="serverNotice">
-      <span id="serverNoticeText"><strong>Editor nie je spustený.</strong> Vo Finderi dvakrát kliknite na <code>Give Me Five Editor.app</code>. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.</span>
+      <span id="serverNoticeText"><strong>Editor nie je spustený.</strong> Vo Finderi dvakrát kliknite na <code>Give Me Five Editor.app</code>. Otvorí vlastné okno a aktivuje upload aj export.</span>
       <button class="btn danger" id="retryServer" type="button">Skontrolovať znova</button>
+    </div>
+    <div class="notice" id="diskNotice">
+      <span id="diskNoticeText"></span>
     </div>
 
     <section class="wizard-bar" id="wizardBar" aria-live="polite">
@@ -3149,6 +3152,7 @@
       musicPlayPending: false,
       musicPlaybackError: null,
       lastMusicPlayAttemptAt: 0,
+      storage: null,
       instantPreview: { url: null, file: null },
       quickWorkflow: {
         startedAtMs: null,
@@ -4013,6 +4017,33 @@
       return `${numeric > 0 ? "+" : numeric < 0 ? "−" : ""}${Math.abs(numeric)} dB`;
     }
 
+    function formatStorageGiB(bytes) {
+      return `${(Number(bytes) / 1024 ** 3).toFixed(1).replace(".", ",")} GB`;
+    }
+
+    function renderDiskSpaceNotice() {
+      const notice = $("#diskNotice");
+      const label = $("#diskNoticeText");
+      const storage = state.storage;
+      if (!storage || !Number.isFinite(Number(storage.availableBytes)) || storage.status === "ready") {
+        notice.classList.remove("visible");
+        $("#videoFile").disabled = false;
+        $("#musicFile").disabled = false;
+        return;
+      }
+      const available = formatStorageGiB(storage.availableBytes);
+      if (storage.status === "blocked") {
+        $("#videoFile").disabled = true;
+        $("#musicFile").disabled = true;
+        label.innerHTML = `<strong>Import je zablokovaný: voľné miesto ${available}.</strong> Potrebujete aspoň 2 GB. Prečo: render vytvára dočasné video a zvuk; pri úplnom disku by sa export mohol poškodiť.`;
+      } else {
+        $("#videoFile").disabled = false;
+        $("#musicFile").disabled = false;
+        label.innerHTML = `<strong>Voľné miesto je ${available}.</strong> Môžete pokračovať, no odporúčam uvoľniť aspoň 5 GB. Prečo: počas exportu vznikajú bezpečné dočasné súbory.`;
+      }
+      notice.classList.add("visible");
+    }
+
     function toast(message) {
       const node = $("#toast");
       node.textContent = message;
@@ -4099,12 +4130,14 @@
         }
         state.serverReady = true;
         state.serverVersion = data.version || null;
+        state.storage = data.storage || null;
+        renderDiskSpaceNotice();
         whooshPeakSeconds = Number.isFinite(Number(data.whooshPeakSeconds))
           ? Number(data.whooshPeakSeconds)
           : .558;
         $("#engineStatus").classList.add("ready");
         $("#engineLabel").textContent = "Natívny FFmpeg je pripravený";
-        $("#serverNoticeText").textContent = "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.";
+        $("#serverNoticeText").textContent = "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Otvorí vlastné okno a aktivuje upload aj export.";
         $("#serverNotice").classList.remove("visible");
         document.body.classList.remove("engine-off");
         if (lastEngineLogState !== true) {
@@ -4118,7 +4151,7 @@
         $("#engineLabel").textContent = versionMismatch ? "Lokálny engine treba reštartovať" : "Lokálny engine nie je dostupný";
         $("#serverNoticeText").textContent = versionMismatch
           ? `Rozhranie má verziu ${APP_VERSION}, ale bežiaci engine ${error.serverVersion}. Zavrite staré okno servera a znovu spustite Give Me Five Editor.app; tým sa načíta aj nový ETA výpočet.`
-          : "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Aplikácia otvorí správnu adresu v Chrome a aktivuje upload aj export.";
+          : "Editor nie je spustený. Vo Finderi dvakrát kliknite na Give Me Five Editor.app. Otvorí vlastné okno a aktivuje upload aj export.";
         $("#serverNotice").classList.add("visible");
         document.body.classList.add("engine-off");
         if (lastEngineLogState !== false) {
