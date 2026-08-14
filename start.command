@@ -98,7 +98,12 @@ fi
 echo "Spúšťam Give Me Five Editor…"
 echo "Správna adresa je $APP_URL"
 export GMF_OPEN_BROWSER=0
-"$NODE_BIN" server.js &
+SERVER_LOG="$APP_DIR/.gmf-work/server.log"
+/bin/mkdir -p "$APP_DIR/.gmf-work"
+: > "$SERVER_LOG"
+# Server beží cez nohup, takže zatvorenie okna Terminálu nepreruší analýzu ani
+# render. Relácie a ich dočasné médiá sa naďalej čistia samostatne na serveri.
+/usr/bin/nohup "$NODE_BIN" server.js >> "$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 SERVER_READY=0
 
@@ -116,15 +121,17 @@ for _attempt in $(seq 1 80); do
 done
 
 if [ "$SERVER_READY" -eq 1 ]; then
-  echo "Editor je pripravený. Otváram Google Chrome…"
+  disown "$SERVER_PID" >/dev/null 2>&1 || true
+  echo "Editor je pripravený a beží na pozadí. Okno Terminálu môžete zatvoriť."
+  echo "Diagnostický log: $SERVER_LOG"
   open_editor
+  exit 0
 else
   echo "CHYBA: Lokálny server sa nepodarilo pripraviť."
-fi
-
-if ! wait "$SERVER_PID"; then
-  echo "CHYBA: Lokálny server sa nepodarilo spustiť."
-  echo "Ak je port 4173 obsadený, zatvorte staré okno Terminálu a skúste to znovu."
+  /usr/bin/tail -n 20 "$SERVER_LOG" 2>/dev/null || true
+  if kill -0 "$SERVER_PID" >/dev/null 2>&1; then
+    /bin/kill "$SERVER_PID" >/dev/null 2>&1 || true
+  fi
   pause_if_terminal
   exit 1
 fi

@@ -39,3 +39,10 @@ test("local launcher refreshes dependencies only when the lockfile or Node versi
   assert.match(commandLauncher, /INSTALLED_DEPENDENCY_FINGERPRINT" != "\$DEPENDENCY_FINGERPRINT/);
   assert.match(commandLauncher, /printf '%s\\n' "\$DEPENDENCY_FINGERPRINT" > "\$DEPENDENCY_FINGERPRINT_FILE"/);
 });
+
+test("closing Terminal does not stop the local engine and failures leave a diagnostic log", () => {
+  assert.match(commandLauncher, /\/usr\/bin\/nohup "\$NODE_BIN" server\.js >> "\$SERVER_LOG" 2>&1 &/);
+  assert.match(commandLauncher, /disown "\$SERVER_PID"/);
+  assert.match(commandLauncher, /Diagnostický log: \$SERVER_LOG/);
+  assert.match(commandLauncher, /tail -n 20 "\$SERVER_LOG"/);
+});

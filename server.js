@@ -2166,6 +2166,7 @@ function startExportJob(payload, sessionId, options = {}) {
     error: null,
     createdAt: Date.now(),
     sessionId,
+    requestId: String(options.requestId || "").slice(0, 100) || null,
     mediaIds: [payload.videoId, payload.musicId].filter(Boolean),
     cancelRequested: false,
     child: null,
@@ -2263,6 +2264,19 @@ app.post("/api/export", (request, response) => {
 app.post("/api/render-preview", (request, response) => {
   try {
     if (!request.gmfSessionId) throw new Error("The browser session is missing. Refresh the editor.");
+    const payload = request.body || {};
+    const requestId = String(payload.renderRequestId || "").trim().slice(0, 100);
+    const existingJob = requestId
+      ? [...jobs.values()].find((job) =>
+        job.sessionId === request.gmfSessionId
+        && job.kind === "draft"
+        && job.requestId === requestId
+      )
+      : null;
+    if (existingJob) {
+      response.status(202).json({ jobId: existingJob.id, status: existingJob.status, reused: true });
+      return;
+    }
     const runningExports = [...jobs.values()].filter((job) => job.status === "running").length;
     if (runningExports >= MAX_RUNNING_EXPORTS) {
       response.setHeader("Retry-After", "10");
@@ -2272,7 +2286,7 @@ app.post("/api/render-preview", (request, response) => {
     // The first automatic proposal is deliberately the final-quality file. The
     // browser reuses this exact MP4 for download, so the user never waits for a
     // second, identical export render.
-    const job = startExportJob(request.body || {}, request.gmfSessionId, { draft: true });
+    const job = startExportJob(payload, request.gmfSessionId, { draft: true, requestId });
     response.status(202).json({ jobId: job.id, status: job.status });
   } catch (error) {
     response.status(422).json({ error: error.message || "Náhľad sa nepodarilo spustiť." });

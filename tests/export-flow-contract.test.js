@@ -19,7 +19,7 @@ test("export keeps the source video name and appends edited", () => {
 });
 
 test("the final-quality automatic proposal is reused for download", () => {
-  assert.match(server, /\{ draft: true \}/);
+  assert.match(server, /\{ draft: true(?:, requestId)? \}/);
   assert.match(html, /current\.ready \|\| !current\.blob \|\| current\.key !== currentKey/);
   assert.match(html, /link\.href = current\.url/);
   assert.match(html, /reusedFinalDraft: true/);

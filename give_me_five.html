@@ -3178,8 +3178,10 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.11.6";
+    const APP_VERSION = "3.11.7";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
+    const PREVIEW_START_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000];
+    const PREVIEW_POLL_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000, 5000, 5000, 5000];
     const USAGE_STORAGE_KEY = "gmf-usage-session-v1";
     const usagePending = new Map();
     let lastEngineLogState = null;
@@ -4024,7 +4026,15 @@
       const target = /^https?:\/\//.test(url) ? url : `${API_ORIGIN}${url}`;
       const headers = new Headers(options.headers || {});
       headers.set("X-GMF-Session", MEDIA_SESSION_ID);
-      const response = await fetch(target, { ...options, headers });
+      let response;
+      try {
+        response = await fetch(target, { ...options, headers });
+      } catch (error) {
+        const connectionError = new Error("Lokálny video engine neodpovedá.");
+        connectionError.code = "connection-failed";
+        connectionError.cause = error;
+        throw connectionError;
+      }
       if (!response.ok) {
         let message = `Chyba ${response.status}`;
         try {
@@ -4034,6 +4044,35 @@
         throw new Error(message);
       }
       return response;
+    }
+
+    function isConnectionFailure(error) {
+      return error?.code === "connection-failed"
+        || /failed to fetch|networkerror|network request failed|load failed/i.test(String(error?.message || error || ""));
+    }
+
+    function previewConnectionFailure() {
+      const error = new Error("Lokálny engine neodpovedá. Spustite Give Me Five Editor.app a potom kliknite na Obnoviť presný náhľad.");
+      error.code = "preview-connection-failed";
+      return error;
+    }
+
+    function waitForConnectionRetry(delayMs) {
+      return new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    function showPreviewReconnect(attempt, maximum, message = "Spojenie s lokálnym enginom sa prerušilo") {
+      const text = `${message} · obnovujem ${attempt}/${maximum}…`;
+      const progress = Number.isFinite(state.renderedPreview.lastOverallProgress)
+        ? state.renderedPreview.lastOverallProgress
+        : combinedQuickProgress(0);
+      setQuickPreviewProgress(progress, text);
+      $("#quickPreviewStatus").textContent = text;
+      $("#progressLabel").textContent = text;
+      recordUsage("preview_connection_retry", { attempt, maximum }, {
+        debounceKey: "preview-connection-retry",
+        debounceMs: 1000
+      });
     }
 
     async function heartbeatMediaSession() {
@@ -6613,12 +6652,8 @@
       }
       recordUsage("final_draft_started", { automatic: Boolean(options.automatic), reusedForDownload: true });
       try {
-        const response = await api("/api/render-preview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(exportPayload())
-        });
-        const data = await response.json();
+        const payload = { ...exportPayload(), renderRequestId: token };
+        const data = await requestRenderedPreviewJob(payload, token);
         if (state.renderedPreview.token === token) state.renderedPreview.jobId = data.jobId;
         renderValidation();
         await pollRenderedPreview(data.jobId, key, token);
@@ -6627,11 +6662,41 @@
         state.renderedPreview.rendering = false;
         state.renderedPreview.jobId = null;
         state.renderedPreview.token = null;
-        blockQuickPreviewPreparation(error.message, "automatic_preview_failed");
+        const connectionFailed = isConnectionFailure(error) || error?.code === "preview-connection-failed";
+        if (connectionFailed) checkServer();
+        blockQuickPreviewPreparation(
+          connectionFailed ? previewConnectionFailure().message : error.message,
+          "automatic_preview_failed"
+        );
         recordUsage("exact_preview_failed", { reason: "render_error" });
-        if (!options.automatic) toast(error.message);
+        if (!options.automatic) toast(connectionFailed ? previewConnectionFailure().message : error.message);
         renderValidation();
       }
+    }
+
+    async function requestRenderedPreviewJob(payload, token) {
+      let lastError = null;
+      for (let attempt = 0; attempt <= PREVIEW_START_RETRY_DELAYS_MS.length; attempt += 1) {
+        try {
+          const response = await api("/api/render-preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          return response.json();
+        } catch (error) {
+          lastError = error;
+          if (!isConnectionFailure(error) || state.renderedPreview.token !== token) throw error;
+          if (attempt >= PREVIEW_START_RETRY_DELAYS_MS.length) break;
+          showPreviewReconnect(
+            attempt + 1,
+            PREVIEW_START_RETRY_DELAYS_MS.length,
+            "Server nepotvrdil spustenie návrhu"
+          );
+          await waitForConnectionRetry(PREVIEW_START_RETRY_DELAYS_MS[attempt]);
+        }
+      }
+      throw isConnectionFailure(lastError) ? previewConnectionFailure() : lastError;
     }
 
     function restartSupersededPreview(key, token) {
@@ -6644,8 +6709,17 @@
       renderValidation();
     }
 
-    async function pollRenderedPreview(jobId, key, token) {
-      const response = await api(`/api/jobs/${jobId}`);
+    async function pollRenderedPreview(jobId, key, token, connectionAttempt = 0) {
+      let response;
+      try {
+        response = await api(`/api/jobs/${jobId}`);
+      } catch (error) {
+        if (!isConnectionFailure(error) || state.renderedPreview.token !== token) throw error;
+        if (connectionAttempt >= PREVIEW_POLL_RETRY_DELAYS_MS.length) throw previewConnectionFailure();
+        showPreviewReconnect(connectionAttempt + 1, PREVIEW_POLL_RETRY_DELAYS_MS.length);
+        await waitForConnectionRetry(PREVIEW_POLL_RETRY_DELAYS_MS[connectionAttempt]);
+        return pollRenderedPreview(jobId, key, token, connectionAttempt + 1);
+      }
       const job = await response.json();
       const percent = Math.round((job.progress || 0) * 100);
       const ownsPreviewState = state.renderedPreview.token === token;
@@ -6658,6 +6732,7 @@
         );
         const timing = combinedQuickRenderTiming(renderTiming);
         const overallProgress = combinedQuickProgress(job.progress);
+        state.renderedPreview.lastOverallProgress = overallProgress;
         state.renderedPreview.timing = timing;
         const overallPercent = Math.round(overallProgress * 100);
         const stageMessage = state.renderedPreview.stale
@@ -6687,14 +6762,23 @@
       }
       if (job.status !== "completed") {
         await new Promise((resolve) => setTimeout(resolve, 850));
-        return pollRenderedPreview(jobId, key, token);
+        return pollRenderedPreview(jobId, key, token, 0);
       }
       if (!ownsPreviewState) return;
       if (state.renderedPreview.stale || key !== previewProjectKey()) {
         restartSupersededPreview(key, token);
         return;
       }
-      const mediaResponse = await api(job.downloadUrl);
+      let mediaResponse;
+      try {
+        mediaResponse = await api(job.downloadUrl);
+      } catch (error) {
+        if (!isConnectionFailure(error) || state.renderedPreview.token !== token) throw error;
+        if (connectionAttempt >= PREVIEW_POLL_RETRY_DELAYS_MS.length) throw previewConnectionFailure();
+        showPreviewReconnect(connectionAttempt + 1, PREVIEW_POLL_RETRY_DELAYS_MS.length, "Hotové video čaká na obnovenie spojenia");
+        await waitForConnectionRetry(PREVIEW_POLL_RETRY_DELAYS_MS[connectionAttempt]);
+        return pollRenderedPreview(jobId, key, token, connectionAttempt + 1);
+      }
       const blob = await mediaResponse.blob();
       if (state.renderedPreview.token !== token) return;
       if (state.renderedPreview.stale || key !== previewProjectKey()) {
