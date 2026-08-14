@@ -81,6 +81,13 @@ test("framing popup offers static detail and dynamic speech-timed zoom", () => {
   assert.match(html, /framing:\s*\{\s*mode: state\.framingMode/);
 });
 
+test("failed video import closes framing and clears misleading preview progress", () => {
+  assert.match(html, /state\.framingChoiceConfirmed = false;/);
+  assert.match(html, /\$\("#framingModeDialog"\)\?\.open/);
+  assert.match(html, /setQuickPreviewProgress\(0, `Import videa zlyhal/);
+  assert.match(html, /\$\("#quickPreviewTiming"\)\.classList\.add\("hidden"\)/);
+});
+
 test("music stays at minus 22 dB and voice starts at plus eight dB", () => {
   assert.match(html, /duringSpeechDb:\s*-22/);
   assert.match(html, /id="musicDuring"[^>]+value="-22"/);

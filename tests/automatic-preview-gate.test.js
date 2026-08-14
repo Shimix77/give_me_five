@@ -84,3 +84,10 @@ test("drop validity is recalculated after final markers and the workflow retries
   assert.match(html, /applyAutomaticMusicDrop\("music-upload"\)/);
   assert.match(html, /setInterval\(\(\) => \{\s*renderQuickWorkflowPreparation\(\);\s*maybePrepareQuickPreview\(\);/);
 });
+
+test("music analysis finishes before the memory-heavy phrase model starts", () => {
+  assert.match(html, /function maybeStartTranscript\(\)/);
+  assert.match(html, /if \(state\.quickWorkflow\.musicImporting\) return/);
+  assert.match(html, /if \(!state\.music && !state\.quickWorkflow\.continueWithoutMusic\) return/);
+  assert.match(html, /renderQuickWorkflowPreparation\(\);\s*maybeStartTranscript\(\);\s*maybePrepareQuickPreview\(\);/);
+});

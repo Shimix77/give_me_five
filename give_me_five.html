@@ -3178,7 +3178,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.11.7";
+    const APP_VERSION = "3.11.8";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const PREVIEW_START_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000];
     const PREVIEW_POLL_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000, 5000, 5000, 5000];
@@ -4205,6 +4205,10 @@
           state.quickWorkflow.videoImporting = false;
           state.quickWorkflow.complete = true;
           clearInterval(state.quickWorkflow.timer);
+          state.framingChoiceConfirmed = false;
+          if ($("#framingModeDialog")?.open) $("#framingModeDialog").close();
+          setQuickPreviewProgress(0, `Import videa zlyhal · ${error.message}`);
+          $("#quickPreviewTiming").classList.add("hidden");
         } else {
           state.quickWorkflow.musicImporting = false;
           state.quickWorkflow.musicSelected = false;
@@ -4290,6 +4294,13 @@
       state.markerReviewIndex = -1;
       state.previewLoop = { mode: "all", enabled: false, customStart: null, customEnd: null };
       state.cleanVoice = { key: null, ready: false, loading: false, error: null };
+      state.transcript = {
+        status: "idle",
+        progress: 0,
+        message: "Čakám na dokončenie hudby alebo voľbu bez hudby…",
+        result: null,
+        jobId: null
+      };
       state.whooshPlayed = false;
       state.auditionDropTime = null;
       clearRenderedPreview({ force: true, preserveSource: true });
@@ -4343,7 +4354,7 @@
       renderAll();
       requestAnimationFrame(renderWaveforms);
       primeCleanVoice();
-      startTranscript();
+      maybeStartTranscript();
     }
 
     function loadMusicRecord(record) {
@@ -4392,6 +4403,7 @@
       renderAll();
       requestAnimationFrame(renderWaveforms);
       renderQuickWorkflowPreparation();
+      maybeStartTranscript();
       maybePrepareQuickPreview();
     }
 
@@ -6461,6 +6473,14 @@
         : "Prepis navrhol začiatok a koniec hovoreného slova.");
     }
 
+    function maybeStartTranscript() {
+      if (!state.video || !state.serverReady) return;
+      if (state.transcript.status === "running" || state.transcript.status === "completed") return;
+      if (state.quickWorkflow.musicImporting) return;
+      if (!state.music && !state.quickWorkflow.continueWithoutMusic) return;
+      startTranscript();
+    }
+
     async function startTranscript() {
       if (!state.video || !state.serverReady) return;
       const videoId = state.video.analysis.id;
@@ -7019,6 +7039,7 @@
         $("#skipMusicBtn").classList.add("hidden");
         recordUsage("music_skipped_for_first_preview");
         renderQuickWorkflowPreparation("Pokračujem bez hudby · čakám na dokončenie analýzy reči…");
+        maybeStartTranscript();
         maybePrepareQuickPreview();
         renderValidation();
       });

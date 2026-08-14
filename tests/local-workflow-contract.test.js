@@ -54,9 +54,10 @@ test("ending shortens naturally instead of freezing a frame", () => {
   assert.match(html, /Záber nikdy nezmrazí/);
 });
 
-test("phrase model is preloaded once and remains warm", () => {
+test("phrase model loads on first use and then remains warm", () => {
   assert.match(server, /let persistentTranscriptWorker = null/);
-  assert.match(server, /ensureTranscriptWorker\(\);/);
+  assert.match(server, /function runTranscriptWorker[\s\S]*?const worker = ensureTranscriptWorker\(\)/);
+  assert.doesNotMatch(server, /migrateLegacyTranscriptCache\(\);\s*ensureTranscriptWorker\(\)/);
   assert.match(worker, /let transcriberPromise = null/);
   assert.match(worker, /parentPort\.on\("message"/);
   assert.match(html, /id="clearAiCache"/);

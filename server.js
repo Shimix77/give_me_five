@@ -421,9 +421,15 @@ function reserveMediaUpload(request, response, next) {
     response.status(429).json({ error: "Iný upload ešte prebieha. Počkajte na jeho dokončenie." });
     return;
   }
-  if (availableUploadBytes() < MAX_UPLOAD_BYTES + MIN_FREE_UPLOAD_BYTES) {
+  // Reserve space for the file that is actually being uploaded. Requiring the
+  // full 1 GB global limit for every small MP3 made valid uploads fail on Macs
+  // that still had hundreds of megabytes available.
+  const requiredUploadBytes = declaredLength > 0
+    ? Math.min(declaredLength, MAX_UPLOAD_REQUEST_BYTES)
+    : MAX_UPLOAD_BYTES;
+  if (availableUploadBytes() < requiredUploadBytes + MIN_FREE_UPLOAD_BYTES) {
     response.setHeader("Retry-After", "60");
-    response.status(507).json({ error: "Server nemá dostatok voľného dočasného miesta pre ďalšie video." });
+    response.status(507).json({ error: "Na disku nie je dostatok voľného miesta pre vybrané médium a jeho spracovanie." });
     return;
   }
 
@@ -732,7 +738,7 @@ async function probeFile(filePath) {
     "-show_streams",
     "-of", "json",
     filePath
-  ], { timeoutMs: 30_000 });
+  ], { timeoutMs: 90_000 });
   const data = JSON.parse(stdout.toString("utf8"));
   const video = data.streams.find((stream) => stream.codec_type === "video");
   const audio = data.streams.find((stream) => stream.codec_type === "audio");
@@ -813,7 +819,7 @@ function percentile(values, ratio) {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor(sorted.length * ratio)))];
 }
 
-function analysePcm(buffer, sampleRate, duration) {
+function analyseWaveformPeaks(buffer, duration) {
   const sampleCount = Math.floor(buffer.byteLength / 2);
   const samples = new Int16Array(buffer.buffer, buffer.byteOffset, sampleCount);
   const peakBins = clamp(Math.round(duration * 55), 650, 3600);
@@ -829,21 +835,31 @@ function analysePcm(buffer, sampleRate, duration) {
     }
     peaks[index] = Number(peak.toFixed(4));
   }
+  return peaks;
+}
+
+function analysePcm(buffer, sampleRate, duration) {
+  const sampleCount = Math.floor(buffer.byteLength / 2);
+  const samples = new Int16Array(buffer.buffer, buffer.byteOffset, sampleCount);
+  const peaks = analyseWaveformPeaks(buffer, duration);
 
   const fftSize = 512;
   const hop = 400;
   const fft = new FFT(fftSize);
   const input = new Array(fftSize).fill(0);
   const output = fft.createComplexArray();
+  const hannWindow = Float64Array.from(
+    { length: fftSize },
+    (_value, index) => 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / (fftSize - 1))
+  );
   const windows = [];
   const dbValues = [];
 
   for (let offset = 0; offset + fftSize <= samples.length; offset += hop) {
     let sumSquares = 0;
     for (let index = 0; index < fftSize; index++) {
-      const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / (fftSize - 1));
       const sample = samples[offset + index] / 32768;
-      input[index] = sample * window;
+      input[index] = sample * hannWindow[index];
       sumSquares += sample * sample;
     }
     const rms = Math.sqrt(sumSquares / fftSize);
@@ -902,7 +918,7 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
   const sampleCount = Math.floor(buffer.byteLength / 2);
   const samples = new Int16Array(buffer.buffer, buffer.byteOffset, sampleCount);
   const fftSize = 1024;
-  const hop = 256;
+  const hop = 512;
   if (samples.length < fftSize * 3) {
     return { bpm: null, beatOffset: 0, beatInterval: null, candidates: [] };
   }
@@ -911,14 +927,17 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
   const input = new Array(fftSize).fill(0);
   const output = fft.createComplexArray();
   const previousSpectrum = new Float64Array(fftSize / 2);
+  const hannWindow = Float64Array.from(
+    { length: fftSize },
+    (_value, index) => 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / (fftSize - 1))
+  );
   const frames = [];
 
   for (let offset = 0; offset + fftSize <= samples.length; offset += hop) {
     let sumSquares = 0;
     for (let index = 0; index < fftSize; index++) {
-      const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * index) / (fftSize - 1));
       const sample = samples[offset + index] / 32768;
-      input[index] = sample * window;
+      input[index] = sample * hannWindow[index];
       sumSquares += sample * sample;
     }
     fft.realTransform(output, input);
@@ -962,20 +981,29 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
     };
   });
 
-  const normalise = (value, list) => {
-    const low = percentile(list, 0.35);
-    const high = percentile(list, 0.94);
+  const normalisationBounds = (list) => ({
+    low: percentile(list, 0.35),
+    high: percentile(list, 0.94)
+  });
+  const normalise = (value, bounds) => {
+    const { low, high } = bounds;
     return clamp((value - low) / Math.max(1e-6, high - low), 0, 1);
   };
   const fluxValues = values.map((item) => item.flux);
   const energyRises = values.map((item) => item.energyRise);
   const bassRises = values.map((item) => item.bassRise);
+  // Compute percentile bounds once. The previous implementation sorted all
+  // frames six times for every frame, turning a 3.5-minute song into roughly
+  // 90 seconds of synchronous JavaScript work and starving API polling.
+  const fluxBounds = normalisationBounds(fluxValues);
+  const energyBounds = normalisationBounds(energyRises);
+  const bassBounds = normalisationBounds(bassRises);
   const scored = values.map((item) => ({
     ...item,
     score:
-      normalise(item.flux, fluxValues) * 0.46 +
-      normalise(item.energyRise, energyRises) * 0.31 +
-      normalise(item.bassRise, bassRises) * 0.23
+      normalise(item.flux, fluxBounds) * 0.46 +
+      normalise(item.energyRise, energyBounds) * 0.31 +
+      normalise(item.bassRise, bassBounds) * 0.23
   }));
 
   const localRadius = Math.max(2, Math.round(framesPerSecond * 0.22));
@@ -1016,12 +1044,13 @@ function analyseMusicDrops(buffer, sampleRate, duration) {
   bestBpm = Number(bestBpm.toFixed(1));
   const beatInterval = 60 / bestBpm;
   const beatOffset = ((selected[0]?.time || 0) % beatInterval + beatInterval) % beatInterval;
+  const strongFluxThreshold = percentile(fluxValues, 0.88);
   const candidates = selected
     .sort((left, right) => right.score - left.score)
     .map((item, index) => {
       const reason = item.bassRise > item.energyRise * 1.25
         ? "silný nástup basov"
-        : item.flux > percentile(fluxValues, 0.88)
+        : item.flux > strongFluxThreshold
           ? "výrazný rytmický nástup"
           : "skok energie skladby";
       return {
@@ -1063,7 +1092,13 @@ async function analyseMedia(filePath, id, kind) {
     measureIntegratedLoudness(filePath),
     kind === "video" ? analyseVisualEntry(filePath, metadata.duration).catch(() => null) : null
   ]);
-  const pcmAnalysis = analysePcm(pcm, 8000, metadata.duration);
+  const pcmAnalysis = kind === "music"
+    ? {
+      peaks: analyseWaveformPeaks(pcm, metadata.duration),
+      activity: [],
+      noiseFloorDb: null
+    }
+    : analysePcm(pcm, 8000, metadata.duration);
   return {
     metadata,
     ...pcmAnalysis,
@@ -2534,7 +2569,6 @@ detectWhooshPeak().finally(() => {
   httpServer = app.listen(PORT, HOST, () => {
     purgeTemporaryWorkspace();
     migrateLegacyTranscriptCache();
-    ensureTranscriptWorker();
     const browserHost = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
     const url = `http://${browserHost}:${PORT}`;
     console.log(`Give Me Five editor is ready at ${url}`);
