@@ -110,6 +110,13 @@ test("vivid colour preset is the default for preview and quick export", () => {
   assert.match(html, /colour:\s*state\.colour/);
 });
 
+test("the packaged macOS app can save the exact rendered MP4 through its native file chooser", () => {
+  assert.match(html, /downloadUrl: job\.downloadUrl/);
+  assert.match(html, /window\.webkit\?\.messageHandlers\?\.gmfDownload/);
+  assert.match(html, /sessionId: MEDIA_SESSION_ID/);
+  assert.doesNotMatch(html, /id="clearAiCache"/);
+});
+
 test("a stale local server is identified instead of silently losing ETA data", () => {
   assert.match(html, /data\.version !== APP_VERSION/);
   assert.match(html, /Lokálny engine treba reštartovať/);

@@ -1,6 +1,7 @@
 node_modules/
 .pnpm-store/
 .gmf-work/
+dist/
 .env
 .env.*
 !.env.example

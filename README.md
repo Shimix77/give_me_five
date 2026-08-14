@@ -1,17 +1,25 @@
 # Give Me Five Video Editor
 
-Lokálna webová aplikácia pre Google Chrome. Video a audio zostávajú v počítači; natívny FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4.
+Lokálna macOS aplikácia. Video a audio zostávajú v počítači; pribalený FFmpeg vytvára waveformy, AI denoise, presný náhľad aj výsledný MP4. Chrome, Terminál ani systémovo nainštalovaný Node.js používateľ nepotrebuje.
 
 ## Spustenie
 
-1. Dvakrát kliknite na `Give Me Five Editor.app` (odporúčané).
-2. Ak macOS aplikáciu neotvorí, použite `start.command`; v jeho okne zostane zobrazená prípadná chyba.
-3. Pri prvom spustení počkajte na inštaláciu lokálnych závislostí.
-4. Chrome otvorí adresu `http://127.0.0.1:4173`.
+1. Otvorte `Give Me Five Editor.app` z priečinka Applications.
+2. Appka otvorí vlastné macOS okno; žiadne okno Chrome ani Terminálu sa nespustí.
+3. Pri prvom otvorení na inom Macu môže macOS zobraziť upozornenie na neoverenú aplikáciu. Je to očakávané, kým nebude aplikácia podpísaná plateným Apple Developer certifikátom.
+4. Pri exporte si vždy zvolíte priečinok v macOS dialógu; po uložení sa tento priečinok otvorí vo Finderi.
 
-Launcher nepotrebuje povolenie na ovládanie Terminálu cez AppleScript. Súbor `start.command` otvorí štandardným macOS spôsobom; ten spustí server, počká na jeho pripravenosť a až potom otvorí Chrome.
+Zdrojový projekt obsahuje aj `start.command` ako vývojový fallback. Nie je určený na bežné používanie výslednej aplikácie.
 
-Pri každom spustení sa porovná verzia projektu s verziou už bežiaceho lokálneho enginu. Ak po aktualizácii zostal otvorený starší server, launcher ho bezpečne ukončí a spustí aktuálny. Server zároveň posiela presne tú istú HTML verziu, ku ktorej vytvoril bezpečnostný CSP podpis, takže Chrome po aktualizácii nezablokuje uploadové tlačidlá.
+Natívna appka vždy vyberie vlastný voľný port na `127.0.0.1`. Prečo: nemôže sa omylom pripojiť k starej verzii editora ani k inej lokálnej aplikácii. Server zároveň posiela presne tú istú HTML verziu, ku ktorej vytvoril bezpečnostný CSP podpis, takže webové rozhranie po aktualizácii nezablokuje uploadové tlačidlá.
+
+## Vytvorenie distribuovateľnej aplikácie
+
+Na zostavenie spustite `scripts/build-macos-app.sh`. Vytvorí `dist/Give Me Five Editor.app` s vlastným oknom WebKit, Node runtime, FFmpeg, závislosťami a slovenským AI modelom. Výsledok má približne 2–2,5 GB, pretože model je pribalený a prvý prepis môže fungovať bez internetu.
+
+Skript sa spúšťa na Macu, pre ktorý sa tvorí balík: na Apple Silicon vytvorí Apple Silicon verziu, na Intel Macu Intel verziu. Tak sa zachová natívny výkon AI modelu a FFmpeg na oboch typoch Macov. `dist/` sa neukladá do GitHubu, pretože ide o veľký, opakovateľne vytvoriteľný binárny artefakt; zdroj a build postup sú v repozitári.
+
+Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom a architektúrou, napríklad `Give_Me_Five_Editor-3.12.0-arm64.dmg`.
 
 ## Súkromie a dočasné súbory
 
@@ -62,9 +70,9 @@ Výsledný mix sa predvolene cieli na **−11 LUFS** – profil „Hlasnejšie +
 
 AI denoise používa lokálny DeepFilterNet3. Pribalený nástroj beží bez odosielania zvuku na internet; licenčné informácie sú v `THIRD_PARTY_NOTICES.md`. Rovnaký DeepFilter výstup sa použije aj pred lokálnym slovenským prepisom a určovaním markerov.
 
-Prvý automatický návrh je už plnohodnotný MP4 v pôvodnom rozlíšení a FPS. Tlačidlo **Stiahnuť hotové MP4** použije presne tento súbor, takže export nespúšťa druhý rovnaký render. Počas spracovania Mac zostáva bdelý, zdrojové súbory sú uzamknuté proti náhodnej výmene a render možno bezpečne zrušiť. Po stiahnutí možno priamo z editora otvoriť priečinok Downloads.
+Prvý automatický návrh je už plnohodnotný MP4 v pôvodnom rozlíšení a FPS. Tlačidlo **Stiahnuť hotové MP4** použije presne tento súbor, takže export nespúšťa druhý rovnaký render. Počas spracovania Mac zostáva bdelý, zdrojové súbory sú uzamknuté proti náhodnej výmene a render možno bezpečne zrušiť. Natívna appka pri exporte vždy otvorí macOS dialóg na výber priečinka a po úspechu zobrazí presne vybrané miesto vo Finderi.
 
-Kontrola markerov zobrazuje pri každom bode stav **Spoľahlivé** alebo **Skontrolovať**. Každý bod sa dá prehrať raz od jednej sekundy pred po dve sekundy za markerom; prvá manuálna zmena uzamkne všetkých šesť bodov proti ďalšiemu automatickému posunu. Slovenský frázový model zostáva počas behu aplikácie zahriaty v pamäti. Jeho lokálnu cache možno vedome vymazať v diagnostike, no pri ďalšom videu sa bude musieť znovu stiahnuť.
+Kontrola markerov zobrazuje pri každom bode stav **Spoľahlivé** alebo **Skontrolovať**. Každý bod sa dá prehrať raz od jednej sekundy pred po dve sekundy za markerom; prvá manuálna zmena uzamkne všetkých šesť bodov proti ďalšiemu automatickému posunu. Slovenský frázový model zostáva počas behu aplikácie zahriaty v pamäti. Je súčasťou aplikácie a v rozhraní nie je tlačidlo na jeho mazanie, aby sa pri ďalšom videu nemuselo nič znova sťahovať.
 
 V prvom kroku sú importy videa, hudby a rozhodnutie „upraviť alebo exportovať“ kompaktne pod sebou vľavo; pravý portrétový prehrávač má výšku týchto troch blokov. Informácia o zarámovaní je nad obrazom, play, časová os a fullscreen pod ním. Kým upload, obrazová analýza, AI denoise/prepis, analýza hudby a presný render pokračujú, video je uzamknuté a na jeho prvom zábere vidno kruhové percentá aj aktuálnu činnosť. Jeden spoločný ukazovateľ zobrazuje uplynutý čas, odhad zostávajúceho času a približný čas dokončenia. Po prijatí FFmpeg progresu sa odhad priebežne spresňuje. Staršiu verziu bežiaceho servera editor rozpozná a namiesto nefunkčného spracovania vypíše presný pokyn na reštart. Základný profil bol zmeraný na kombinácii `18_A.MOV` a `Friend of God - Instrumental with lyrics.mp3`.
 

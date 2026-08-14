@@ -2962,7 +2962,6 @@
           <div class="usage-log-body">
             <p><span id="usageLogStatus">Zaznamenávam anonymné kroky tejto relácie.</span> Log neobsahuje video, zvuk, prepis, názvy súborov ani lokálne cesty.</p>
             <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end">
-              <button class="btn ghost" id="clearAiCache" type="button">Vymazať AI cache</button>
               <button class="btn ghost" id="exportUsageLog" type="button">↓ Exportovať JSON log</button>
             </div>
           </div>
@@ -3166,7 +3165,7 @@
         timer: null,
         complete: false
       },
-      renderedPreview: { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null }
+      renderedPreview: { url: null, blob: null, downloadUrl: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null }
     };
 
     const editHistory = {
@@ -3178,7 +3177,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.11.8";
+    const APP_VERSION = "3.12.0";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const PREVIEW_START_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000];
     const PREVIEW_POLL_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000, 5000, 5000, 5000];
@@ -4080,23 +4079,6 @@
       try {
         await api("/api/session/heartbeat", { method: "POST" });
       } catch {}
-    }
-
-    async function clearAiCache() {
-      if (!window.confirm("Vymazať lokálnu AI cache? Pri ďalšej analýze bude potrebné model znova načítať.")) return;
-      const button = $("#clearAiCache");
-      button.disabled = true;
-      button.textContent = "Vymazávam…";
-      try {
-        await api("/api/models/clear", { method: "POST" });
-        recordUsage("ai_cache_cleared");
-        toast("AI cache bola vymazaná. Médiá a nastavenia zostali zachované.");
-      } catch (error) {
-        toast(error.message);
-      } finally {
-        button.disabled = false;
-        button.textContent = "Vymazať AI cache";
-      }
     }
 
     function signalMediaSessionClosing() {
@@ -6574,7 +6556,7 @@
         return;
       }
       if (current?.url) URL.revokeObjectURL(current.url);
-      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
+      state.renderedPreview = { url: null, blob: null, downloadUrl: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       const sourceUrl = options.suppressSource
         ? null
         : state.video?.url || state.instantPreview.url;
@@ -6651,7 +6633,7 @@
       clearRenderedPreview();
       const key = previewProjectKey();
       const token = uid();
-      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
+      state.renderedPreview = { url: null, blob: null, downloadUrl: null, downloadName: null, jobId: null, rendering: true, ready: false, key, token, stale: false, timing: null, startedAtMs: performance.now() };
       const workflowElapsed = state.quickWorkflow.startedAtMs
         ? performance.now() - state.quickWorkflow.startedAtMs
         : 0;
@@ -6721,7 +6703,7 @@
 
     function restartSupersededPreview(key, token) {
       if (state.renderedPreview.token !== token) return;
-      state.renderedPreview = { url: null, blob: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
+      state.renderedPreview = { url: null, blob: null, downloadUrl: null, downloadName: null, jobId: null, rendering: false, ready: false, key: null, token: null, stale: false, timing: null };
       setQuickPreviewProgress(0, "Nastavenia sa zmenili · kliknite na Obnoviť presný náhľad.");
       $("#quickPreviewTiming").classList.add("hidden");
       $("#quickPreviewStatus").textContent = "Automatické nastavenia sa počas renderovania zmenili. Kliknite na Obnoviť presný náhľad.";
@@ -6816,6 +6798,7 @@
       state.renderedPreview = {
         url,
         blob,
+        downloadUrl: job.downloadUrl,
         downloadName: job.downloadName || editedExportFilename(),
         jobId: null,
         rendering: false,
@@ -6956,12 +6939,21 @@
       $("#quickExportBtn").setAttribute("aria-busy", "true");
       renderValidation();
       try {
-        const link = document.createElement("a");
-        link.href = current.url;
-        link.download = downloadName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        const nativeDownload = window.webkit?.messageHandlers?.gmfDownload;
+        if (nativeDownload && current.downloadUrl) {
+          nativeDownload.postMessage({
+            url: `${API_ORIGIN}${current.downloadUrl}`,
+            filename: downloadName,
+            sessionId: MEDIA_SESSION_ID
+          });
+        } else {
+          const link = document.createElement("a");
+          link.href = current.url;
+          link.download = downloadName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+        }
         state.exporting = false;
         $("#quickExportBtn").textContent = "Stiahnuť znova";
         $("#quickExportBtn").removeAttribute("aria-busy");
@@ -7659,7 +7651,6 @@
       $("#quickEditBtn").addEventListener("click", startManualWorkflow);
       $("#quickExportBtn").addEventListener("click", exportProject);
       $("#exportUsageLog").addEventListener("click", exportUsageLog);
-      $("#clearAiCache").addEventListener("click", clearAiCache);
       $("#openDownloadsBtn").addEventListener("click", async () => {
         try {
           await api("/api/open-downloads", { method: "POST" });

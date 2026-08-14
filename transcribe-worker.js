@@ -63,7 +63,9 @@ async function getTranscriber(config, jobId = null) {
     const { env, pipeline } = await import("@huggingface/transformers");
     env.cacheDir = config.modelDir;
     env.allowLocalModels = true;
-    env.allowRemoteModels = true;
+    // Distribuovaná macOS aplikácia obsahuje model priamo v balíku. Offline
+    // režim je zámerný: video a zvuk sa pri prepise nikdy neposielajú mimo Mac.
+    env.allowRemoteModels = false;
     const modelParts = new Map([
       ["encoder_model_q4.onnx", 0],
       ["decoder_model_merged_q4.onnx", 0]

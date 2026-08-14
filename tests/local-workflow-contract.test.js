@@ -60,7 +60,8 @@ test("phrase model loads on first use and then remains warm", () => {
   assert.doesNotMatch(server, /migrateLegacyTranscriptCache\(\);\s*ensureTranscriptWorker\(\)/);
   assert.match(worker, /let transcriberPromise = null/);
   assert.match(worker, /parentPort\.on\("message"/);
-  assert.match(html, /id="clearAiCache"/);
+  assert.doesNotMatch(html, /id="clearAiCache"/);
+  assert.match(server, /const MODEL_DIR/);
 });
 
 test("confirmed media limits and voice defaults are present", () => {
