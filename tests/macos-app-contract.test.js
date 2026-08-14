@@ -42,6 +42,7 @@ test("packaging includes the local runtime, editor engine and bundled Slovak mod
   assert.match(build, /MacOSX15\.4\.sdk/);
   assert.match(build, /GMF_CREATE_DMG/);
   assert.match(build, /hdiutil create/);
+  assert.match(build, /Finder-kompatibilný ZIP/);
   assert.match(readme, /Chrome, Terminál ani systémovo nainštalovaný Node\.js používateľ nepotrebuje/);
   assert.match(worker, /env\.allowRemoteModels = false/);
 });

@@ -78,6 +78,12 @@ echo "Prečo je appka väčšia: obsahuje lokálny video engine a slovenský AI 
 if [ "${GMF_CREATE_DMG:-0}" = "1" ]; then
   APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$CONTENTS/Info.plist")"
   DMG_PATH="$BUILD_DIR/Give_Me_Five_Editor-${APP_VERSION}-${MACOS_ARCH}.dmg"
-  /usr/bin/hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -format UDZO -ov "$DMG_PATH"
-  echo "DMG je pripravené: $DMG_PATH"
+  if /usr/bin/hdiutil create -volname "$APP_NAME" -srcfolder "$APP_DIR" -format UDZO -ov "$DMG_PATH"; then
+    echo "DMG je pripravené: $DMG_PATH"
+  else
+    ZIP_PATH="$BUILD_DIR/Give_Me_Five_Editor-${APP_VERSION}-${MACOS_ARCH}.zip"
+    /bin/rm -f "$DMG_PATH" "$ZIP_PATH"
+    /usr/bin/ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$ZIP_PATH"
+    echo "DMG sa na tomto macOS prostredí nepodarilo vytvoriť; pripravil som Finder-kompatibilný ZIP: $ZIP_PATH"
+  fi
 fi
