@@ -16,6 +16,29 @@ private enum EditorError: LocalizedError {
     }
 }
 
+// Krátky lokálny záznam štartu. Ak macOS nedovolí aplikácii spustiť engine,
+// používateľ ani test nezostanú bez konkrétneho dôvodu zlyhania.
+private func bootLog(_ message: String) {
+    let line = "[Give Me Five Editor] \(message)\n"
+    NSLog("%@", line)
+    let logDirectory = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Logs/Give Me Five Editor", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+        let logURL = logDirectory.appendingPathComponent("launch.log")
+        if FileManager.default.fileExists(atPath: logURL.path) {
+            let handle = try FileHandle(forWritingTo: logURL)
+            try handle.seekToEnd()
+            try handle.write(contentsOf: Data(line.utf8))
+            try handle.close()
+        } else {
+            try Data(line.utf8).write(to: logURL, options: .atomic)
+        }
+    } catch {
+        NSLog("Give Me Five Editor nemôže zapísať štartovací log: %@", error.localizedDescription)
+    }
+}
+
 private final class LocalEngine {
     private var process: Process?
     private var outputPipe: Pipe?
@@ -54,6 +77,7 @@ private final class LocalEngine {
 
     func start() throws {
         guard process == nil else { return }
+        bootLog("Spúšťam lokálny engine na porte \(port).")
         guard let resources = Bundle.main.resourceURL else {
             throw EditorError.missingResource("Resources")
         }
@@ -95,6 +119,7 @@ private final class LocalEngine {
         try engine.run()
         process = engine
         outputPipe = pipe
+        bootLog("Lokálny engine bol spustený.")
     }
 
     func waitUntilReady(completion: @escaping (Result<URL, Error>) -> Void) {
@@ -127,7 +152,6 @@ private final class LocalEngine {
     }
 }
 
-@main
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKScriptMessageHandler {
     private let engine = LocalEngine()
     private var window: NSWindow!
@@ -135,6 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
     private var allowClose = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        bootLog("applicationDidFinishLaunching bolo zavolané.")
         NSApp.setActivationPolicy(.regular)
         NSApp.applicationIconImage = makeAppIcon()
         buildWindow()
@@ -144,10 +169,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
             engine.waitUntilReady { [weak self] result in
                 switch result {
                 case .success(let url): self?.webView.load(URLRequest(url: url))
-                case .failure(let error): self?.showFatalError(error)
+                case .failure(let error):
+                    bootLog("Lokálny engine neodpovedal: \(error.localizedDescription)")
+                    self?.showFatalError(error)
                 }
             }
         } catch {
+            bootLog("Štart lokálneho enginu zlyhal: \(error.localizedDescription)")
             showFatalError(error)
         }
     }
@@ -325,5 +353,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: "Rozumiem")
         alert.runModal()
+    }
+}
+
+// `@main` na triede implementujúcej NSApplicationDelegate síce vytvorí
+// macOS proces, ale pri samostatne kompilovanej AppKit aplikácii nemusí túto
+// triedu priradiť ako delegate. Výsledok bol prázdne okno bez lokálneho
+// Node/FFmpeg enginu. Vlastný vstupný bod lifecycle nastaví jednoznačne.
+@main
+struct GiveMeFiveEditorMain {
+    static func main() {
+        bootLog("Vstupný bod aplikácie bol spustený.")
+        let application = NSApplication.shared
+        let delegate = AppDelegate()
+        application.delegate = delegate
+        bootLog("AppDelegate je priradený, vstupujem do AppKit event loop.")
+        application.run()
+        withExtendedLifetime(delegate) {}
     }
 }

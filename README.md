@@ -19,7 +19,7 @@ Na zostavenie spustite `scripts/build-macos-app.sh`. Vytvorí `dist/Give Me Five
 
 Skript sa spúšťa na Macu, pre ktorý sa tvorí balík: na Apple Silicon vytvorí Apple Silicon verziu, na Intel Macu Intel verziu. Tak sa zachová natívny výkon AI modelu a FFmpeg na oboch typoch Macov. `dist/` sa neukladá do GitHubu, pretože ide o veľký, opakovateľne vytvoriteľný binárny artefakt; zdroj a build postup sú v repozitári.
 
-Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom a architektúrou, napríklad `Give_Me_Five_Editor-3.12.0-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
+Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom a architektúrou, napríklad `Give_Me_Five_Editor-3.12.1-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
 
 ## Súkromie a dočasné súbory
 

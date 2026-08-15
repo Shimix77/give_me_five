@@ -19,6 +19,14 @@ test("native macOS wrapper launches a private local engine instead of Chrome or 
   assert.doesNotMatch(nativeApp, /Google Chrome|Terminal/);
 });
 
+test("native wrapper explicitly enters the AppKit lifecycle and installs its delegate", () => {
+  assert.match(nativeApp, /struct GiveMeFiveEditorMain/);
+  assert.match(nativeApp, /let application = NSApplication\.shared/);
+  assert.match(nativeApp, /application\.delegate = delegate/);
+  assert.match(nativeApp, /application\.run\(\)/);
+  assert.match(nativeApp, /applicationDidFinishLaunching bolo zavolané/);
+});
+
 test("native wrapper explains destructive close and asks before cancelling an active render", () => {
   assert.match(nativeApp, /Prebieha spracovanie videa/);
   assert.match(nativeApp, /dočasné video aj hudba sa vymažú/);
