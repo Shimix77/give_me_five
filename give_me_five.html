@@ -3181,7 +3181,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.13.0";
+    const APP_VERSION = "3.13.1";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const PREVIEW_START_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000];
     const PREVIEW_POLL_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000, 5000, 5000, 5000];
@@ -4121,7 +4121,7 @@
       try {
         const response = await api("/api/health");
         const data = await response.json();
-        if (!data.ffmpeg || !data.ffprobe || !data.whoosh || !data.deepfilter) throw new Error("Chýba lokálny FFmpeg, whoosh alebo DeepFilterNet3.");
+        if (!data.ffmpeg || !data.mediaProbe || !data.whoosh || !data.deepfilter) throw new Error("Chýba lokálny FFmpeg, kontrola média, whoosh alebo DeepFilterNet3.");
         if (data.version !== APP_VERSION) {
           const mismatch = new Error("Beží staršia verzia lokálneho enginu.");
           mismatch.code = "version-mismatch";

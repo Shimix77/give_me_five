@@ -9,6 +9,7 @@ const root = path.join(__dirname, "..");
 const build = fs.readFileSync(path.join(root, "scripts", "build-macos-app.sh"), "utf8");
 const nativeApp = fs.readFileSync(path.join(root, "macos-app", "GiveMeFiveEditorApp.swift"), "utf8");
 const server = fs.readFileSync(path.join(root, "server.js"), "utf8");
+const editorHtml = fs.readFileSync(path.join(root, "give_me_five.html"), "utf8");
 const packageJson = fs.readFileSync(path.join(root, "package.json"), "utf8");
 const plist = fs.readFileSync(path.join(root, "macos-app", "Info.plist"), "utf8");
 
@@ -27,6 +28,8 @@ test("distribution is explicitly Apple-Silicon-only and has no x86 media probe",
   assert.doesNotMatch(server, /Google Chrome|GMF_OPEN_BROWSER/);
   assert.match(server, /Pôvodný samostatný probe nástroj nebol natívny pre Apple Silicon/);
   assert.doesNotMatch(packageJson, /ffprobe-static/);
+  assert.match(editorHtml, /data\.mediaProbe/);
+  assert.doesNotMatch(editorHtml, /data\.ffprobe/);
 });
 
 test("obsolete Chrome and Terminal launchers are not part of the native project", () => {
