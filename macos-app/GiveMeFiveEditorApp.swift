@@ -296,6 +296,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         download.delegate = self
     }
 
+    // WKWebView v samostatnej macOS aplikácii neotvorí výber súboru sám.
+    // Webové tlačidlá „Vybrať video“ a „Vybrať audio“ preto odovzdáme
+    // natívnemu NSOpenPanelu. Súbor ostáva lokálny; aplikácia dostane iba
+    // adresu, ktorú následne odošle svojmu loopback enginu.
+    func webView(
+        _ webView: WKWebView,
+        runOpenPanelWith parameters: WKOpenPanelParameters,
+        initiatedByFrame frame: WKFrameInfo,
+        completionHandler: @escaping ([URL]?) -> Void
+    ) {
+        let panel = NSOpenPanel()
+        // WKOpenPanelParameters v podporovaných macOS SDK neposkytuje HTML
+        // `accept` hodnotu. Zobrazíme preto iba povolené média; konkrétne
+        // tlačidlo v editore následne bezpečne určí, či je to video alebo hudba.
+        panel.title = "Vyberte video alebo hudbu"
+        panel.message = "Video: MOV alebo MP4, maximálne 90 sekúnd. Hudba: MP3, WAV alebo M4A."
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.resolvesAliases = true
+        panel.allowedContentTypes = [.movie, .audio]
+
+        guard panel.runModal() == .OK else {
+            completionHandler(nil)
+            return
+        }
+        completionHandler(panel.urls)
+    }
+
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "gmfDownload",
               let body = message.body as? [String: Any],

@@ -43,6 +43,14 @@ test("native export always asks for a destination and opens the chosen folder", 
   assert.match(nativeApp, /X-GMF-Session/);
 });
 
+test("native wrapper opens the macOS file picker for video and music inputs", () => {
+  assert.match(nativeApp, /runOpenPanelWith parameters: WKOpenPanelParameters/);
+  assert.match(nativeApp, /NSOpenPanel/);
+  assert.match(nativeApp, /Vyberte video alebo hudbu/);
+  assert.match(nativeApp, /panel\.allowedContentTypes = \[\.movie, \.audio\]/);
+  assert.match(nativeApp, /completionHandler\(panel\.urls\)/);
+});
+
 test("packaging includes the local runtime, editor engine and bundled Slovak model", () => {
   assert.match(build, /APP_NAME="Give Me Five Editor"/);
   assert.match(build, /APP_DIR="\$BUILD_DIR\/\$APP_NAME\.app"/);
