@@ -25,6 +25,8 @@ test("native wrapper explicitly enters the AppKit lifecycle and installs its del
   assert.match(nativeApp, /application\.delegate = delegate/);
   assert.match(nativeApp, /application\.run\(\)/);
   assert.match(nativeApp, /applicationDidFinishLaunching bolo zavolané/);
+  assert.match(nativeApp, /engine\.log/);
+  assert.match(nativeApp, /terminationHandler/);
 });
 
 test("native wrapper explains destructive close and asks before cancelling an active render", () => {

@@ -41,7 +41,7 @@ private func bootLog(_ message: String) {
 
 private final class LocalEngine {
     private var process: Process?
-    private var outputPipe: Pipe?
+    private var outputHandle: FileHandle?
     private let port: Int
 
     init() {
@@ -100,6 +100,14 @@ private final class LocalEngine {
         let workURL = appSupport.appendingPathComponent("work", isDirectory: true)
         try FileManager.default.createDirectory(at: workURL, withIntermediateDirectories: true)
 
+        let logDirectory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/Give Me Five Editor", isDirectory: true)
+        try FileManager.default.createDirectory(at: logDirectory, withIntermediateDirectories: true)
+        let engineLogURL = logDirectory.appendingPathComponent("engine.log")
+        FileManager.default.createFile(atPath: engineLogURL.path, contents: nil)
+        let logHandle = try FileHandle(forWritingTo: engineLogURL)
+        try logHandle.seekToEnd()
+
         let engine = Process()
         engine.executableURL = nodeURL
         engine.arguments = [serverURL.path]
@@ -113,12 +121,14 @@ private final class LocalEngine {
         environment["GMF_FFPROBE_PATH"] = engineURL.appendingPathComponent("bin/ffprobe").path
         engine.environment = environment
 
-        let pipe = Pipe()
-        engine.standardOutput = pipe
-        engine.standardError = pipe
+        engine.standardOutput = logHandle
+        engine.standardError = logHandle
+        engine.terminationHandler = { finishedEngine in
+            bootLog("Lokálny engine sa ukončil (dôvod \(finishedEngine.terminationReason.rawValue), stav \(finishedEngine.terminationStatus)). Podrobnosti: \(engineLogURL.path)")
+        }
         try engine.run()
         process = engine
-        outputPipe = pipe
+        outputHandle = logHandle
         bootLog("Lokálny engine bol spustený.")
     }
 
@@ -148,7 +158,8 @@ private final class LocalEngine {
         guard let process else { return }
         if process.isRunning { process.terminate() }
         self.process = nil
-        outputPipe = nil
+        try? outputHandle?.close()
+        outputHandle = nil
     }
 }
 
