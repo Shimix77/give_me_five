@@ -73,6 +73,7 @@ done
   --exclude '@img+sharp-linuxmusl-*' \
   --exclude '@img+sharp-win32-*' \
   --exclude '@img+sharp-darwin-x64*' \
+  --exclude '@img+sharp-libvips-darwin-x64*' \
   --exclude '@img+sharp-libvips-linux*' \
   --exclude '*/onnxruntime-node/bin/napi-v6/linux/***' \
   --exclude '*/onnxruntime-node/bin/napi-v6/win32/***' \

@@ -18,6 +18,7 @@ test("distribution is explicitly Apple-Silicon-only and has no x86 media probe",
   assert.match(build, /Node runtime nie je Apple-Silicon/);
   assert.doesNotMatch(build, /FFPROBE_BIN/);
   assert.match(build, /@img\+sharp-darwin-x64/);
+  assert.match(build, /@img\+sharp-libvips-darwin-x64/);
   assert.match(build, /onnxruntime-node\/bin\/napi-v6\/linux/);
   assert.match(build, /onnxruntime-node\/bin\/napi-v6\/win32/);
   assert.match(plist, /LSRequiresNativeExecution/);
