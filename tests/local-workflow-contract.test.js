@@ -60,8 +60,18 @@ test("phrase model loads on first use and then remains warm", () => {
   assert.doesNotMatch(server, /migrateLegacyTranscriptCache\(\);\s*ensureTranscriptWorker\(\)/);
   assert.match(worker, /let transcriberPromise = null/);
   assert.match(worker, /parentPort\.on\("message"/);
+  assert.match(worker, /function localTranscriptModelPath\(config\)/);
+  assert.match(worker, /preprocessor_config\.json/);
+  assert.match(worker, /const modelSource = localTranscriptModelPath\(config\)/);
+  assert.match(worker, /pipeline\("automatic-speech-recognition", modelSource/);
   assert.doesNotMatch(html, /id="clearAiCache"/);
   assert.match(server, /const MODEL_DIR/);
+});
+
+test("a failed optional transcript does not trap the automatic proposal", () => {
+  assert.match(html, /state\.transcript\.status !== "completed" && state\.transcript\.status !== "failed"/);
+  assert.match(html, /Prepis zlyhal · pokračujem s bezpečnými predvolenými značkami/);
+  assert.match(html, /recordUsage\("transcript_failed", \{ reason: "worker_error" \}\);\s*maybePrepareQuickPreview\(\);/);
 });
 
 test("confirmed media limits and voice defaults are present", () => {

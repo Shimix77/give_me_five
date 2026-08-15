@@ -2,6 +2,7 @@
 
 const { spawn } = require("child_process");
 const { parentPort, workerData } = require("worker_threads");
+const fs = require("fs");
 const path = require("path");
 
 const bundledFfmpegPath = require("ffmpeg-static");
@@ -57,6 +58,17 @@ function report(jobId, progress, message) {
 
 let transcriberPromise = null;
 
+function localTranscriptModelPath(config) {
+  const repositoryPath = path.join(config.modelDir, "Xurify", "whisper-large-v3-turbo-sk-onnx");
+  const revisionPath = path.join(repositoryPath, config.modelRevision || "");
+  // Cache Transformers.js ukladá tento model pod jeho nemenný revision hash.
+  // Ak sa pošle iba názov repozitára, načíta sa malý root config bez
+  // preprocessor_config.json a Whisper nemá feature extractor.
+  if (fs.existsSync(path.join(revisionPath, "preprocessor_config.json"))) return revisionPath;
+  if (fs.existsSync(path.join(repositoryPath, "preprocessor_config.json"))) return repositoryPath;
+  return "Xurify/whisper-large-v3-turbo-sk-onnx";
+}
+
 async function getTranscriber(config, jobId = null) {
   if (transcriberPromise) return transcriberPromise;
   transcriberPromise = (async () => {
@@ -71,9 +83,10 @@ async function getTranscriber(config, jobId = null) {
       ["decoder_model_merged_q4.onnx", 0]
     ]);
     let lastModelPercent = -1;
-    const transcriber = await pipeline("automatic-speech-recognition", "Xurify/whisper-large-v3-turbo-sk-onnx", {
+    const modelSource = localTranscriptModelPath(config);
+    const transcriber = await pipeline("automatic-speech-recognition", modelSource, {
       dtype: "q4",
-      revision: config.modelRevision,
+      ...(modelSource.startsWith("Xurify/") ? { revision: config.modelRevision } : {}),
       progress_callback: (progress) => {
         if (progress.status === "progress" && Number.isFinite(progress.progress)) {
           const fileName = String(progress.file || "").split("/").at(-1);

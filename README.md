@@ -17,7 +17,7 @@ Na zostavenie spustite `scripts/build-macos-app.sh`. Vytvorí `dist/Give Me Five
 
 Editor podporuje iba Apple Silicon (M1, M2, M3 alebo M4) a macOS 13+. Build skript zámerne odmietne Intel Mac aj x86 Node runtime. Tak sú Swift obal, Node, FFmpeg aj AI nástroje natívne arm64 a aplikácia nevyžaduje Rosettu. `dist/` sa neukladá do GitHubu, pretože ide o veľký, opakovateľne vytvoriteľný binárny artefakt; zdroj a build postup sú v repozitári.
 
-Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom, napríklad `Give_Me_Five_Editor-3.13.1-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
+Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom, napríklad `Give_Me_Five_Editor-3.13.2-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
 
 ## Súkromie a dočasné súbory
 
