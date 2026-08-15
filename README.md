@@ -9,17 +9,15 @@ Lokálna macOS aplikácia. Video a audio zostávajú v počítači; pribalený F
 3. Pri prvom otvorení na inom Macu môže macOS zobraziť upozornenie na neoverenú aplikáciu. Je to očakávané, kým nebude aplikácia podpísaná plateným Apple Developer certifikátom.
 4. Pri exporte si vždy zvolíte priečinok v macOS dialógu; po uložení sa tento priečinok otvorí vo Finderi.
 
-Zdrojový projekt obsahuje aj `start.command` ako vývojový fallback. Nie je určený na bežné používanie výslednej aplikácie.
-
 Natívna appka vždy vyberie vlastný voľný port na `127.0.0.1`. Prečo: nemôže sa omylom pripojiť k starej verzii editora ani k inej lokálnej aplikácii. Server zároveň posiela presne tú istú HTML verziu, ku ktorej vytvoril bezpečnostný CSP podpis, takže webové rozhranie po aktualizácii nezablokuje uploadové tlačidlá.
 
 ## Vytvorenie distribuovateľnej aplikácie
 
 Na zostavenie spustite `scripts/build-macos-app.sh`. Vytvorí `dist/Give Me Five Editor.app` s vlastným oknom WebKit, Node runtime, FFmpeg, závislosťami a slovenským AI modelom. Výsledok má približne 2–2,5 GB, pretože model je pribalený a prvý prepis môže fungovať bez internetu.
 
-Skript sa spúšťa na Macu, pre ktorý sa tvorí balík: na Apple Silicon vytvorí Apple Silicon verziu, na Intel Macu Intel verziu. Tak sa zachová natívny výkon AI modelu a FFmpeg na oboch typoch Macov. `dist/` sa neukladá do GitHubu, pretože ide o veľký, opakovateľne vytvoriteľný binárny artefakt; zdroj a build postup sú v repozitári.
+Editor podporuje iba Apple Silicon (M1, M2, M3 alebo M4) a macOS 13+. Build skript zámerne odmietne Intel Mac aj x86 Node runtime. Tak sú Swift obal, Node, FFmpeg aj AI nástroje natívne arm64 a aplikácia nevyžaduje Rosettu. `dist/` sa neukladá do GitHubu, pretože ide o veľký, opakovateľne vytvoriteľný binárny artefakt; zdroj a build postup sú v repozitári.
 
-Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom a architektúrou, napríklad `Give_Me_Five_Editor-3.12.2-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
+Pre prenos na iný Mac spustite `GMF_CREATE_DMG=1 scripts/build-macos-app.sh`. V `dist/` vznikne `.dmg` s názvom, napríklad `Give_Me_Five_Editor-3.13.0-arm64.dmg`. Ak macOS nepovolí vytvorenie obrazu disku, skript automaticky vytvorí Finder-kompatibilný `.zip` s rovnakou aplikáciou.
 
 ## Súkromie a dočasné súbory
 

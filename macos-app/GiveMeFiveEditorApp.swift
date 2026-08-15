@@ -113,12 +113,10 @@ private final class LocalEngine {
         engine.arguments = [serverURL.path]
         engine.currentDirectoryURL = engineURL
         var environment = ProcessInfo.processInfo.environment
-        environment["GMF_OPEN_BROWSER"] = "0"
         environment["GMF_PORT"] = String(port)
         environment["GMF_WORK_DIR"] = workURL.path
         environment["GMF_MODEL_DIR"] = resources.appendingPathComponent("models", isDirectory: true).path
         environment["GMF_FFMPEG_PATH"] = engineURL.appendingPathComponent("bin/ffmpeg").path
-        environment["GMF_FFPROBE_PATH"] = engineURL.appendingPathComponent("bin/ffprobe").path
         engine.environment = environment
 
         engine.standardOutput = logHandle

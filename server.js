@@ -10,7 +10,6 @@ const { Worker } = require("worker_threads");
 const express = require("express");
 const FFT = require("fft.js");
 const bundledFfmpegPath = require("ffmpeg-static");
-const bundledFfprobePath = require("ffprobe-static").path;
 const multer = require("multer");
 const APP_VERSION = require("./package.json").version;
 const {
@@ -49,9 +48,6 @@ const DEEPFILTER_PATH = process.env.GMF_DEEPFILTER_PATH
 const ffmpegPath = process.env.GMF_FFMPEG_PATH
   ? path.resolve(process.env.GMF_FFMPEG_PATH)
   : bundledFfmpegPath;
-const ffprobePath = process.env.GMF_FFPROBE_PATH
-  ? path.resolve(process.env.GMF_FFPROBE_PATH)
-  : bundledFfprobePath;
 const PORT = Number(process.env.PORT || process.env.GMF_PORT || 4173);
 const MAX_UPLOAD_BYTES = Math.max(
   25 * 1024 * 1024,
@@ -575,7 +571,7 @@ app.get("/api/health", (request, response) => {
     version: APP_VERSION,
     engine: "native-ffmpeg",
     ffmpeg: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
-    ffprobe: Boolean(ffprobePath && fs.existsSync(ffprobePath)),
+    mediaProbe: Boolean(ffmpegPath && fs.existsSync(ffmpegPath)),
     whoosh: fs.existsSync(WHOOSH_PATH),
     whooshPeakSeconds,
     rnnoise: fs.existsSync(RNNOISE_MODEL_PATH),
@@ -755,37 +751,48 @@ function runProcess(executable, args, options = {}) {
 }
 
 async function probeFile(filePath) {
-  const { stdout } = await runProcess(ffprobePath, [
-    "-v", "error",
-    "-show_format",
-    "-show_streams",
-    "-of", "json",
-    filePath
-  ], { timeoutMs: 90_000 });
-  const data = JSON.parse(stdout.toString("utf8"));
-  const video = data.streams.find((stream) => stream.codec_type === "video");
-  const audio = data.streams.find((stream) => stream.codec_type === "audio");
-  const duration = numeric(data.format?.duration, numeric(video?.duration, numeric(audio?.duration)));
-  let fps = 0;
-  const rate = video?.avg_frame_rate || video?.r_frame_rate || "";
-  if (rate.includes("/")) {
-    const [numerator, denominator] = rate.split("/").map(Number);
-    if (denominator) fps = numerator / denominator;
-  } else {
-    fps = numeric(rate);
+  // Pôvodný samostatný probe nástroj nebol natívny pre Apple Silicon.
+  // Hlavičku média preto čítame priamo cez už potrebný arm64 FFmpeg. Príkaz
+  // bez výstupu iba načíta kontajner a streamy, neprejde celé video.
+  let stderr = "";
+  try {
+    await runProcess(ffmpegPath, ["-hide_banner", "-i", filePath], { timeoutMs: 90_000 });
+  } catch (error) {
+    stderr = error.result?.stderr || error.message || "";
   }
+  if (!/Input #\d+/.test(stderr)) {
+    throw new Error("Nepodarilo sa prečítať technické údaje média.");
+  }
+  const streamLines = stderr.split("\n").filter((line) => /Stream #\d+:\d+/.test(line));
+  const videoLine = streamLines.find((line) => /Video:/.test(line)) || "";
+  const audioLine = streamLines.find((line) => /Audio:/.test(line)) || "";
+  const durationMatch = stderr.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  const duration = durationMatch
+    ? Number(durationMatch[1]) * 3600 + Number(durationMatch[2]) * 60 + Number(durationMatch[3])
+    : 0;
+  const dimensions = videoLine.match(/(\d{2,5})x(\d{2,5})/);
+  const fpsMatch = videoLine.match(/(\d+(?:\.\d+)?)\s*fps/) || videoLine.match(/(\d+(?:\.\d+)?)\s*tbr/);
+  const bitrateMatch = stderr.match(/bitrate:\s*(\d+(?:\.\d+)?)\s*kb\/s/);
+  const sampleRateMatch = audioLine.match(/(\d{4,6})\s*Hz/);
+  const channels = /\bmono\b/.test(audioLine)
+    ? 1
+    : /\bstereo\b/.test(audioLine)
+      ? 2
+      : numeric(audioLine.match(/\b(\d+)\s+channels\b/)?.[1]);
+  const videoCodec = videoLine.match(/Video:\s*([^,\s]+)/)?.[1] || null;
+  const audioCodec = audioLine.match(/Audio:\s*([^,\s]+)/)?.[1] || null;
   return {
     duration,
-    width: numeric(video?.width),
-    height: numeric(video?.height),
-    fps: fps || 30,
-    videoCodec: video?.codec_name || null,
-    audioCodec: audio?.codec_name || null,
-    sampleRate: numeric(audio?.sample_rate),
-    channels: numeric(audio?.channels),
-    bitrate: numeric(data.format?.bit_rate),
-    hasVideo: Boolean(video),
-    hasAudio: Boolean(audio)
+    width: numeric(dimensions?.[1]),
+    height: numeric(dimensions?.[2]),
+    fps: numeric(fpsMatch?.[1], 30),
+    videoCodec,
+    audioCodec,
+    sampleRate: numeric(sampleRateMatch?.[1]),
+    channels,
+    bitrate: bitrateMatch ? Math.round(Number(bitrateMatch[1]) * 1000) : 0,
+    hasVideo: Boolean(videoLine),
+    hasAudio: Boolean(audioLine)
   };
 }
 
@@ -2592,20 +2599,6 @@ detectWhooshPeak().finally(() => {
   httpServer = app.listen(PORT, HOST, () => {
     purgeTemporaryWorkspace();
     migrateLegacyTranscriptCache();
-    const browserHost = HOST === "0.0.0.0" ? "127.0.0.1" : HOST;
-    const url = `http://${browserHost}:${PORT}`;
-    console.log(`Give Me Five editor is ready at ${url}`);
-    if (process.env.GMF_OPEN_BROWSER === "1") {
-      const chromePath = "/Applications/Google Chrome.app";
-      const useChrome = process.platform === "darwin" && fs.existsSync(chromePath);
-      const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
-      const args = process.platform === "win32"
-        ? ["/c", "start", "", url]
-        : useChrome
-          ? ["-a", "Google Chrome", url]
-          : [url];
-      const child = spawn(opener, args, { detached: true, stdio: "ignore" });
-      child.unref();
-    }
+    console.log(`Give Me Five editor is ready at http://${HOST}:${PORT}`);
   });
 });

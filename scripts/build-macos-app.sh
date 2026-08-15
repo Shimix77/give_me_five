@@ -18,11 +18,19 @@ NODE_BIN="${GMF_NODE_RUNTIME:-$(command -v node || true)}"
 MODEL_SOURCE="${GMF_MODEL_SOURCE:-$PROJECT_DIR/.gmf-work/models}"
 MACOS_SDK="${GMF_MACOS_SDK:-/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk}"
 MACOS_ARCH="$(uname -m)"
-SWIFT_TARGET="${MACOS_ARCH}-apple-macosx13.0"
+SWIFT_TARGET="arm64-apple-macosx13.0"
 SWIFT_MODULE_CACHE="${GMF_SWIFT_MODULE_CACHE:-/private/tmp/give-me-five-swift-module-cache}"
 
+if [ "$MACOS_ARCH" != "arm64" ]; then
+  echo "Give Me Five Editor podporuje iba Apple Silicon (M1/M2/M3/M4). Tento Mac má architektúru $MACOS_ARCH." >&2
+  exit 1
+fi
 if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
   echo "Chýba Node runtime pre zostavenie aplikácie. Nastavte GMF_NODE_RUNTIME na binárku Node.js 24." >&2
+  exit 1
+fi
+if ! /usr/bin/file "$NODE_BIN" | /usr/bin/grep -q "arm64"; then
+  echo "Zvolený Node runtime nie je Apple-Silicon (arm64), preto by výsledná aplikácia nebola natívna." >&2
   exit 1
 fi
 if [ ! -d "$PROJECT_DIR/node_modules" ]; then
@@ -56,20 +64,28 @@ for source in server.js transcribe-worker.js render-timing.js marker-analysis.js
 done
 /usr/bin/ditto "$PROJECT_DIR/assets" "$ENGINE/assets"
 /usr/bin/ditto "$PROJECT_DIR/tools" "$ENGINE/tools"
-# Finder metadata nie je runtime súčasť aplikácie a pri kopírovaní môže mať
-# zamknuté atribúty. Rsync ho preto vynechá, bez zásahu do zdrojového projektu.
-/usr/bin/rsync -a --exclude '.DS_Store' "$PROJECT_DIR/node_modules/" "$ENGINE/node_modules/"
+# Finder metadata ani binárky pre Linux, Windows a Intel Mac nie sú runtime
+# súčasťou Apple-Silicon aplikácie. Ich vynechanie šetrí miesto a zaručí, že
+# výsledný balík neobsahuje nepoužiteľné cudzie architektúry.
+/usr/bin/rsync -a \
+  --exclude '.DS_Store' \
+  --exclude '@img+sharp-linux-*' \
+  --exclude '@img+sharp-linuxmusl-*' \
+  --exclude '@img+sharp-win32-*' \
+  --exclude '@img+sharp-darwin-x64*' \
+  --exclude '@img+sharp-libvips-linux*' \
+  --exclude '*/onnxruntime-node/bin/napi-v6/linux/***' \
+  --exclude '*/onnxruntime-node/bin/napi-v6/win32/***' \
+  "$PROJECT_DIR/node_modules/" "$ENGINE/node_modules/"
 /usr/bin/ditto "$MODEL_SOURCE" "$RESOURCES/models"
 
 FFMPEG_BIN="$PROJECT_DIR/node_modules/ffmpeg-static/ffmpeg"
-FFPROBE_BIN="$PROJECT_DIR/node_modules/ffprobe-static/bin/darwin/$(uname -m)/ffprobe"
-if [ ! -x "$FFMPEG_BIN" ] || [ ! -x "$FFPROBE_BIN" ]; then
-  echo "Chýba FFmpeg alebo FFprobe pre architektúru $(uname -m)." >&2
+if [ ! -x "$FFMPEG_BIN" ] || ! /usr/bin/file "$FFMPEG_BIN" | /usr/bin/grep -q "arm64"; then
+  echo "Chýba natívny Apple-Silicon FFmpeg." >&2
   exit 1
 fi
 /usr/bin/ditto "$FFMPEG_BIN" "$ENGINE/bin/ffmpeg"
-/usr/bin/ditto "$FFPROBE_BIN" "$ENGINE/bin/ffprobe"
-/bin/chmod +x "$ENGINE/bin/ffmpeg" "$ENGINE/bin/ffprobe"
+/bin/chmod +x "$ENGINE/bin/ffmpeg"
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist" >/dev/null
 echo "Hotovo: $APP_DIR"
