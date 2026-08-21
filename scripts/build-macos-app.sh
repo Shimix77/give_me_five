@@ -78,6 +78,10 @@ done
   --exclude '*/onnxruntime-node/bin/napi-v6/linux/***' \
   --exclude '*/onnxruntime-node/bin/napi-v6/win32/***' \
   "$PROJECT_DIR/node_modules/" "$ENGINE/node_modules/"
+# pnpm vytvára odkazy aj na platformové balíky, ktoré sme zámerne
+# vynechali. Odstránenie iba týchto neplatných odkazov je potrebné, aby
+# codesign vedel bezpečne prejsť celým Apple-Silicon balíkom.
+/usr/bin/find "$ENGINE/node_modules" -type l ! -exec test -e {} \; -delete
 /usr/bin/ditto "$MODEL_SOURCE" "$RESOURCES/models"
 
 FFMPEG_BIN="$PROJECT_DIR/node_modules/ffmpeg-static/ffmpeg"
@@ -89,6 +93,11 @@ fi
 /bin/chmod +x "$ENGINE/bin/ffmpeg"
 
 /usr/bin/plutil -lint "$CONTENTS/Info.plist" >/dev/null
+# Swift linker vytvorí iba podpis hlavnej binárky. Po doplnení Resources
+# by preto macOS videl neúplnú resource envelope a mohol aplikáciu po prenose
+# odmietnuť. Lokálny ad-hoc podpis uzavrie celý offline balík bez Apple účtu.
+/usr/bin/codesign --force --deep --sign - --timestamp=none "$APP_DIR"
+/usr/bin/codesign --verify --deep --strict "$APP_DIR"
 echo "Hotovo: $APP_DIR"
 echo "Prečo je appka väčšia: obsahuje lokálny video engine a slovenský AI model, aby videá neopúšťali Mac."
 

@@ -2409,12 +2409,10 @@ app.get("/api/jobs/:id/download", (request, response) => {
     if (!response.headersSent) response.status(500).json({ error: "The exported file could not be read." });
     else response.destroy(error);
   });
-  response.on("finish", () => {
-    setTimeout(() => {
-      safeRemove(job.outputPath);
-      jobs.delete(job.id);
-    }, 2000);
-  });
+  // Keep the finished proposal for the lifetime of this private session. The
+  // browser first reads this same MP4 for playback and the native wrapper may
+  // download it later, after the user has reviewed the result. cleanupSession
+  // removes both the job and its file when the app closes or the session expires.
   stream.pipe(response);
 });
 

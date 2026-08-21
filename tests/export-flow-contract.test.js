@@ -27,4 +27,7 @@ test("the final-quality automatic proposal is reused for download", () => {
   assert.match(html, /quickPreviewStatus"\)\.textContent = `Export zlyhal:/);
   assert.match(html, /quickExportBtn"\)\.textContent = "Skúsiť export znova"/);
   assert.match(html, /quickExportBtn"\)\.removeAttribute\("aria-busy"\)/);
+  assert.match(html, /new URL\(current\.downloadUrl, location\.origin\)\.href/);
+  assert.doesNotMatch(server, /response\.on\("finish", \(\) => \{\s*setTimeout\(\(\) => \{\s*safeRemove\(job\.outputPath\)/);
+  assert.match(server, /cleanupSession\s*\([^)]*\)[\s\S]*safeRemove\(job\.outputPath\)/);
 });

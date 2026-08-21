@@ -2747,7 +2747,7 @@
             </div>
             <button class="btn ghost" id="toggleAdvancedColour" type="button" style="width:100%;margin-bottom:8px">Pokročilé nastavenia</button>
             <div class="advanced-colour">
-            <div class="mode-switch hidden" aria-hidden="true">
+            <div class="mode-switch">
               <button type="button" id="colourAll" class="active">Všetky farby</button>
               <button type="button" id="colourIndividual">Jednotlivé RGB</button>
             </div>
@@ -3181,7 +3181,7 @@
       restoring: false
     };
 
-    const APP_VERSION = "3.13.2";
+    const APP_VERSION = "3.13.3";
     const QUICK_PREVIEW_SCRUBBER_STEPS = 1000;
     const PREVIEW_START_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000];
     const PREVIEW_POLL_RETRY_DELAYS_MS = [800, 1200, 2000, 3000, 5000, 5000, 5000, 5000];
@@ -6976,7 +6976,7 @@
         const nativeDownload = window.webkit?.messageHandlers?.gmfDownload;
         if (nativeDownload && current.downloadUrl) {
           nativeDownload.postMessage({
-            url: `${API_ORIGIN}${current.downloadUrl}`,
+            url: new URL(current.downloadUrl, location.origin).href,
             filename: downloadName,
             sessionId: MEDIA_SESSION_ID
           });

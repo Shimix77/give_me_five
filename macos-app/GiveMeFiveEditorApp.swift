@@ -327,8 +327,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         guard message.name == "gmfDownload",
               let body = message.body as? [String: Any],
               let address = body["url"] as? String,
-              let url = URL(string: address)
-        else { return }
+              let url = resolvedEngineURL(address)
+        else {
+            presentDownloadError(NSError(
+                domain: "GiveMeFiveEditor.Download",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Editor dostal neplatnú adresu hotového videa."]
+            ))
+            return
+        }
+        let suggestedName = body["filename"] as? String ?? "give_me_five_edited.mp4"
         var request = URLRequest(url: url)
         if let sessionId = body["sessionId"] as? String {
             request.setValue(sessionId, forHTTPHeaderField: "X-GMF-Session")
@@ -340,11 +348,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
                 return
             }
             guard let temporaryURL else { return }
-            DispatchQueue.main.async {
-                self.saveDownloadedFile(temporaryURL, suggestedName: body["filename"] as? String ?? "give_me_five_edited.mp4")
+            // URLSession owns `temporaryURL` only for the duration of this
+            // completion handler. Preserve the file before returning; otherwise
+            // dispatching the save panel to the main queue can race its removal.
+            let stagedURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("give-me-five-\(UUID().uuidString).mp4")
+            do {
+                try FileManager.default.moveItem(at: temporaryURL, to: stagedURL)
+                DispatchQueue.main.async {
+                    self.saveDownloadedFile(stagedURL, suggestedName: suggestedName)
+                }
+            } catch {
+                DispatchQueue.main.async { self.presentDownloadError(error) }
             }
         }
         task.resume()
+    }
+
+    private func resolvedEngineURL(_ address: String) -> URL? {
+        guard let resolved = URL(string: address, relativeTo: engine.baseURL)?.absoluteURL,
+              resolved.scheme == engine.baseURL.scheme,
+              resolved.host == engine.baseURL.host,
+              resolved.port == engine.baseURL.port
+        else { return nil }
+        return resolved
     }
 
     func download(_ download: WKDownload, decideDestinationUsing response: URLResponse, suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
@@ -372,7 +399,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNa
         panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [.mpeg4Movie]
-        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        guard panel.runModal() == .OK, let destination = panel.url else {
+            try? FileManager.default.removeItem(at: temporaryURL)
+            return
+        }
         do {
             try FileManager.default.removeItem(at: destination)
         } catch { }

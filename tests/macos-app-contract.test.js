@@ -41,6 +41,10 @@ test("native export always asks for a destination and opens the chosen folder", 
   assert.match(nativeApp, /Kam uložiť hotové MP4/);
   assert.match(nativeApp, /activateFileViewerSelecting/);
   assert.match(nativeApp, /X-GMF-Session/);
+  assert.match(nativeApp, /URL\(string: address, relativeTo: engine\.baseURL\)\?\.absoluteURL/);
+  assert.match(nativeApp, /resolved\.host == engine\.baseURL\.host/);
+  assert.match(nativeApp, /FileManager\.default\.temporaryDirectory/);
+  assert.match(nativeApp, /try FileManager\.default\.moveItem\(at: temporaryURL, to: stagedURL\)/);
 });
 
 test("native wrapper opens the macOS file picker for video and music inputs", () => {
@@ -56,8 +60,11 @@ test("packaging includes the local runtime, editor engine and bundled Slovak mod
   assert.match(build, /APP_DIR="\$BUILD_DIR\/\$APP_NAME\.app"/);
   assert.match(build, /"\$ENGINE\/runtime\/node"/);
   assert.match(build, /node_modules/);
+  assert.match(build, /find "\$ENGINE\/node_modules" -type l ! -exec test -e \{\} \\; -delete/);
   assert.match(build, /"\$RESOURCES\/models"/);
   assert.match(build, /MacOSX15\.4\.sdk/);
+  assert.match(build, /codesign --force --deep --sign - --timestamp=none "\$APP_DIR"/);
+  assert.match(build, /codesign --verify --deep --strict "\$APP_DIR"/);
   assert.match(build, /GMF_CREATE_DMG/);
   assert.match(build, /hdiutil create/);
   assert.match(build, /Finder-kompatibilný ZIP/);

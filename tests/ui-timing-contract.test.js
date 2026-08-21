@@ -110,6 +110,12 @@ test("vivid colour preset is the default for preview and quick export", () => {
   assert.match(html, /colour:\s*state\.colour/);
 });
 
+test("advanced colour controls expose both global and individual RGB modes", () => {
+  assert.match(html, /<div class="mode-switch">\s*<button type="button" id="colourAll"/);
+  assert.match(html, /id="colourIndividual">Jednotlivé RGB<\/button>/);
+  assert.doesNotMatch(html, /class="mode-switch hidden"/);
+});
+
 test("the packaged macOS app can save the exact rendered MP4 through its native file chooser", () => {
   assert.match(html, /downloadUrl: job\.downloadUrl/);
   assert.match(html, /window\.webkit\?\.messageHandlers\?\.gmfDownload/);
